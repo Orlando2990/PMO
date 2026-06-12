@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMO Control - Administración</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-slate-50/50 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div class="max-w-7xl mx-auto px-6 h-18 flex justify-between items-center">
+            <div onclick="window.location.href='index.html'"
+                title="Regresar al Inicio"
+                class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition">
+                <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-md">
+                    <i data-lucide="layers" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900">PMO Control Admin</h1>
+                    <p class="text-xs text-slate-500 font-medium flex items-center gap-1">
+                        <span class="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        Catálogos y exportación de matriz
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="window.location.href='index_dashboard_ejecutivo.html'" class="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Volver al Dashboard
+                </button>
+            </div>
+        </div>
+    </header>
+    <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        <section id="panel-admin" class="bg-white p-6 rounded-3xl border border-slate-200 shadow-lg space-y-6">
+            <div class="flex justify-between items-start border-b border-slate-100 pb-5">
+                <div class="flex items-start gap-3">
+                    <div class="bg-blue-50 text-blue-600 p-2 rounded-xl">
+                        <i data-lucide="shield-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-black text-slate-900">
+                            Consola de Administración de Catálogos
+                        </h2>
+                        <p class="text-sm text-slate-500 mt-1">
+                            Administra los catálogos del sistema. Agrega, consulta y elimina elementos.
+                        </p>
+                    </div>
+                </div>
+
+                
+            </div>
+
+            <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5"></div>
+
+            <div class="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 flex items-center gap-4">
+                <div class="bg-blue-600 text-white p-2 rounded-xl">
+                    <i data-lucide="info" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-bold text-blue-700">Información</p>
+                    <p class="text-xs text-blue-700/80 mt-1">
+                        Los elementos de estos catálogos se utilizan en todo el sistema. Elimina con precaución.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="exportarExcel()"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    Exportar Matriz Excel
+                </button>
+            </div>
+        </section>
+    </main>
+    <script>
+        const SUPABASE_URL = "https://cogiyoslnmtnnvnohoht.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZ2l5b3Nsbm10bm52bm9ob2h0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDI5NDQsImV4cCI6MjA5NjY3ODk0NH0.sikG94OCbALSbHRN8-jc2W_QOgP15qXn4VwsqhOK7lM";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let todosLosProyectos = [];
+        let cats = { sprints: [], sistemas: [], areas: [], clasificaciones: [], estatus: [] };
+
+        async function cargarTodo() {
+            await cargarCatalogos();
+            await cargarProyectos();
+        }
+
+        async function cargarCatalogos() {
+            try {
+                const s = await _supabase.from('cat_sprints').select('*').order('nombre');
+                const sis = await _supabase.from('cat_sistemas').select('*').order('nombre');
+                const a = await _supabase.from('cat_areas').select('*').order('nombre');
+                const c = await _supabase.from('cat_clasificaciones').select('*').order('nombre');
+                const est = await _supabase.from('cat_estatus').select('*').order('nombre');
+
+                cats.sprints = s.data || [];
+                cats.sistemas = sis.data || [];
+                cats.areas = a.data || [];
+                cats.clasificaciones = c.data || [];
+                cats.estatus = est.data || [];
+
+                renderizarListasAdmin();
+            } catch (err) { console.error('Error al cargar catálogos:', err.message); }
+        }
+
+        async function cargarProyectos() {
+            try {
+                const { data, error } = await _supabase
+                    .from('pmo_projects')
+                    .select('*, cat_sprints(nombre), cat_sistemas(nombre), cat_areas(nombre), cat_clasificaciones(nombre)')
+                    .order('created_at', { ascending: false });
+                if (error) throw error;
+                todosLosProyectos = data || [];
+            } catch (err) { console.error('Error al cargar proyectos:', err.message); }
+        }
+
+        function renderizarListasAdmin() {
+            const contenedor = document.getElementById('contenedor-catalogos-admin');
+            if (!contenedor) return;
+
+            const catalogos = [
+                { titulo: 'Sprints', tipo: 'sprints', tabla: 'cat_sprints', inputId: 'add-sprint-name', placeholder: 'Nuevo Sprint', icono: 'calendar-days', color: 'blue', items: cats.sprints },
+                { titulo: 'Sistemas', tipo: 'sistemas', tabla: 'cat_sistemas', inputId: 'add-sistema-name', placeholder: 'Nuevo Sistema', icono: 'monitor', color: 'cyan', items: cats.sistemas },
+                { titulo: 'Áreas', tipo: 'areas', tabla: 'cat_areas', inputId: 'add-area-name', placeholder: 'Nueva Área', icono: 'building-2', color: 'violet', items: cats.areas },
+                { titulo: 'Clasificación', tipo: 'clasificaciones', tabla: 'cat_clasificaciones', inputId: 'add-clasif-name', placeholder: 'Tipo', icono: 'tag', color: 'orange', items: cats.clasificaciones },
+                { titulo: 'Catálogo Estatus', tipo: 'estatus', tabla: 'cat_estatus', inputId: 'add-estatus-name', placeholder: 'Nombre (Ej: QA)', icono: 'badge-check', color: 'emerald', items: cats.estatus }
+            ];
+
+            const colorClasses = {
+                blue: { border: 'border-t-blue-500', text: 'text-blue-700', bg: 'bg-blue-50', button: 'bg-blue-600 hover:bg-blue-700', badge: 'bg-blue-100 text-blue-700' },
+                cyan: { border: 'border-t-cyan-500', text: 'text-cyan-700', bg: 'bg-cyan-50', button: 'bg-cyan-600 hover:bg-cyan-700', badge: 'bg-cyan-100 text-cyan-700' },
+                violet: { border: 'border-t-violet-500', text: 'text-violet-700', bg: 'bg-violet-50', button: 'bg-violet-600 hover:bg-violet-700', badge: 'bg-violet-100 text-violet-700' },
+                orange: { border: 'border-t-orange-500', text: 'text-orange-700', bg: 'bg-orange-50', button: 'bg-orange-600 hover:bg-orange-700', badge: 'bg-orange-100 text-orange-700' },
+                emerald: { border: 'border-t-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', button: 'bg-emerald-600 hover:bg-emerald-700', badge: 'bg-emerald-100 text-emerald-700' }
+            };
+
+            contenedor.innerHTML = catalogos.map(cat => {
+                const colores = colorClasses[cat.color];
+                const total = cat.items.length;
+                const lista = total > 0 ? cat.items.map(item => `
+                    <li class="flex justify-between items-center gap-3 px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition">
+                        <span class="text-xs font-bold text-slate-700 truncate">${item.nombre}</span>
+                        <button onclick="eliminarCatalogo('${cat.tabla}', '${item.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition cursor-pointer" title="Eliminar"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    </li>`).join('') : `<li class="p-4 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">Sin elementos registrados</li>`;
+
+                return `
+                    <div class="bg-white rounded-2xl border border-slate-200 border-t-4 ${colores.border} shadow-sm p-4 flex flex-col min-h-[390px]">
+                        <div class="flex justify-between items-center mb-5">
+                            <div class="flex items-center gap-2"><div class="${colores.bg} ${colores.text} p-2 rounded-xl"><i data-lucide="${cat.icono}" class="w-5 h-5"></i></div><h3 class="text-sm font-black uppercase tracking-wide ${colores.text}">${cat.titulo}</h3></div>
+                            <span class="text-xs font-black px-2.5 py-1 rounded-full ${colores.badge}">${total}</span>
+                        </div>
+                        <div class="flex gap-2 mb-4">
+                            <input type="text" id="${cat.inputId}" placeholder="${cat.placeholder}" class="min-w-0 flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-100">
+                            <button onclick="crearCatalogo('${cat.tipo}')" class="${colores.button} text-white px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-4 h-4"></i>Añadir</button>
+                        </div>
+                        <ul class="space-y-2 overflow-y-auto pr-1 max-h-60 flex-1">${lista}</ul>
+                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs font-bold text-slate-500"><div class="${colores.bg} ${colores.text} p-1.5 rounded-lg"><i data-lucide="database" class="w-3.5 h-3.5"></i></div>Total: ${total} elemento${total === 1 ? '' : 's'}</div>
+                    </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        async function crearCatalogo(tipo) {
+            const inpId = tipo === 'sprints' ? 'add-sprint-name' : (tipo === 'sistemas' ? 'add-sistema-name' : (tipo === 'areas' ? 'add-area-name' : (tipo === 'clasificaciones' ? 'add-clasif-name' : 'add-estatus-name')));
+            const tabla = tipo === 'sprints' ? 'cat_sprints' : (tipo === 'sistemas' ? 'cat_sistemas' : (tipo === 'areas' ? 'cat_areas' : (tipo === 'clasificaciones' ? 'cat_clasificaciones' : 'cat_estatus')));
+            const inputElement = document.getElementById(inpId);
+            const valor = inputElement?.value.trim();
+            if (!valor) return;
+            try {
+                const { error } = await _supabase.from(tabla).insert([{ nombre: valor }]);
+                if (error) throw error;
+                inputElement.value = '';
+                await cargarCatalogos();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function eliminarCatalogo(tabla, id) {
+            if (confirm('¿Seguro de eliminar este elemento?')) {
+                try {
+                    const { error } = await _supabase.from(tabla).delete().eq('id', id);
+                    if (error) throw error;
+                    await cargarCatalogos();
+                } catch (e) { alert('Error: ' + e.message); }
+            }
+        }
+
+        function calcularDiasEntreFechas(inicio, fin) {
+            if (!inicio || !fin) return '';
+            const diff = Math.ceil((new Date(fin + 'T00:00:00') - new Date(inicio + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+            return diff >= 0 ? diff : '';
+        }
+
+        function calcularAtraso(fechaCompromiso, fechaReal) {
+            if (!fechaCompromiso || !fechaReal) return '';
+            const dias = Math.ceil((new Date(fechaReal + 'T00:00:00') - new Date(fechaCompromiso + 'T00:00:00')) / (1000 * 60 * 60 * 24));
+            if (dias > 0) return `${dias} día${dias === 1 ? '' : 's'} atraso`;
+            if (dias === 0) return 'En tiempo';
+            const adelanto = Math.abs(dias);
+            return `${adelanto} día${adelanto === 1 ? '' : 's'} adelantado`;
+        }
+
+        function exportarExcel() {
+            if (typeof XLSX === 'undefined') { alert('No se pudo cargar la librería de Excel.'); return; }
+            const datos = todosLosProyectos.map(p => ({
+                'ID REQ': p.id_req || '',
+                'Nombre RQM': p.nombre_rqm || '',
+                'Sprint': p.cat_sprints?.nombre || '',
+                'Sistema': p.cat_sistemas?.nombre || '',
+                'Prioridad': p.prioridad || '',
+                'Clasificación': p.cat_clasificaciones?.nombre || '',
+                'Responsable Sistemas': p.responsable_sistemas || '',
+                'Asignado A': p.asignado_a || '',
+                'Área Solicitante': p.cat_areas?.nombre || '',
+                'Solicitante': p.solicitante || '',
+                'Estatus': p.estatus || '',
+                'Ingreso RQM a PMO': p.fecha_ingreso_pmo || '',
+                'Compromiso Desarrollo': p.fecha_desarrollo || '',
+                'Inicio Desarrollo': p.fecha_inicio_desarrollo || '',
+                'Fin Desarrollo': p.fecha_fin_desarrollo || '',
+                'Días Desarrollo': calcularDiasEntreFechas(p.fecha_inicio_desarrollo, p.fecha_fin_desarrollo) || '',
+                'Atraso Desarrollo': calcularAtraso(p.fecha_desarrollo, p.fecha_fin_desarrollo) || '',
+                'Compromiso QA': p.fecha_qa || '',
+                'Inicio QA': p.fecha_inicio_qa || '',
+                'Fin QA': p.fecha_fin_qa || '',
+                'Días QA': calcularDiasEntreFechas(p.fecha_inicio_qa, p.fecha_fin_qa) || '',
+                'Atraso QA': calcularAtraso(p.fecha_qa, p.fecha_fin_qa) || '',
+                'Compromiso UAT': p.fecha_uat || '',
+                'Inicio UAT': p.fecha_inicio_uat || '',
+                'Fin UAT': p.fecha_fin_uat || '',
+                'Días UAT': calcularDiasEntreFechas(p.fecha_inicio_uat, p.fecha_fin_uat) || '',
+                'Atraso UAT': calcularAtraso(p.fecha_uat, p.fecha_fin_uat) || '',
+                'Liberación Producción': p.fecha_liberacion_prod || '',
+                'Descripción': p.descripcion || '',
+                'Comentarios': p.comentarios || ''
+            }));
+            const ws = XLSX.utils.json_to_sheet(datos);
+            const wb = XLSX.utils.book_new();
+            ws['!cols'] = Object.keys(datos[0] || { 'PMO Control': '' }).map(() => ({ wch: 22 }));
+            XLSX.utils.book_append_sheet(wb, ws, 'PMO Control');
+            XLSX.writeFile(wb, `PMO_Control_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        }
+
+        window.onload = () => { cargarTodo(); lucide.createIcons(); };
+    </script>
+</body>
+</html>

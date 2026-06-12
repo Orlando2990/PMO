@@ -34,6 +34,16 @@
                     <i data-lucide="settings" class="w-4 h-4"></i>
                     Dashboard
                 </button>
+                
+                <div class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
+                    <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
+                    <span id="usuario-sesion" class="text-xs font-bold text-slate-600 max-w-[180px] truncate">Usuario</span>
+                </div>
+                <button onclick="cerrarSesion()"
+                    class="border border-rose-200 hover:bg-rose-50 text-rose-600 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    Salir
+                </button>
                 <button onclick="abrirModalNuevo()"
                     class="group bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 transition-all cursor-pointer">
                     <i data-lucide="plus" class="w-4 h-4 transition-transform group-hover:rotate-90"></i>
@@ -441,7 +451,31 @@
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZ2l5b3Nsbm10bm52bm9ob2h0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDI5NDQsImV4cCI6MjA5NjY3ODk0NH0.sikG94OCbALSbHRN8-jc2W_QOgP15qXn4VwsqhOK7lM";
 
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        let todosLosProyectos = [];
+        
+
+        async function verificarSesion() {
+            const { data: { session }, error } = await _supabase.auth.getSession();
+
+            if (error || !session) {
+                window.location.href = 'login.html';
+                return null;
+            }
+
+            return session.user;
+        }
+
+        async function cerrarSesion() {
+            await _supabase.auth.signOut();
+            window.location.href = 'login.html';
+        }
+
+        function pintarUsuarioSesion(user) {
+            const el = document.getElementById('usuario-sesion');
+            if (!el || !user) return;
+            el.textContent = user.email || 'Usuario';
+        }
+
+let todosLosProyectos = [];
         let conteoCambiosGlobal = {};
         let proyectoSeleccionadoOriginal = null;
         let cats = { sprints: [], sistemas: [], areas: [], clasificaciones: [], estatus: [] };
@@ -1652,7 +1686,13 @@
             XLSX.writeFile(wb, `PMO_Control_${new Date().toISOString().slice(0, 10)}.xlsx`);
         }
 
-        window.onload = () => { cargarTodo(); };
+        window.onload = async () => {
+            const user = await verificarSesion();
+            if (!user) return;
+            pintarUsuarioSesion(user);
+            await cargarTodo();
+            lucide.createIcons();
+        };
     </script>
 </body>
 

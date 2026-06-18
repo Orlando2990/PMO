@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMO Control - Importar Matriz PMO</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+
+<body class="bg-slate-50/70 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
+
+    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100">
+        <div class="max-w-7xl mx-auto px-6 h-18 flex justify-between items-center">
+            <div onclick="window.location.href='index.html'"
+                title="Regresar al Inicio"
+                class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition">
+                <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-md">
+                    <i data-lucide="file-up" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900">Importar Matriz PMO</h1>
+                    <p class="text-xs text-slate-500 font-medium flex items-center gap-1">
+                        <span class="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                        Carga controlada de requerimientos desde Excel
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button onclick="window.location.href='index.html'"
+                    class="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                    Matriz
+                </button>
+
+                <button onclick="window.location.href='seguimiento_ejecutivo.html'"
+                    class="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="route" class="w-4 h-4"></i>
+                    Seguimiento
+                </button>
+
+                <div class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
+                    <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
+                    <span id="usuario-sesion" class="text-xs font-bold text-slate-600 max-w-[180px] truncate">Usuario</span>
+                </div>
+
+                <button onclick="cerrarSesion()"
+                    class="border border-rose-200 hover:bg-rose-50 text-rose-600 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    Salir
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        <section class="relative overflow-hidden bg-slate-950 rounded-3xl border border-slate-800 shadow-xl p-7 text-white">
+            <div class="absolute -top-24 -right-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-24 -left-24 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl"></div>
+
+            <div class="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+                <div>
+                    <div class="inline-flex items-center gap-2 bg-blue-400/10 border border-blue-300/20 text-blue-200 rounded-full px-4 py-2 text-xs font-black mb-4">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        Importación segura
+                    </div>
+                    <h2 class="text-3xl lg:text-4xl font-black tracking-tight">Importador de Matriz PMO</h2>
+                    <p class="text-white/60 text-sm mt-2 max-w-2xl">
+                        Selecciona tu Excel, valida catálogos, revisa la vista previa y después importa a Supabase.
+                    </p>
+                </div>
+
+                <div class="bg-white/10 border border-white/10 rounded-2xl p-4 min-w-[260px]">
+                    <p class="text-xs font-bold text-white/60 uppercase">Formato esperado</p>
+                    <p class="text-sm font-black mt-1">MATRIZ DE PROYECTOS</p>
+                    <p class="text-xs text-white/50 mt-1">También acepta el archivo limpio PMO_CONTROL_IMPORT_PREP.xlsx</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div class="lg:col-span-1 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-5">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">1. Seleccionar archivo</h3>
+                    <p class="text-xs text-slate-500 mt-1">Carga tu matriz Excel en formato .xlsx o .xls.</p>
+                </div>
+
+                <label class="block cursor-pointer border-2 border-dashed border-blue-200 bg-blue-50/50 hover:bg-blue-50 rounded-3xl p-6 text-center transition">
+                    <input id="import-file-input" type="file" accept=".xlsx,.xls" class="hidden" onchange="procesarArchivoImportacion(event)">
+                    <div class="mx-auto w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-md">
+                        <i data-lucide="upload" class="w-7 h-7"></i>
+                    </div>
+                    <p class="text-sm font-black text-slate-900 mt-4">Seleccionar Excel</p>
+                    <p id="import-file-name" class="text-xs text-slate-500 mt-1">Ningún archivo seleccionado</p>
+                </label>
+
+                <div id="import-status" class="hidden rounded-2xl p-4 text-sm font-bold"></div>
+
+                <button id="btn-importar-matriz"
+                    onclick="importarMatrizPMO()"
+                    disabled
+                    class="w-full bg-slate-300 text-white rounded-2xl px-5 py-3 font-black text-sm transition disabled:cursor-not-allowed">
+                    Importar a PMO Control
+                </button>
+            </div>
+
+            <div class="lg:col-span-2 grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Registros</p>
+                    <h3 id="import-kpi-total" class="text-3xl font-black text-slate-900 mt-2">0</h3>
+                </div>
+                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Válidos</p>
+                    <h3 id="import-kpi-validos" class="text-3xl font-black text-emerald-600 mt-2">0</h3>
+                </div>
+                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Errores</p>
+                    <h3 id="import-kpi-errores" class="text-3xl font-black text-rose-600 mt-2">0</h3>
+                </div>
+                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Historial</p>
+                    <h3 id="import-kpi-historial" class="text-3xl font-black text-blue-600 mt-2">0</h3>
+                </div>
+
+                <div class="sm:col-span-4 bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
+                    <h3 class="text-lg font-black text-slate-900">2. Validaciones</h3>
+                    <p class="text-xs text-slate-500 mt-1">Si hay errores de catálogo, corrígelos antes de importar.</p>
+                    <div id="import-validaciones" class="mt-4 space-y-2 text-xs font-bold text-slate-600">
+                        <div class="text-slate-400 italic">Aún no hay archivo cargado.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-black text-slate-900">3. Vista previa</h3>
+                    <p class="text-xs text-slate-500 mt-1">Se muestran los primeros 20 registros detectados.</p>
+                </div>
+                <span id="import-preview-count" class="text-xs font-black bg-slate-100 text-slate-600 rounded-full px-3 py-1.5">0 registros</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 text-slate-400 text-[11px] uppercase font-black">
+                        <tr>
+                            <th class="p-4">RQM</th>
+                            <th class="p-4">Nombre</th>
+                            <th class="p-4">Sprint</th>
+                            <th class="p-4">Sistema</th>
+                            <th class="p-4">Área</th>
+                            <th class="p-4">Prioridad</th>
+                            <th class="p-4">Estatus</th>
+                            <th class="p-4">Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="import-preview-body" class="divide-y divide-slate-100">
+                        <tr>
+                            <td colspan="8" class="p-8 text-center text-slate-400">Carga un archivo para ver la vista previa.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="js/pmo-app.js"></script>
+</body>
+
+</html>

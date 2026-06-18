@@ -30,6 +30,13 @@
                 <button onclick="window.location.href='index_dashboard_ejecutivo.html'" class="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
                     <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Volver al Dashboard
                 </button>
+                
+                <button onclick="window.location.href='importar_matriz.html'"
+                    class="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="file-up" class="w-4 h-4"></i>
+                    Importar
+                </button>
+
                 <div class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
                     <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
                     <span id="usuario-sesion" class="text-xs font-bold text-slate-600 max-w-[180px] truncate">Usuario</span>
@@ -114,7 +121,7 @@
         }
 
 let todosLosProyectos = [];
-        let cats = { sprints: [], sistemas: [], areas: [], clasificaciones: [], estatus: [] };
+        let cats = { sprints: [], sistemas: [], areas: [], clasificaciones: [], estatus: [], motivos_reprogramacion: [] };
 
         async function cargarTodo() {
             await cargarCatalogos();
@@ -128,12 +135,14 @@ let todosLosProyectos = [];
                 const a = await _supabase.from('cat_areas').select('*').order('nombre');
                 const c = await _supabase.from('cat_clasificaciones').select('*').order('nombre');
                 const est = await _supabase.from('cat_estatus').select('*').order('nombre');
+                const mot = await _supabase.from('cat_motivos_reprogramacion').select('*').order('nombre');
 
                 cats.sprints = s.data || [];
                 cats.sistemas = sis.data || [];
                 cats.areas = a.data || [];
                 cats.clasificaciones = c.data || [];
                 cats.estatus = est.data || [];
+                cats.motivos_reprogramacion = mot.data || [];
 
                 renderizarListasAdmin();
             } catch (err) { console.error('Error al cargar catálogos:', err.message); }
@@ -159,7 +168,8 @@ let todosLosProyectos = [];
                 { titulo: 'Sistemas', tipo: 'sistemas', tabla: 'cat_sistemas', inputId: 'add-sistema-name', placeholder: 'Nuevo Sistema', icono: 'monitor', color: 'cyan', items: cats.sistemas },
                 { titulo: 'Áreas', tipo: 'areas', tabla: 'cat_areas', inputId: 'add-area-name', placeholder: 'Nueva Área', icono: 'building-2', color: 'violet', items: cats.areas },
                 { titulo: 'Clasificación', tipo: 'clasificaciones', tabla: 'cat_clasificaciones', inputId: 'add-clasif-name', placeholder: 'Tipo', icono: 'tag', color: 'orange', items: cats.clasificaciones },
-                { titulo: 'Catálogo Estatus', tipo: 'estatus', tabla: 'cat_estatus', inputId: 'add-estatus-name', placeholder: 'Nombre (Ej: QA)', icono: 'badge-check', color: 'emerald', items: cats.estatus }
+                { titulo: 'Catálogo Estatus', tipo: 'estatus', tabla: 'cat_estatus', inputId: 'add-estatus-name', placeholder: 'Nombre (Ej: QA)', icono: 'badge-check', color: 'emerald', items: cats.estatus },
+                { titulo: 'Motivos Reprogramación', tipo: 'motivos_reprogramacion', tabla: 'cat_motivos_reprogramacion', inputId: 'add-motivo-name', placeholder: 'Nuevo Motivo', icono: 'calendar-clock', color: 'rose', items: cats.motivos_reprogramacion }
             ];
 
             const colorClasses = {
@@ -167,7 +177,8 @@ let todosLosProyectos = [];
                 cyan: { border: 'border-t-cyan-500', text: 'text-cyan-700', bg: 'bg-cyan-50', button: 'bg-cyan-600 hover:bg-cyan-700', badge: 'bg-cyan-100 text-cyan-700' },
                 violet: { border: 'border-t-violet-500', text: 'text-violet-700', bg: 'bg-violet-50', button: 'bg-violet-600 hover:bg-violet-700', badge: 'bg-violet-100 text-violet-700' },
                 orange: { border: 'border-t-orange-500', text: 'text-orange-700', bg: 'bg-orange-50', button: 'bg-orange-600 hover:bg-orange-700', badge: 'bg-orange-100 text-orange-700' },
-                emerald: { border: 'border-t-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', button: 'bg-emerald-600 hover:bg-emerald-700', badge: 'bg-emerald-100 text-emerald-700' }
+                emerald: { border: 'border-t-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', button: 'bg-emerald-600 hover:bg-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
+                rose: { border: 'border-t-rose-500', text: 'text-rose-700', bg: 'bg-rose-50', button: 'bg-rose-600 hover:bg-rose-700', badge: 'bg-rose-100 text-rose-700' }
             };
 
             contenedor.innerHTML = catalogos.map(cat => {
@@ -197,13 +208,24 @@ let todosLosProyectos = [];
         }
 
         async function crearCatalogo(tipo) {
-            const inpId = tipo === 'sprints' ? 'add-sprint-name' : (tipo === 'sistemas' ? 'add-sistema-name' : (tipo === 'areas' ? 'add-area-name' : (tipo === 'clasificaciones' ? 'add-clasif-name' : 'add-estatus-name')));
-            const tabla = tipo === 'sprints' ? 'cat_sprints' : (tipo === 'sistemas' ? 'cat_sistemas' : (tipo === 'areas' ? 'cat_areas' : (tipo === 'clasificaciones' ? 'cat_clasificaciones' : 'cat_estatus')));
-            const inputElement = document.getElementById(inpId);
+            const mapa = {
+                sprints: { input: 'add-sprint-name', tabla: 'cat_sprints' },
+                sistemas: { input: 'add-sistema-name', tabla: 'cat_sistemas' },
+                areas: { input: 'add-area-name', tabla: 'cat_areas' },
+                clasificaciones: { input: 'add-clasif-name', tabla: 'cat_clasificaciones' },
+                estatus: { input: 'add-estatus-name', tabla: 'cat_estatus' },
+                motivos_reprogramacion: { input: 'add-motivo-name', tabla: 'cat_motivos_reprogramacion' }
+            };
+
+            const config = mapa[tipo];
+            if (!config) return;
+
+            const inputElement = document.getElementById(config.input);
             const valor = inputElement?.value.trim();
             if (!valor) return;
+
             try {
-                const { error } = await _supabase.from(tabla).insert([{ nombre: valor }]);
+                const { error } = await _supabase.from(config.tabla).insert([{ nombre: valor }]);
                 if (error) throw error;
                 inputElement.value = '';
                 await cargarCatalogos();

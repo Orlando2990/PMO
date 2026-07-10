@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMO Control - Control de RQM</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="css/pmo-layout.css">
+  <style>
+    /* Ajuste exclusivo del modal de Control RQM */
+    .label-rqm{
+      display:block;
+      font-size:12px;
+      line-height:1;
+      font-weight:900;
+      color:#94a3b8;
+      text-transform:uppercase;
+      margin-bottom:8px;
+      letter-spacing:.02em;
+    }
+    .input-rqm{
+      display:block;
+      width:100%;
+      min-height:44px;
+      border:1px solid #dbe3ef;
+      border-radius:14px;
+      background:#fff;
+      padding:0 14px;
+      font-size:14px;
+      color:#1e293b;
+      outline:none;
+      box-shadow:0 1px 2px rgba(15,23,42,.03);
+    }
+    .input-rqm::placeholder{color:#94a3b8;}
+    .input-rqm:focus{
+      border-color:#3b82f6;
+      box-shadow:0 0 0 4px rgba(59,130,246,.12);
+    }
+    select.input-rqm{
+      appearance:auto;
+      padding-right:34px;
+    }
+    #modal-rqm .modal-rqm-card{
+      max-width:960px;
+      border-radius:24px;
+    }
+    .pmo-modal-pro{position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.52);backdrop-filter:blur(8px);padding:24px}
+    .pmo-modal-pro.hidden{display:none}
+    .pmo-modal-card{width:min(820px,100%);max-height:88vh;overflow:auto;background:#fff;border:1px solid #e2e8f0;border-radius:26px;box-shadow:0 32px 80px rgba(15,23,42,.28)}
+    .pmo-modal-head{padding:22px 26px;border-bottom:1px solid #eef2f7;display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .pmo-modal-title{font-size:22px;font-weight:950;color:#0f172a}
+    .pmo-modal-body{padding:24px 26px;color:#334155}
+    .pmo-modal-footer{padding:18px 26px;border-top:1px solid #eef2f7;display:flex;justify-content:flex-end;gap:12px}
+    .pmo-modal-close{width:40px;height:40px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;display:grid;place-items:center;color:#64748b}
+    .pmo-action-btn{width:34px;height:34px;border-radius:10px;display:inline-grid;place-items:center;border:1px solid transparent}
+    .pmo-action-btn:hover{background:#f8fafc;border-color:#e2e8f0}
+  </style>
+</head>
+<body class="bg-slate-50/60 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
+  <div id="pmo-app-header" data-pmo-module="rqm"></div>
+
+  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <section class="relative overflow-hidden bg-slate-950 rounded-3xl border border-slate-800 shadow-xl p-7 text-white">
+      <div class="absolute -top-24 -right-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl"></div>
+      <div class="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+        <div>
+          <div class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/10 px-4 py-2 text-xs font-black text-blue-100 mb-4"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i>Sustituto del Excel de Control de Requerimientos</div>
+          <h2 class="pmo-exec-title">Control de números de requerimiento</h2>
+          <p class="text-blue-100/80 text-sm mt-2 max-w-3xl">Registra quién solicitó el requerimiento, cuándo se asignó el folio, el sistema relacionado, el número RQM y observaciones.</p>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <button onclick="abrirModalRQM()" class="bg-white text-slate-950 font-black text-sm rounded-xl px-5 py-3 shadow-lg flex items-center gap-2"><i data-lucide="file-plus-2" class="w-4 h-4"></i>Nuevo registro</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="rqm-kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></section>
+
+    <section class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
+      <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div>
+          <h3 class="text-xl font-black text-slate-900">Listado de requerimientos</h3>
+          <p class="text-sm text-slate-500">CRUD inicial para reemplazar el control manual en Excel.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full xl:w-auto">
+          <input id="filtro-buscar-rqm" oninput="renderRegistrosRQM()" class="border border-slate-200 rounded-xl px-4 py-2 text-sm" placeholder="Buscar proyecto, RQM o solicitante...">
+          <select id="filtro-sistema-rqm" onchange="renderRegistrosRQM();" class="border border-slate-200 rounded-xl px-4 py-2 text-sm"><option value="">Todos los sistemas</option></select>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto rounded-2xl border border-slate-100">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-slate-900 text-white text-xs uppercase font-black tracking-wider">
+            <tr>
+              <th class="p-4">Sistema</th>
+              <th class="p-4">Proyecto</th>
+              <th class="p-4">Solicitado por</th>
+              <th class="p-4">Fecha de asignación de folio</th>
+              <th class="p-4">Número de requerimiento</th>
+              <th class="p-4">Observaciones</th>
+              <th class="p-4">Estatus</th>
+              <th class="p-4 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-rqm-control" class="divide-y divide-slate-100 text-sm"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal-rqm" class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-center items-center p-4">
+    <div class="modal-rqm-card bg-white shadow-2xl w-full overflow-hidden border border-slate-100">
+      <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="file-pen-line" class="w-5 h-5"></i></div>
+          <div><h3 id="titulo-modal-rqm" class="font-bold text-slate-900 text-base">Nuevo registro RQM</h3><p class="text-xs text-slate-500">Control de números de requerimientos por sistema</p></div>
+        </div>
+        <button onclick="cerrarModalRQM()" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <form id="form-rqm-control" onsubmit="guardarRegistroRQM(event)" class="p-6 space-y-5">
+        <input type="hidden" id="rqm-id">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="label-rqm">Sistema *</label>
+            <select id="rqm-sistema" required class="input-rqm"></select>
+          </div>
+          <div>
+            <label class="label-rqm">Número de requerimiento *</label>
+            <input id="rqm-numero" required class="input-rqm font-black text-slate-900" placeholder="Ej. RQM 00 38">
+          </div>
+          <div>
+            <label class="label-rqm">Fecha de asignación de folio *</label>
+            <input id="rqm-fecha" type="date" required class="input-rqm">
+          </div>
+        </div>
+        <div>
+          <label class="label-rqm">Proyecto / Nombre del requerimiento *</label>
+          <input id="rqm-proyecto" required class="input-rqm" placeholder="Ej. Cambio de Fecha de Corte en Sistema">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="label-rqm">Solicitado por *</label>
+            <input id="rqm-solicitado" required class="input-rqm" placeholder="Nombre del solicitante">
+          </div>
+          <div>
+            <label class="label-rqm">Observaciones</label>
+            <input id="rqm-observaciones" class="input-rqm" placeholder="Ej. Cancelado por el usuario">
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-2 border-t border-slate-100">
+          <button type="button" onclick="cerrarModalRQM()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold">Cancelar</button>
+          <button id="btn-guardar-rqm" type="submit" class="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-black shadow-lg">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <div id="modal-pmo-accion" class="pmo-modal-pro hidden" role="dialog" aria-modal="true">
+    <div class="pmo-modal-card">
+      <div class="pmo-modal-head">
+        <div>
+          <h3 id="modal-pmo-title" class="pmo-modal-title">Detalle</h3>
+          <p id="modal-pmo-subtitle" class="text-sm text-slate-500 mt-1"></p>
+        </div>
+        <button type="button" onclick="cerrarModalPMO()" class="pmo-modal-close"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div id="modal-pmo-body" class="pmo-modal-body"></div>
+      <div id="modal-pmo-footer" class="pmo-modal-footer"></div>
+    </div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://cogiyoslnmtnnvnohoht.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZ2l5b3Nsbm10bm52bm9ob2h0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDI5NDQsImV4cCI6MjA5NjY3ODk0NH0.sikG94OCbALSbHRN8-jc2W_QOgP15qXn4VwsqhOK7lM";
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let usuarioActual=null;
+let registrosRQM=[];
+let sistemas=[];
+
+async function verificarSesion(){
+  const { data:{session}, error } = await _supabase.auth.getSession();
+  if(error || !session){ window.location.href='login.html'; return null; }
+  return session.user;
+}
+async function cerrarSesion(){ await _supabase.auth.signOut(); window.location.href='login.html'; }
+function pintarUsuarioSesion(user){ const el=document.getElementById('usuario-sesion'); if(el && user) el.textContent=user.email||'Usuario'; }
+function esc(v){ return String(v??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+function normalizar(v){ return String(v||'').trim().toUpperCase(); }
+function hoyISO(){ return new Date().toISOString().slice(0,10); }
+function fmtFecha(f){ if(!f) return '—'; const [y,m,d]=String(f).slice(0,10).split('-'); return `${d}/${m}/${y}`; }
+function badgeEstatus(e){
+  const n=normalizar(e);
+  if(n==='CANCELADO') return 'bg-rose-50 text-rose-700 border-rose-100';
+  if(n==='CONVERTIDO A PMO') return 'bg-blue-50 text-blue-700 border-blue-100';
+  if(n==='RECHAZADO' || n==='CANCELADO') return 'bg-rose-50 text-rose-700 border-rose-100';
+  if(n.includes('AJUSTE')) return 'bg-amber-50 text-amber-700 border-amber-100';
+  if(n==='DISPONIBLE') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+  if(n==='REGISTRADO') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+  return 'bg-slate-50 text-slate-700 border-slate-100';
+}
+
+
+
+function valorObservacion(observaciones, etiqueta){
+  const txt = String(observaciones || '');
+  const re = new RegExp(etiqueta.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ':\\s*([\\s\\S]*?)(?=\\n\\n[A-ZÁÉÍÓÚÑ][^\\n]{0,55}:|\\n\\n---|$)', 'i');
+  const m = txt.match(re);
+  return m ? m[1].trim() : '';
+}
+function rqmToPDFData(r){
+  const obs = r.observaciones || '';
+  return {
+    sistema_nombre: r.sistema_nombre || '—',
+    numero_rqm: r.numero_rqm || '—',
+    version: valorObservacion(obs, 'Versión') || '1',
+    proyecto: r.proyecto || '—',
+    tipo_requerimiento: valorObservacion(obs, 'Tipo de requerimiento') || 'Proyecto',
+    prioridad: valorObservacion(obs, 'Prioridad sugerida') || 'Pendiente PMO',
+    descripcion_general: valorObservacion(obs, 'Descripción') || obs || '—',
+    solicitado_por: r.solicitado_por || '—',
+    area_nombre: valorObservacion(obs, 'Área solicitante') || 'Pendiente',
+    fecha_asignacion: r.fecha_asignacion || r.created_at,
+    areas_impactadas: valorObservacion(obs, 'Áreas impactadas') || '—',
+    dependencias_produccion: valorObservacion(obs, 'Dependencias') || '—',
+    antecedentes: valorObservacion(obs, 'Antecedentes') || '—',
+    objetivo: valorObservacion(obs, 'Objetivo') || valorObservacion(obs, 'Descripción') || '—',
+    descripcion_detallada: valorObservacion(obs, 'Detalle') || valorObservacion(obs, 'Descripción') || obs || '—'
+  };
+}
+
+function appendComentarioPMO(observaciones, comentario, accion){
+  const base = String(observaciones || '').trim();
+  const fecha = new Date().toLocaleString('es-MX');
+  const bloque = `\n\n---\nCOMENTARIO PMO (${accion} - ${fecha}):\n${comentario || 'Sin comentario adicional.'}`;
+  return (base + bloque).trim();
+}
+function abrirModalPMO(titulo, subtitulo, bodyHtml, footerHtml=''){
+  document.getElementById('modal-pmo-title').textContent = titulo;
+  document.getElementById('modal-pmo-subtitle').textContent = subtitulo || '';
+  document.getElementById('modal-pmo-body').innerHTML = bodyHtml;
+  document.getElementById('modal-pmo-footer').innerHTML = footerHtml || `<button type="button" onclick="cerrarModalPMO()" class="px-5 py-3 rounded-xl bg-slate-950 text-white font-black">Cerrar</button>`;
+  document.getElementById('modal-pmo-accion').classList.remove('hidden');
+  lucide.createIcons();
+}
+function cerrarModalPMO(){ document.getElementById('modal-pmo-accion')?.classList.add('hidden'); }
+function detalleRQMHtml(r){
+  return `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Número RQM</p><p class="font-black text-slate-950 mt-1">${esc(r.numero_rqm || '—')}</p></div>
+    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Sistema</p><p class="font-black text-slate-950 mt-1">${esc(r.sistema_nombre || '—')}</p></div>
+    <div class="rounded-2xl bg-slate-50 p-4 md:col-span-2"><p class="text-xs font-black text-slate-400 uppercase">Proyecto</p><p class="font-black text-slate-950 mt-1">${esc(r.proyecto || '—')}</p></div>
+    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Solicitado por</p><p class="font-black text-slate-950 mt-1">${esc(r.solicitado_por || '—')}</p></div>
+    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Fecha</p><p class="font-black text-slate-950 mt-1">${fmtFecha(r.fecha_asignacion || r.created_at)}</p></div>
+    <div class="rounded-2xl bg-slate-50 p-4 md:col-span-2"><p class="text-xs font-black text-slate-400 uppercase">Información capturada / comentarios</p><pre class="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed mt-2">${esc(r.observaciones || '—')}</pre></div>
+  </div>`;
+}
+function verDetalleRQM(id){
+  const r = registrosRQM.find(x=>x.id===id);
+  if(!r) return;
+  abrirModalPMO('Detalle del requerimiento', r.numero_rqm || 'Solicitud', detalleRQMHtml(r));
+}
+function abrirModalComentarioPMO(id, estatus, accion){
+  const r = registrosRQM.find(x=>x.id===id);
+  if(!r) return;
+  const body = `<div class="space-y-4">
+    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Requerimiento</p><p class="font-black text-slate-950 mt-1">${esc(r.numero_rqm || '—')} · ${esc(r.proyecto || '—')}</p></div>
+    <div><label class="label-rqm">Comentario para el usuario</label><textarea id="comentario-pmo-accion" class="input-rqm" style="min-height:130px;padding-top:12px" placeholder="Escribe aquí el comentario que verá el usuario normal."></textarea></div>
+  </div>`;
+  const footer = `<button type="button" onclick="cerrarModalPMO()" class="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-black">Cancelar</button>
+    <button type="button" onclick="guardarEstatusComentarioPMO('${id}','${estatus}','${accion}')" class="px-5 py-3 rounded-xl bg-blue-600 text-white font-black">Guardar</button>`;
+  abrirModalPMO(accion, r.numero_rqm || 'Solicitud', body, footer);
+}
+async function guardarEstatusComentarioPMO(id, estatus, accion){
+  const r = registrosRQM.find(x=>x.id===id);
+  if(!r) return;
+  const comentario = document.getElementById('comentario-pmo-accion')?.value.trim() || '';
+  try{
+    const observaciones = appendComentarioPMO(r.observaciones, comentario, accion);
+    const {error}=await _supabase
+      .from('rqm_control_requerimientos')
+      .update({estatus, observaciones, updated_at:new Date().toISOString()})
+      .eq('id', id);
+    if(error) throw error;
+    cerrarModalPMO();
+    await cargarRegistrosRQM();
+  }catch(e){
+    console.error(e);
+    alert('No se pudo actualizar la solicitud: '+(e.message||e));
+  }
+}
+function actualizarEstatusConComentario(id, estatus, accion){ abrirModalComentarioPMO(id, estatus, accion); }
+function generarPDFRQM(id){
+  const r = registrosRQM.find(x=>x.id===id);
+  if(!r) return;
+  generarPDFFormatoRQM(rqmToPDFData(r));
+}
+
+function generarPDFFormatoRQM(data){
+  const jspdf = window.jspdf;
+  if(!jspdf?.jsPDF){ alert('No se pudo cargar el generador PDF.'); return; }
+  const doc = new jspdf.jsPDF({unit:'pt', format:'letter'});
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 38;
+  let y = 40;
+  let page = 1;
+  const azul = [0,0,102];
+  const gris = [226,232,240];
+
+  function header(){
+    doc.setFont('helvetica','bold'); doc.setFontSize(40); doc.setTextColor(35,35,60); doc.text('finsus', margin, 78);
+    doc.setFont('helvetica','normal'); doc.setFontSize(15); doc.text('Finanzas Transparentes', margin, 102);
+    doc.setDrawColor(210); doc.line(margin, 122, pageW-margin, 122);
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30); doc.text(data.numero_rqm || '', pageW-margin-80, 72);
+    doc.setFont('helvetica','normal'); doc.text('Fecha de elaboración:', pageW-margin-118, 88);
+    doc.text(fmtFecha(data.fecha_asignacion), pageW-margin-88, 102);
+    y = 170;
+  }
+  function footer(){
+    doc.setDrawColor(180); doc.line(margin, pageH-42, pageW-margin, pageH-42);
+    doc.setFontSize(8); doc.setTextColor(60); doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-MX')}`, margin+40, pageH-24);
+    doc.text(`Página ${page}`, pageW-margin-60, pageH-24);
+  }
+  function newPage(){ footer(); doc.addPage(); page++; header(); }
+  function ensure(h){ if(y + h > pageH - 70) newPage(); }
+  function boxTitle(text){
+    ensure(30);
+    doc.setFillColor(...gris); doc.setDrawColor(...azul); doc.setLineWidth(1.2); doc.rect(margin, y, pageW-margin*2, 24, 'FD');
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(0); doc.text(text, margin+8, y+16); y += 24;
+  }
+  function row(label, value, h=28){
+    ensure(h+4);
+    const labelW=165;
+    doc.setDrawColor(...azul); doc.rect(margin,y,labelW,h); doc.rect(margin+labelW,y,pageW-margin*2-labelW,h);
+    doc.setFillColor(...gris); doc.rect(margin,y,labelW,h,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(0); doc.text(label, margin+8, y+17);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    const lines=doc.splitTextToSize(String(value||'—'), pageW-margin*2-labelW-14);
+    doc.text(lines, margin+labelW+8, y+17);
+    y+=h;
+  }
+  function paragraphBox(title, text){
+    const lines=doc.splitTextToSize(String(text||'—'), pageW-margin*2-18);
+    const h=Math.max(58, lines.length*12+34);
+    ensure(h+28);
+    boxTitle(title);
+    doc.setDrawColor(...azul); doc.rect(margin,y,pageW-margin*2,h-24);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(0); doc.text(lines, margin+9, y+18);
+    y += h;
+  }
+
+  header();
+  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(...azul); doc.text('REQUERIMIENTO A SISTEMAS', pageW/2, y, {align:'center'}); y += 24;
+  boxTitle('SISTEMA AFECTADO:'); row('', data.sistema_nombre || '—', 26); y += 16;
+  row('Nombre del RQM', data.proyecto || '—', 28);
+  row('Número del RQM', `${data.numero_rqm || '—'}     Versión: ${data.version || '1'}`, 28);
+  row('Descripción general', data.descripcion_general || '—', 68);
+  y += 16;
+  boxTitle('TIPO DE REQUERIMIENTO:'); row('', data.tipo_requerimiento || 'Proyecto', 26); y += 16;
+  row('Prioridad', data.prioridad || '—', 28);
+  row('Solicitante', data.solicitado_por || '—', 28);
+  row('Área solicitante', data.area_nombre || '—', 28);
+  row('Fecha de ingreso', fmtFecha(data.fecha_asignacion), 28);
+  y += 16;
+  boxTitle('AREAS IMPACTADAS:'); row('', data.areas_impactadas || '—', 32);
+  y += 12;
+  paragraphBox('DEPENDENCIAS PARA SALIDA A PRODUCCIÓN:', data.dependencias_produccion);
+  paragraphBox('ANTECEDENTES:', data.antecedentes);
+  paragraphBox('OBJETIVO:', data.objetivo || data.descripcion_general);
+  paragraphBox('DESCRIPCIÓN / OBSERVACIONES:', data.descripcion_detallada || data.descripcion_general);
+  y += 12;
+  boxTitle('FIRMAS DE SISTEMAS');
+  row('Nombre', 'Fecha recepción        Fecha aceptación        Fecha compromiso        Firma', 42);
+  footer();
+  doc.save(`${(data.numero_rqm || 'Solicitud').replace(/\s+/g,'_')}.pdf`);
+}
+
+async function cargarCatalogos(){
+  const {data,error}=await _supabase.from('cat_sistemas').select('*').order('nombre');
+  sistemas=data||[];
+  llenarSistemas();
+}
+function llenarSistemas(){
+  const opts=['<option value="">Selecciona sistema</option>', ...sistemas.map(s=>`<option value="${s.id}" data-nombre="${esc(s.nombre)}">${esc(s.nombre)}</option>`)].join('');
+  document.getElementById('rqm-sistema').innerHTML=opts;
+  document.getElementById('filtro-sistema-rqm').innerHTML='<option value="">Todos los sistemas</option>'+sistemas.map(s=>`<option>${esc(s.nombre)}</option>`).join('');
+}
+function getSistemaNombre(){ const sel=document.getElementById('rqm-sistema'); return sel.selectedOptions[0]?.dataset?.nombre || sel.selectedOptions[0]?.textContent || ''; }
+async function cargarRegistrosRQM(){
+  const {data,error}=await _supabase.from('rqm_control_requerimientos').select('*').order('fecha_asignacion',{ascending:false}).order('created_at',{ascending:false});
+  if(error){ console.error(error); alert('No se pudo cargar Control RQM: '+error.message); return; }
+  registrosRQM=data||[];
+  renderRegistrosRQM();
+}
+function renderKPIs(lista){
+  const total=lista.length;
+  const conNumero=lista.filter(r=>r.numero_rqm).length;
+  const sistemasUnicos=new Set(lista.map(r=>r.sistema_nombre).filter(Boolean)).size;
+  const conObservaciones=lista.filter(r=>r.observaciones).length;
+  const cards=[['TOTAL',total,'layers','bg-blue-50 text-blue-700'],['CON NÚMERO',conNumero,'hash','bg-emerald-50 text-emerald-700'],['OBSERVACIONES',conObservaciones,'message-square-text','bg-rose-50 text-rose-700'],['SISTEMAS',sistemasUnicos,'monitor','bg-slate-50 text-slate-700']];
+  document.getElementById('rqm-kpis').innerHTML=cards.map(c=>`<div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div class="flex justify-between items-start"><div><p class="text-xs font-black text-slate-400 tracking-wider">${c[0]}</p><p class="text-3xl font-black text-slate-950 mt-2">${c[1]}</p></div><div class="p-3 rounded-2xl ${c[3]}"><i data-lucide="${c[2]}" class="w-5 h-5"></i></div></div></div>`).join('');
+}
+function renderRegistrosRQM(){
+  const q=normalizar(document.getElementById('filtro-buscar-rqm').value);
+  const sis=normalizar(document.getElementById('filtro-sistema-rqm').value);
+  let lista=registrosRQM.filter(r=>{
+    const text=normalizar(`${r.proyecto} ${r.solicitado_por} ${r.numero_rqm} ${r.observaciones} ${r.sistema_nombre}`);
+    return (!q || text.includes(q)) && (!sis || normalizar(r.sistema_nombre)===sis);
+  });
+  renderKPIs(lista);
+  const tbody=document.getElementById('tabla-rqm-control');
+  if(!lista.length){ tbody.innerHTML='<tr><td colspan="8" class="p-8 text-center text-slate-400">Sin registros.</td></tr>'; lucide.createIcons(); return; }
+  tbody.innerHTML=lista.map(r=>`<tr class="hover:bg-slate-50/70 transition">
+    <td class="p-4"><span class="font-black text-slate-700">${esc(r.sistema_nombre||'—')}</span></td>
+    <td class="p-4"><div class="font-black text-slate-900">${esc(r.proyecto||'—')}</div></td>
+    <td class="p-4 text-slate-600">${esc(r.solicitado_por||'—')}</td>
+    <td class="p-4 text-slate-600">${fmtFecha(r.fecha_asignacion)}</td>
+    <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-black">${esc(r.numero_rqm||'—')}</span></td>
+    <td class="p-4 max-w-xs text-slate-500 truncate" title="${esc(r.observaciones||'')}">${esc(r.observaciones||'—')}</td>
+    <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full border text-xs font-black ${badgeEstatus(r.estatus)}">${esc(r.estatus||'REGISTRADO')}</span></td>
+    <td class="p-4 text-right whitespace-nowrap">
+      <button onclick="verDetalleRQM('${r.id}')" class="pmo-action-btn text-slate-600" title="Ver detalle capturado"><i data-lucide="eye" class="w-4 h-4"></i></button>
+      <button onclick="generarPDFRQM('${r.id}')" class="pmo-action-btn text-slate-700" title="Generar formato PDF"><i data-lucide="download" class="w-4 h-4"></i></button>
+      <button onclick="convertirRQMProyecto('${r.id}')" class="pmo-action-btn text-emerald-600 ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'opacity-40 cursor-not-allowed' : ''}" title="Aprobar / Convertir a Proyecto PMO" ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'disabled' : ''}><i data-lucide="check-circle-2" class="w-4 h-4"></i></button>
+      <button onclick="actualizarEstatusConComentario('${r.id}','REQUIERE AJUSTE','Requiere ajuste')" class="pmo-action-btn text-amber-600" title="Solicitar ajuste / comentar"><i data-lucide="message-square-warning" class="w-4 h-4"></i></button>
+      <button onclick="actualizarEstatusConComentario('${r.id}','RECHAZADO','Rechazado')" class="pmo-action-btn text-rose-600" title="Rechazar"><i data-lucide="x-circle" class="w-4 h-4"></i></button>
+      <button onclick="editarRegistroRQM('${r.id}')" class="pmo-action-btn text-blue-600" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+    </td>
+  </tr>`).join('');
+  lucide.createIcons();
+}
+function abrirModalRQM(){
+  document.getElementById('form-rqm-control').reset();
+  document.getElementById('rqm-id').value='';
+  document.getElementById('rqm-fecha').value=hoyISO();
+  document.getElementById('titulo-modal-rqm').textContent='Nuevo registro RQM';
+  document.getElementById('modal-rqm').classList.remove('hidden');
+  lucide.createIcons();
+}
+function cerrarModalRQM(){ document.getElementById('modal-rqm').classList.add('hidden'); }
+
+async function guardarRegistroRQM(ev){
+  ev.preventDefault();
+  const btn=document.getElementById('btn-guardar-rqm');
+  btn.disabled=true;
+  btn.textContent='Guardando...';
+  try{
+    const id=document.getElementById('rqm-id').value;
+    const sistema_id=document.getElementById('rqm-sistema').value || null;
+    const sistema_nombre=getSistemaNombre();
+    const payload={
+      sistema_id,
+      sistema_nombre,
+      proyecto:document.getElementById('rqm-proyecto').value.trim(),
+      solicitado_por:document.getElementById('rqm-solicitado').value.trim(),
+      fecha_asignacion:document.getElementById('rqm-fecha').value || null,
+      numero_rqm:document.getElementById('rqm-numero').value.trim(),
+      estatus:'REGISTRADO',
+      observaciones:document.getElementById('rqm-observaciones').value.trim() || null,
+      updated_at:new Date().toISOString()
+    };
+    if(!payload.numero_rqm){ throw new Error('Captura el número de requerimiento.'); }
+    if(id){
+      const {error}=await _supabase.from('rqm_control_requerimientos').update(payload).eq('id',id);
+      if(error) throw error;
+    }else{
+      payload.creado_por=usuarioActual?.id||null;
+      const {error}=await _supabase.from('rqm_control_requerimientos').insert([payload]);
+      if(error) throw error;
+    }
+    cerrarModalRQM();
+    await cargarRegistrosRQM();
+  }catch(e){
+    console.error(e);
+    alert('No se pudo guardar: '+(e.message||e));
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Guardar';
+  }
+}
+
+function editarRegistroRQM(id){
+  const r=registrosRQM.find(x=>x.id===id); if(!r) return;
+  abrirModalRQM();
+  document.getElementById('rqm-id').value=r.id;
+  document.getElementById('titulo-modal-rqm').textContent=`Editar ${r.numero_rqm||'RQM'}`;
+  document.getElementById('rqm-sistema').value=r.sistema_id||'';
+  document.getElementById('rqm-numero').value=r.numero_rqm||'';
+  document.getElementById('rqm-fecha').value=r.fecha_asignacion||hoyISO();
+  document.getElementById('rqm-proyecto').value=r.proyecto||'';
+  document.getElementById('rqm-solicitado').value=r.solicitado_por||'';
+  document.getElementById('rqm-observaciones').value=r.observaciones||'';
+}
+
+function convertirRQMProyecto(id){
+  const r=registrosRQM.find(x=>x.id===id); if(!r) return;
+  if(normalizar(r.estatus)==='CONVERTIDO A PMO'){
+    abrirModalPMO('RQM ya convertido', r.numero_rqm || 'Solicitud', '<p class="text-slate-600">Este requerimiento ya fue convertido a Proyecto PMO.</p>');
+    return;
+  }
+  if(!r.numero_rqm || !r.proyecto){
+    abrirModalPMO('Información incompleta', r.numero_rqm || 'Solicitud', '<p class="text-slate-600">Para convertirlo, el registro debe tener número RQM y nombre del proyecto.</p>');
+    return;
+  }
+  const body = `<div class="space-y-4">
+    <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4 text-blue-900">Se creará el proyecto en la matriz principal sin fechas obligatorias para completarlo después.</div>
+    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Requerimiento</p><p class="font-black text-slate-950 mt-1">${esc(r.numero_rqm)} · ${esc(r.proyecto)}</p></div>
+    <div><label class="label-rqm">Comentario para el usuario</label><textarea id="comentario-aprobar-pmo" class="input-rqm" style="min-height:120px;padding-top:12px">Solicitud aprobada por PMO.</textarea></div>
+  </div>`;
+  const footer = `<button type="button" onclick="cerrarModalPMO()" class="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-black">Cancelar</button>
+    <button type="button" onclick="ejecutarConversionRQM('${id}')" class="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black">Aprobar y convertir</button>`;
+  abrirModalPMO('Aprobar / convertir a PMO', r.numero_rqm, body, footer);
+}
+async function ejecutarConversionRQM(id){
+  const r=registrosRQM.find(x=>x.id===id); if(!r) return;
+  const comentarioAprobacion = document.getElementById('comentario-aprobar-pmo')?.value.trim() || 'Solicitud aprobada por PMO.';
+  try{
+    const {data:existente,error:errorConsulta}=await _supabase
+      .from('pmo_projects')
+      .select('id,id_req')
+      .eq('id_req',r.numero_rqm)
+      .maybeSingle();
+    if(errorConsulta) throw errorConsulta;
+    if(existente){
+      await _supabase.from('rqm_control_requerimientos').update({estatus:'CONVERTIDO A PMO', observaciones: appendComentarioPMO(r.observaciones, comentarioAprobacion, 'Aprobado'), updated_at:new Date().toISOString()}).eq('id',id);
+      cerrarModalPMO();
+      await cargarRegistrosRQM();
+      return;
+    }
+    const payload={
+      id_req:r.numero_rqm,
+      nombre_rqm:r.proyecto,
+      sistema_id:r.sistema_id||null,
+      sistema:r.sistema_nombre||null,
+      solicitante:r.solicitado_por||null,
+      estatus:'REGISTRADO',
+      prioridad:'BAJA',
+      descripcion:r.observaciones||null,
+      comentarios:'Creado desde Control de RQM. Fechas pendientes por completar.'
+    };
+    const {error:errorInsert}=await _supabase.from('pmo_projects').insert([payload]);
+    if(errorInsert) throw errorInsert;
+    const {error:errorUpdate}=await _supabase
+      .from('rqm_control_requerimientos')
+      .update({estatus:'CONVERTIDO A PMO', observaciones: appendComentarioPMO(r.observaciones, comentarioAprobacion, 'Aprobado'), updated_at:new Date().toISOString()})
+      .eq('id',id);
+    if(errorUpdate) throw errorUpdate;
+    cerrarModalPMO();
+    await cargarRegistrosRQM();
+  }catch(e){
+    console.error(e);
+    alert('No se pudo convertir a Proyecto PMO: '+(e.message||e));
+  }
+}
+
+async function eliminarRegistroRQM(id){
+  const r=registrosRQM.find(x=>x.id===id); if(!r) return;
+  if(!confirm(`¿Eliminar el registro ${r.numero_rqm || ''}?`)) return;
+  const {error}=await _supabase.from('rqm_control_requerimientos').delete().eq('id',id);
+  if(error){ alert('No se pudo eliminar: '+error.message); return; }
+  await cargarRegistrosRQM();
+}
+window.onload=async()=>{
+  usuarioActual=await verificarSesion(); if(!usuarioActual) return;
+  pintarUsuarioSesion(usuarioActual);
+  await cargarCatalogos();
+  await cargarRegistrosRQM();
+  lucide.createIcons();
+};
+</script>
+
+<style>
+/* PMO Control - Encabezado unificado y secciones ejecutivas */
+.pmo-header-shell{max-width:none;margin:0 auto;padding:14px 24px;min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;box-sizing:border-box;}
+.pmo-brand{display:flex;align-items:center;gap:12px;cursor:pointer;min-width:250px;max-width:360px;flex:0 0 auto;}
+.pmo-brand-icon{background:#2563eb;color:white;padding:10px;border-radius:12px;box-shadow:0 10px 18px rgba(37,99,235,.24);display:flex;align-items:center;justify-content:center;}
+.pmo-brand-title{font-size:22px;line-height:1.05;font-weight:900;letter-spacing:-.02em;color:#0f172a;white-space:nowrap;margin:0;}
+.pmo-brand-subtitle{font-size:12px;line-height:1.2;color:#64748b;font-weight:700;display:flex;align-items:center;gap:4px;white-space:nowrap;margin:3px 0 0;}
+.pmo-status-dot{display:inline-block;width:6px;height:6px;background:#34d399;border-radius:9999px;animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite;flex:0 0 auto;}
+.pmo-nav{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:1 1 auto;min-width:0;}
+.nav-btn{border:1px solid #e2e8f0;color:#334155;font-weight:800;font-size:14px;padding:10px 13px;border-radius:12px;display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;background:white;white-space:nowrap;flex:0 0 auto;position:relative;}
+.nav-btn:hover{background:#f8fafc;}
+.nav-btn.active{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
+.nav-btn.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-8px;height:3px;background:#2563eb;border-radius:999px;box-shadow:0 2px 7px rgba(37,99,235,.25);}
+.nav-user{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;white-space:nowrap;flex:0 0 auto;}
+.nav-logout{border:1px solid #fecdd3;color:#e11d48;font-weight:800;font-size:14px;padding:10px 14px;border-radius:12px;display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;background:white;white-space:nowrap;flex:0 0 auto;}
+.nav-logout:hover{background:#fff1f2;}
+.nav-primary{background:#0f172a;color:white;font-weight:900;font-size:14px;padding:11px 16px;border-radius:12px;box-shadow:0 10px 22px rgba(15,23,42,.18);display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;white-space:nowrap;flex:0 0 auto;}
+.nav-primary:hover{background:#1e293b;}
+.pmo-exec-hero{background:linear-gradient(115deg,#020617 0%,#061625 42%,#0f2148 100%);border-radius:24px;color:white;padding:28px 30px;box-shadow:0 18px 35px rgba(15,23,42,.14);display:flex;align-items:center;justify-content:space-between;gap:24px;overflow:hidden;}
+.pmo-exec-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px solid rgba(125,211,252,.24);background:rgba(14,165,233,.12);font-size:12px;font-weight:900;color:#e0f2fe;margin-bottom:20px;}
+.pmo-exec-title{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
+.pmo-exec-subtitle{font-size:14px;color:#cbd5e1;margin-top:12px;max-width:720px;}
+.pmo-exec-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+.pmo-exec-filter{background:rgba(30,41,59,.88);border:1px solid rgba(148,163,184,.18);color:white;font-weight:900;border-radius:12px;padding:12px 18px;min-width:170px;}
+.pmo-exec-btn{background:white;color:#020617;font-weight:900;border-radius:12px;padding:12px 20px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 12px 25px rgba(0,0,0,.18);}
+.pmo-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;}
+.pmo-exec-hero + .pmo-summary-grid{margin-top:24px;}
+.pmo-exec-title{color:#fff;}
+.pmo-exec-title-tight{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;color:#fff;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
+.pmo-summary-card{background:white;border:1px solid #e2e8f0;border-radius:20px;padding:20px;box-shadow:0 2px 8px rgba(15,23,42,.08);min-height:112px;display:flex;align-items:center;justify-content:space-between;}
+.pmo-summary-label{font-size:12px;text-transform:uppercase;letter-spacing:.03em;font-weight:900;color:#94a3b8;}
+.pmo-summary-value{font-size:30px;line-height:1;font-weight:950;color:#020617;margin-top:12px;}
+.pmo-summary-icon{width:48px;height:48px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#eff6ff;color:#2563eb;}
+@media (max-width:1320px){.pmo-header-shell{align-items:flex-start;flex-direction:column}.pmo-brand{max-width:none}.pmo-nav{width:100%;justify-content:flex-start;flex-wrap:wrap}.nav-user{display:none}.pmo-brand-title,.pmo-brand-subtitle{white-space:normal}}
+@media (max-width:1100px){.pmo-exec-hero{flex-direction:column;align-items:flex-start}.pmo-exec-actions{justify-content:flex-start}.pmo-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.pmo-exec-title{font-size:28px}}
+@media (max-width:640px){.pmo-summary-grid{grid-template-columns:1fr}.pmo-header-shell{padding:12px}.nav-primary,.nav-btn,.nav-logout{font-size:12px;padding:9px 10px}.pmo-exec-hero{padding:22px 18px;border-radius:18px}}
+</style>
+
+    <script src="js/pmo-layout.js"></script>
+</body>
+</html>

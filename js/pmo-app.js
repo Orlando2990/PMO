@@ -29,6 +29,7 @@ const SUPABASE_URL = "https://cogiyoslnmtnnvnohoht.supabase.co";
 let todosLosProyectos = [];
         let conteoCambiosGlobal = {};
         let conteoReprogramacionesGlobal = {};
+        let ajustesAdministrativosGlobal = {};
         let proyectoSeleccionadoOriginal = null;
         let cats = { sprints: [], sistemas: [], areas: [], clasificaciones: [], estatus: [], motivos_reprogramacion: [] };
 
@@ -88,8 +89,12 @@ let todosLosProyectos = [];
             return Boolean(valorOriginal && valorNuevo && valorOriginal !== valorNuevo);
         }
 
+        function ajusteSinReprogramacionActivo() {
+            return Boolean(document.getElementById('form-ajuste-sin-reprogramacion')?.checked);
+        }
+
         function obtenerCambiosReprogramacionActuales() {
-            if (!proyectoSeleccionadoOriginal) return [];
+            if (!proyectoSeleccionadoOriginal || ajusteSinReprogramacionActivo()) return [];
 
             const definiciones = [
                 {
@@ -137,6 +142,10 @@ let todosLosProyectos = [];
             return conteoReprogramacionesGlobal?.[projectId] || 0;
         }
 
+        function tieneAjusteAdministrativo(projectId, fase) {
+            return Boolean(ajustesAdministrativosGlobal?.[projectId]?.[fase]);
+        }
+
         function badgeReprogramado(projectId) {
             const total = contarReprogramacionesProyecto(projectId);
             if (!total) return '';
@@ -145,7 +154,7 @@ let todosLosProyectos = [];
                 <div class="mt-2">
                     <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-100 shadow-xs">
                         <i data-lucide="calendar-clock" class="w-3 h-3"></i>
-                        Reprogramado (${total})
+                        Reprogramado
                     </span>
                 </div>
             `;
@@ -183,6 +192,9 @@ let todosLosProyectos = [];
         }
 
         function limpiarMotivosReprogramacion() {
+            const checkAjuste = document.getElementById('form-ajuste-sin-reprogramacion');
+            if (checkAjuste) checkAjuste.checked = false;
+
             ['desarrollo', 'qa', 'uat'].forEach(fase => {
                 const grupo = document.getElementById(`grupo-reprogramacion-${fase}`);
                 const select = document.getElementById(`form-motivo-${fase}`);
@@ -214,7 +226,7 @@ let todosLosProyectos = [];
             badge.classList.remove('hidden');
             badge.innerHTML = `
                 <i data-lucide="calendar-clock" class="w-3.5 h-3.5"></i>
-                Reprogramado (${total})
+                Reprogramado
             `;
 
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -507,22 +519,34 @@ let todosLosProyectos = [];
 
                 const { data: historial } = await _supabase
                     .from('pmo_date_history')
-                    .select('project_id, fase, fecha_anterior, fecha_nueva');
+                    .select('project_id, fase, fecha_anterior, fecha_nueva, razon');
 
                 const conteoCambios = {};
                 const conteoReprogramaciones = {};
+                const ajustesAdministrativos = {};
 
                 if (historial) {
                     historial.forEach(h => {
-                        conteoCambios[h.project_id] = (conteoCambios[h.project_id] || 0) + 1;
-
-                        const esReprogramacion =
-                            ['Fin Desarrollo', 'Fin QA', 'Fin UAT'].includes(h.fase || '') &&
+                        const fase = h.fase || '';
+                        const razonNormalizada = normalizarTexto(h.razon || '');
+                        const esAjusteAdministrativo = razonNormalizada.includes('AJUSTE ADMINISTRATIVO');
+                        const esCambioFin =
+                            ['Fin Desarrollo', 'Fin QA', 'Fin UAT'].includes(fase) &&
                             h.fecha_anterior &&
                             h.fecha_nueva &&
                             h.fecha_anterior !== h.fecha_nueva;
 
-                        if (esReprogramacion) {
+                        // Los ajustes administrativos se usan solo como marca técnica para excluir
+                        // reprogramación/desviación, pero NO deben contar ni mostrarse como cambios.
+                        if (esCambioFin && esAjusteAdministrativo) {
+                            if (!ajustesAdministrativos[h.project_id]) ajustesAdministrativos[h.project_id] = {};
+                            ajustesAdministrativos[h.project_id][fase] = true;
+                            return;
+                        }
+
+                        conteoCambios[h.project_id] = (conteoCambios[h.project_id] || 0) + 1;
+
+                        if (esCambioFin) {
                             conteoReprogramaciones[h.project_id] = (conteoReprogramaciones[h.project_id] || 0) + 1;
                         }
                     });
@@ -530,6 +554,7 @@ let todosLosProyectos = [];
 
                 conteoCambiosGlobal = conteoCambios;
                 conteoReprogramacionesGlobal = conteoReprogramaciones;
+                ajustesAdministrativosGlobal = ajustesAdministrativos;
 
                 renderizarTabla(todosLosProyectos, conteoCambiosGlobal);
                 renderizarContadoresDinamicos(todosLosProyectos);
@@ -549,116 +574,141 @@ let todosLosProyectos = [];
             return `Fin: ${formatearFechaVista(fin)}`;
         }
 
+        function recortarTextoPMO(texto, max = 46) {
+            const limpio = String(texto || '—').trim();
+            return limpio.length > max ? limpio.slice(0, max - 1).trim() + '…' : limpio;
+        }
+
+        function nombreCortoPMO(nombre) {
+            const limpio = String(nombre || '—').trim();
+            if (limpio === '—') return limpio;
+            const partes = limpio.split(/\s+/).filter(Boolean);
+            if (partes.length <= 2) return limpio;
+            return `${partes[0]} ${partes[1]}`;
+        }
+
+        function badgeFasePMO(label, inicio, fin, compromiso) {
+            const dias = calcularDiasEntreFechas(inicio, fin);
+            const desviacion = calcularDesviacion(compromiso, fin);
+            const clase = claseDesviacion(desviacion);
+            const textoDesviacion = desviacion ? desviacion : '—';
+            return `
+                <div class="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="w-2 h-2 rounded-full ${fin ? 'bg-emerald-500' : inicio ? 'bg-blue-500' : 'bg-slate-300'}"></span>
+                        <span class="text-[11px] font-black text-slate-600 uppercase">${label}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 whitespace-nowrap">
+                        <span class="text-[10px] font-bold text-slate-400">${dias || '—'} d</span>
+                        <span class="px-1.5 py-0.5 rounded-lg text-[10px] font-black ${clase}">${textoDesviacion}</span>
+                    </div>
+                </div>`;
+        }
+
+        function obtenerAvancePorEstatusPMO(estatus) {
+            const estado = normalizarTexto(estatus || 'BACKLOG');
+            if (estado.includes('LIBERADO') || estado.includes('PRODUCCION')) return { pct: 100, label: 'Liberación' };
+            if (estado.includes('UAT')) return { pct: 80, label: 'UAT' };
+            if (estado === 'QA' || estado.includes('PRUEBA')) return { pct: 60, label: 'QA' };
+            if (estado.includes('DESARROLLO')) return { pct: 40, label: 'Desarrollo' };
+            if (estado.includes('ANALISIS') || estado.includes('ANÁLISIS')) return { pct: 20, label: 'Análisis' };
+            return { pct: 0, label: 'Backlog' };
+        }
+
+        function renderizarTimelinePMO(p) {
+            const avance = obtenerAvancePorEstatusPMO(p.estatus);
+            const hitos = [
+                { pct: 0, label: 'Backlog' },
+                { pct: 20, label: 'Análisis' },
+                { pct: 40, label: 'Desarrollo' },
+                { pct: 60, label: 'QA' },
+                { pct: 80, label: 'UAT' },
+                { pct: 100, label: 'Liberación' }
+            ];
+
+            return `
+                <div class="min-w-[260px] max-w-[320px]">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-black text-slate-800">${avance.label}</span>
+                        <span class="text-xs font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-full">${avance.pct}%</span>
+                    </div>
+                    <div class="relative h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div class="absolute left-0 top-0 h-full rounded-full bg-blue-500" style="width:${avance.pct}%"></div>
+                    </div>
+                    <div class="relative flex justify-between mt-2">
+                        ${hitos.map(h => `
+                            <div title="${h.label} · ${h.pct}%" class="flex flex-col items-center gap-1">
+                                <span class="w-2.5 h-2.5 rounded-full border ${avance.pct >= h.pct ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}"></span>
+                                <span class="text-[9px] font-bold ${avance.pct >= h.pct ? 'text-blue-600' : 'text-slate-300'}">${h.pct}</span>
+                            </div>`).join('')}
+                    </div>
+                </div>`;
+        }
+
+        function renderizarDesviacionPMO(p) {
+            return `
+                <div class="space-y-1.5 min-w-[170px]">
+                    ${badgeFasePMO('Dev', p.fecha_inicio_desarrollo, p.fecha_fin_desarrollo, p.fecha_desarrollo)}
+                    ${badgeFasePMO('QA', p.fecha_inicio_qa, p.fecha_fin_qa, p.fecha_qa)}
+                    ${badgeFasePMO('UAT', p.fecha_inicio_uat, p.fecha_fin_uat, p.fecha_uat)}
+                </div>`;
+        }
+
         function renderizarTabla(proyectos, conteoCambios = {}) {
             const tbody = document.getElementById('tabla-proyectos-body');
+            // Algunas pantallas, como Dashboard Ejecutivo, usan pmo-app.js para KPIs y gráficas,
+            // pero no tienen tabla de matriz. En esos casos no debemos detener la carga.
+            if (!tbody) return;
             tbody.innerHTML = '';
 
             if (proyectos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-slate-400">Sin datos en matriz.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400">Sin datos en matriz.</td></tr>';
                 return;
             }
 
             proyectos.forEach(p => {
                 const estatusNormalizado = (p.estatus || 'BACKLOG').toUpperCase();
-
-                // Mapear el avance visual según las 5 etapas tradicionales de forma secuencial
-                let etapa = 1;
-                if (estatusNormalizado === 'DESARROLLO') etapa = 2;
-                else if (estatusNormalizado === 'QA') etapa = 3;
-                else if (estatusNormalizado === 'UAT') etapa = 4;
-                else if (estatusNormalizado === 'LIBERADO' || estatusNormalizado === 'PRODUCCIÓN') etapa = 5;
-
-                let porcentaje = estatusNormalizado === 'CANCELADO' ? 0 : etapa * 20;
-
-                let segIngreso = etapa >= 1 ? 'bg-blue-500' : 'bg-slate-100';
-                let segDesarrollo = etapa >= 2 ? 'bg-indigo-500' : 'bg-slate-100';
-                let segQA = etapa >= 3 ? 'bg-amber-500' : 'bg-slate-100';
-                let segUAT = etapa >= 4 ? 'bg-orange-500' : 'bg-slate-100';
-                let segProd = etapa >= 5 ? 'bg-emerald-500' : 'bg-slate-100';
-
-                if (estatusNormalizado === 'CANCELADO') {
-                    segIngreso = segDesarrollo = segQA = segUAT = segProd = 'bg-slate-200';
-                }
-
                 let badgePrioridad = obtenerBadgePrioridad(p.prioridad);
 
-                let badgeEstatus = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">• ${p.estatus || 'BACKLOG'}</span>`;
+                let badgeEstatus = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700"><span class="w-1.5 h-1.5 bg-slate-500 rounded-full"></span>${p.estatus || 'BACKLOG'}</span>`;
                 if (estatusNormalizado === 'DESARROLLO') badgeEstatus = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700"><span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>Desarrollo</span>';
                 else if (estatusNormalizado === 'QA') badgeEstatus = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700"><span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>QA</span>';
+                else if (estatusNormalizado === 'UAT') badgeEstatus = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700"><span class="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>UAT</span>';
                 else if (estatusNormalizado === 'LIBERADO' || estatusNormalizado === 'PRODUCCIÓN') badgeEstatus = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>Liberado</span>';
+                else if (estatusNormalizado === 'REGISTRADO') badgeEstatus = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>Registrado</span>';
                 else if (estatusNormalizado === 'CANCELADO') badgeEstatus = '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700"><span class="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>Cancelado</span>';
 
                 const totalCambios = conteoCambios[p.id] || 0;
                 let badgeNotificacionReloj = totalCambios > 0 ? `<span class="absolute -top-1 -right-1 bg-rose-600 text-white font-bold text-[9px] w-4 h-4 flex items-center justify-center rounded-full border border-white shadow-xs animate-bounce">${totalCambios}</span>` : '';
+                const nombreCompleto = p.nombre_rqm || 'Sin nombre';
 
                 tbody.innerHTML += `
-                    <tr class="hover:bg-slate-50/50 transition duration-150 group border-b border-slate-100">
-                        <td class="p-4 pl-6 align-top">
-                            <div class="font-semibold text-slate-900">${p.nombre_rqm}</div>
-                            <div class="text-xs text-slate-400 font-mono mt-0.5">${p.id_req}</div>
-                            <div class="mt-3 max-w-xs space-y-1">
-                                <div class="flex justify-between text-[10px] font-bold text-slate-500">
-                                    <span>Progreso</span>
-                                    <span class="text-slate-700">${porcentaje}%</span>
-                                </div>
-                                <div class="grid grid-cols-5 gap-1 h-1.5 w-full bg-transparent">
-                                    <div class="rounded-l-full ${segIngreso} transition-all duration-300"></div>
-                                    <div class="${segDesarrollo} transition-all duration-300"></div>
-                                    <div class="${segQA} transition-all duration-300"></div>
-                                    <div class="${segUAT} transition-all duration-300"></div>
-                                    <div class="rounded-r-full ${segProd} transition-all duration-300"></div>
-                                </div>
-                            </div>
+                    <tr class="hover:bg-slate-50/70 transition duration-150 group border-b border-slate-100">
+                        <td class="p-4 pl-6 align-top min-w-[260px]">
+                            <button onclick="abrirModalEditar('${p.id}')" class="text-left cursor-pointer group/req" title="${nombreCompleto.replace(/"/g, '&quot;')}">
+                                <div class="font-black text-slate-900 leading-snug group-hover/req:text-blue-700">${recortarTextoPMO(nombreCompleto, 58)}</div>
+                                <div class="text-xs text-slate-400 font-mono mt-1">${p.id_req || '—'}</div>
+                            </button>
                         </td>
-                        <td class="p-4 text-slate-600">
-                            <div class="font-medium text-xs text-slate-900">${p.cat_sprints?.nombre || 'Sin Sprint'}</div>
-                            <div class="text-[11px] text-slate-400 font-bold">${p.cat_sistemas?.nombre || '—'}</div>
-                        </td>
-                        <td class="p-4">
-                            <div>${badgePrioridad}</div>
+                        <td class="p-4 align-top min-w-[140px]">
+                            <div class="font-bold text-xs text-slate-900">${p.cat_sprints?.nombre || 'Sin Sprint'}</div>
+                            <div class="text-[11px] text-slate-400 font-black mt-1">${p.cat_sistemas?.nombre || '—'}</div>
+                            <div class="mt-2">${badgePrioridad}</div>
                             <div class="text-[11px] text-slate-400 mt-1 font-medium">${p.cat_clasificaciones?.nombre || 'Sin Clasificación'}</div>
                         </td>
-                        <td class="p-4 text-slate-600">
-                            <div class="font-medium text-xs">${p.responsable_sistemas || '—'}</div>
-                            <div class="text-[11px] text-slate-400">Asignado: ${p.asignado_a || '—'}</div>
+                        <td class="p-4 align-top">${renderizarTimelinePMO(p)}</td>
+                        <td class="p-4 align-top">${renderizarDesviacionPMO(p)}</td>
+                        <td class="p-4 align-top min-w-[150px]">
+                            <div class="space-y-2">${badgeEstatus}${badgeReprogramado(p.id)}</div>
                         </td>
-                        <td class="p-4 font-mono text-[11px] text-slate-500">${formatearFechaRango(p.fecha_inicio_desarrollo, p.fecha_fin_desarrollo)}</td>
-                        <td class="p-4 font-mono text-[11px] text-slate-500">${formatearFechaRango(p.fecha_inicio_qa, p.fecha_fin_qa)}</td>
-                        <td class="p-4 font-mono text-[11px] text-slate-500">${formatearFechaRango(p.fecha_inicio_uat, p.fecha_fin_uat)}</td>
-                        <td class="p-4 font-mono text-[11px] text-slate-500">${formatearFechaVista(p.fecha_liberacion_prod)}</td>
-<td class="p-4 text-[11px] text-slate-500 space-y-1">
-    <div>
-        Dev: <b>${calcularDiasEntreFechas(p.fecha_inicio_desarrollo, p.fecha_fin_desarrollo) || '—'}</b>
-        <span class="ml-1 px-1.5 py-0.5 rounded font-bold ${claseDesviacion(calcularDesviacion(p.fecha_desarrollo, p.fecha_fin_desarrollo))}">
-            ${calcularDesviacion(p.fecha_desarrollo, p.fecha_fin_desarrollo) || '—'}
-        </span>
-        ${badgeAtrasoReal(p.fecha_desarrollo, p.fecha_fin_desarrollo)}
-    </div>
-    <div>
-        QA: <b>${calcularDiasEntreFechas(p.fecha_inicio_qa, p.fecha_fin_qa) || '—'}</b>
-        <span class="ml-1 px-1.5 py-0.5 rounded font-bold ${claseDesviacion(calcularDesviacion(p.fecha_qa, p.fecha_fin_qa))}">
-            ${calcularDesviacion(p.fecha_qa, p.fecha_fin_qa) || '—'}
-        </span>
-        ${badgeAtrasoReal(p.fecha_qa, p.fecha_fin_qa)}
-    </div>
-    <div>
-        UAT: <b>${calcularDiasEntreFechas(p.fecha_inicio_uat, p.fecha_fin_uat) || '—'}</b>
-        <span class="ml-1 px-1.5 py-0.5 rounded font-bold ${claseDesviacion(calcularDesviacion(p.fecha_uat, p.fecha_fin_uat))}">
-            ${calcularDesviacion(p.fecha_uat, p.fecha_fin_uat) || '—'}
-        </span>
-        ${badgeAtrasoReal(p.fecha_uat, p.fecha_fin_uat)}
-    </div>
-</td>
-                        
-                        
-                        <td class="p-4">${badgeEstatus}${badgeReprogramado(p.id)}</td>
-                        <td class="p-4 pr-6 text-right space-x-1 whitespace-nowrap">
-                            <button onclick="verHistorial('${p.id}', '${p.nombre_rqm}', '${p.id_req}')" class="relative inline-flex items-center p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition cursor-pointer">
-                                <i data-lucide="clock" class="w-4 h-4"></i>
-                                ${badgeNotificacionReloj}
-                            </button>
-                            <button onclick="abrirModalEditar('${p.id}')" class="inline-flex items-center p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                            <button onclick="eliminarProyecto('${p.id}', '${p.nombre_rqm}')" class="inline-flex items-center p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <td class="p-4 pr-6 text-right whitespace-nowrap align-top">
+                            <div class="inline-flex items-center gap-1 rounded-2xl bg-slate-50 border border-slate-100 p-1">
+                                <button title="Historial" onclick="verHistorial('${p.id}', '${(p.nombre_rqm || '').replace(/'/g, "\\'")}', '${(p.id_req || '').replace(/'/g, "\\'")}')" class="relative inline-flex items-center p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition cursor-pointer">
+                                    <i data-lucide="clock" class="w-4 h-4"></i>
+                                    ${badgeNotificacionReloj}
+                                </button>
+                                <button title="Eliminar" onclick="eliminarProyecto('${p.id}', '${(p.nombre_rqm || '').replace(/'/g, "\\'")}')" class="inline-flex items-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -670,135 +720,26 @@ let todosLosProyectos = [];
             const contenedor = document.getElementById('contenedor-contadores');
             if (!contenedor) return;
 
-            const conteos = {};
+            const grupos = [
+                { key: 'TOTAL', label: 'TOTAL', icono: 'layers', bg: 'bg-blue-50', color: 'text-blue-600', valor: proyectos.length },
+                { key: 'LIBERADO', label: 'LIBERADOS', icono: 'rocket', bg: 'bg-emerald-50', color: 'text-emerald-600', valor: proyectos.filter(p => normalizarTexto(p.estatus || '').includes('LIBERADO') || normalizarTexto(p.estatus || '').includes('PRODUCCION')).length },
+                { key: 'QA', label: 'QA', icono: 'shield-check', bg: 'bg-amber-50', color: 'text-amber-600', valor: proyectos.filter(p => normalizarTexto(p.estatus || '') === 'QA').length },
+                { key: 'UAT', label: 'UAT', icono: 'clipboard-check', bg: 'bg-orange-50', color: 'text-orange-600', valor: proyectos.filter(p => normalizarTexto(p.estatus || '') === 'UAT').length },
+                { key: 'REPROGRAMADOS', label: 'REPROGRAMADOS', icono: 'calendar-clock', bg: 'bg-violet-50', color: 'text-violet-600', valor: proyectos.filter(p => p.reprogramado || p.tiene_reprogramacion || p.razon_cambio_fechas).length },
+                { key: 'ATRASADOS', label: 'ATRASADOS', icono: 'triangle-alert', bg: 'bg-rose-50', color: 'text-rose-600', valor: proyectos.filter(p => Number(p.dias_desviacion || p.dias_atraso || 0) > 0).length }
+            ];
 
-            cats.estatus.forEach(e => {
-                conteos[e.nombre.toUpperCase()] = 0;
-            });
-
-            if (conteos['CANCELADO'] === undefined)
-                conteos['CANCELADO'] = 0;
-
-            proyectos.forEach(p => {
-                const est = (p.estatus || 'BACKLOG').toUpperCase();
-
-                if (conteos[est] !== undefined)
-                    conteos[est]++;
-            });
-
-            const estilos = {
-                BACKLOG: {
-                    icono: 'folder',
-                    gradiente: 'from-blue-500 to-blue-700'
-                },
-                DESARROLLO: {
-                    icono: 'code-2',
-                    gradiente: 'from-indigo-500 to-indigo-700'
-                },
-                QA: {
-                    icono: 'shield-alert',
-                    gradiente: 'from-amber-400 to-amber-600'
-                },
-                UAT: {
-                    icono: 'clipboard-check',
-                    gradiente: 'from-orange-400 to-orange-600'
-                },
-                LIBERADO: {
-                    icono: 'rocket',
-                    gradiente: 'from-emerald-500 to-emerald-700'
-                },
-                PRODUCCIÓN: {
-                    icono: 'rocket',
-                    gradiente: 'from-emerald-500 to-emerald-700'
-                },
-                CANCELADO: {
-                    icono: 'ban',
-                    gradiente: 'from-rose-500 to-rose-700'
-                }
-            };
-
-            contenedor.innerHTML = Object.keys(conteos)
-                .map(key => {
-
-                    const estilo = estilos[key] || {
-                        icono: 'help-circle',
-                        gradiente: 'from-slate-500 to-slate-700'
-                    };
-
-                    return `
-                <div class="
-                    bg-gradient-to-br
-                    ${estilo.gradiente}
-                    rounded-3xl
-                    p-5
-                    text-white
-                    shadow-lg
-                    hover:scale-105
-                    transition-all
-                    duration-300
-                    cursor-pointer
-                ">
-                    <div class="flex justify-between items-start">
-
-                        <div>
-                            <p class="
-                                text-xs
-                                uppercase
-                                tracking-widest
-                                font-bold
-                                text-white/80
-                            ">
-                                ${key}
-                            </p>
-
-                            <h2 class="
-                                text-4xl
-                                font-black
-                                mt-3
-                            ">
-                                ${conteos[key]}
-                            </h2>
-                        </div>
-
-                        <div class="
-                            w-14
-                            h-14
-                            rounded-2xl
-                            bg-white/20
-                            flex
-                            items-center
-                            justify-center
-                            backdrop-blur-sm
-                        ">
-                            <i
-                                data-lucide="${estilo.icono}"
-                                class="w-7 h-7"
-                            ></i>
-                        </div>
-
+            contenedor.innerHTML = grupos.map(g => `
+                <div class="pmo-summary-card">
+                    <div>
+                        <p class="pmo-summary-label">${g.label}</p>
+                        <h2 class="pmo-summary-value">${g.valor}</h2>
                     </div>
-
-                    <div class="mt-5">
-                        <div class="
-                            h-1.5
-                            bg-white/20
-                            rounded-full
-                            overflow-hidden
-                        ">
-                            <div class="
-                                h-full
-                                bg-white
-                                rounded-full
-                                w-full
-                                opacity-70
-                            ">
-                            </div>
-                        </div>
+                    <div class="pmo-summary-icon ${g.bg} ${g.color}">
+                        <i data-lucide="${g.icono}" class="w-6 h-6"></i>
                     </div>
                 </div>
-            `;
-                })
-                .join('');
+            `).join('');
 
             lucide.createIcons();
         }
@@ -864,6 +805,18 @@ let todosLosProyectos = [];
 
                 campo.dataset.eventosInicializados = 'true';
             });
+
+            const checkAjuste = document.getElementById('form-ajuste-sin-reprogramacion');
+            if (checkAjuste && checkAjuste.dataset.eventosInicializados !== 'true') {
+                checkAjuste.addEventListener('change', () => {
+                    if (checkAjuste.checked) {
+                        limpiarMotivosReprogramacion();
+                        checkAjuste.checked = true;
+                    }
+                    verificarCambioFechas();
+                });
+                checkAjuste.dataset.eventosInicializados = 'true';
+            }
         }
 
         function calcularDiasEntreFechas(inicio, fin) {
@@ -957,6 +910,17 @@ let todosLosProyectos = [];
         }
 
 
+        function obtenerMotivoReprogramacion(fase) {
+            const select = document.getElementById(`form-motivo-${fase}`);
+            const comentario = document.getElementById(`form-comentario-motivo-${fase}`)?.value?.trim() || '';
+            const motivoId = select?.value || null;
+            const textoSeleccionado = select?.options?.[select.selectedIndex]?.textContent?.trim() || '';
+            const textoDesdeData = select?.options?.[select.selectedIndex]?.dataset?.nombre?.trim() || '';
+            const motivoTexto = (textoDesdeData || textoSeleccionado || '').includes('Seleccionar') ? '' : (textoDesdeData || textoSeleccionado || '');
+
+            return { motivoId, motivoTexto, comentario };
+        }
+
         async function procesarFormulario(event) {
             event.preventDefault();
 
@@ -1004,12 +968,14 @@ let todosLosProyectos = [];
             try {
                 if (id) {
                     if (proyectoSeleccionadoOriginal) {
-                        const registrarLog = async (fase, ant, nva, motivoId = null, comentarioMotivo = null, motivoSelectId = null) => {
+                        const registrarLog = async (fase, ant, nva, motivoId = null, comentarioMotivo = null, motivoTexto = null, esAjusteAdministrativo = false) => {
                             if (esCambioReprogramacion(ant || null, nva || null)) {
-                                const motivoNombre = nombreMotivoPorId(motivoId, motivoSelectId);
-                                const razonTexto = motivoNombre
-                                    ? `${motivoNombre}${comentarioMotivo ? ' - ' + comentarioMotivo : ''}`
-                                    : (comentarioMotivo || motivoNombre || 'Reprogramación de fecha fin');
+                                const motivoNombre = motivoTexto || nombreMotivoPorId(motivoId);
+                                const razonTexto = esAjusteAdministrativo
+                                    ? 'Ajuste administrativo - No afecta reprogramación ni desviación'
+                                    : (motivoNombre
+                                        ? `${motivoNombre}${comentarioMotivo ? ' - ' + comentarioMotivo : ''}`
+                                        : (comentarioMotivo || 'Reprogramación de fecha fin'));
 
                                 const payload = {
                                     project_id: id,
@@ -1017,8 +983,8 @@ let todosLosProyectos = [];
                                     fecha_anterior: ant || null,
                                     fecha_nueva: nva || null,
                                     razon: razonTexto,
-                                    motivo_id: motivoId || null,
-                                    comentario_motivo: comentarioMotivo || null
+                                    motivo_id: esAjusteAdministrativo ? null : (motivoId || null),
+                                    comentario_motivo: esAjusteAdministrativo ? null : (comentarioMotivo || null)
                                 };
 
                                 let { error } = await _supabase
@@ -1049,19 +1015,30 @@ let todosLosProyectos = [];
                             }
                         };
 
-                        await registrarLog('Compromiso Desarrollo', proyectoSeleccionadoOriginal.fecha_desarrollo, reqData.fecha_desarrollo);
-                        await registrarLog('Inicio Desarrollo', proyectoSeleccionadoOriginal.fecha_inicio_desarrollo, reqData.fecha_inicio_desarrollo);
-                        await registrarLog('Fin Desarrollo', proyectoSeleccionadoOriginal.fecha_fin_desarrollo, reqData.fecha_fin_desarrollo);
+                        const omitirReprogramacion = ajusteSinReprogramacionActivo();
 
-                        await registrarLog('Compromiso QA', proyectoSeleccionadoOriginal.fecha_qa, reqData.fecha_qa);
-                        await registrarLog('Inicio QA', proyectoSeleccionadoOriginal.fecha_inicio_qa, reqData.fecha_inicio_qa);
-                        await registrarLog('Fin QA', proyectoSeleccionadoOriginal.fecha_fin_qa, reqData.fecha_fin_qa);
+                        // Si el usuario marca "Ajuste administrativo sin reprogramación",
+                        // el cambio de fechas se guarda en el requerimiento, pero NO se registra
+                        // ningún movimiento en el reloj de auditoría temporal.
+                        if (!omitirReprogramacion) {
+                            const motivoDev = obtenerMotivoReprogramacion('desarrollo');
+                            const motivoQA = obtenerMotivoReprogramacion('qa');
+                            const motivoUAT = obtenerMotivoReprogramacion('uat');
 
-                        await registrarLog('Compromiso UAT', proyectoSeleccionadoOriginal.fecha_uat, reqData.fecha_uat);
-                        await registrarLog('Inicio UAT', proyectoSeleccionadoOriginal.fecha_inicio_uat, reqData.fecha_inicio_uat);
-                        await registrarLog('Fin UAT', proyectoSeleccionadoOriginal.fecha_fin_uat, reqData.fecha_fin_uat);
+                            await registrarLog('Compromiso Desarrollo', proyectoSeleccionadoOriginal.fecha_desarrollo, reqData.fecha_desarrollo);
+                            await registrarLog('Inicio Desarrollo', proyectoSeleccionadoOriginal.fecha_inicio_desarrollo, reqData.fecha_inicio_desarrollo);
+                            await registrarLog('Fin Desarrollo', proyectoSeleccionadoOriginal.fecha_fin_desarrollo, reqData.fecha_fin_desarrollo, motivoDev.motivoId, motivoDev.comentario, motivoDev.motivoTexto, false);
 
-                        await registrarLog('Liberación Producción', proyectoSeleccionadoOriginal.fecha_liberacion_prod, reqData.fecha_liberacion_prod);
+                            await registrarLog('Compromiso QA', proyectoSeleccionadoOriginal.fecha_qa, reqData.fecha_qa);
+                            await registrarLog('Inicio QA', proyectoSeleccionadoOriginal.fecha_inicio_qa, reqData.fecha_inicio_qa);
+                            await registrarLog('Fin QA', proyectoSeleccionadoOriginal.fecha_fin_qa, reqData.fecha_fin_qa, motivoQA.motivoId, motivoQA.comentario, motivoQA.motivoTexto, false);
+
+                            await registrarLog('Compromiso UAT', proyectoSeleccionadoOriginal.fecha_uat, reqData.fecha_uat);
+                            await registrarLog('Inicio UAT', proyectoSeleccionadoOriginal.fecha_inicio_uat, reqData.fecha_inicio_uat);
+                            await registrarLog('Fin UAT', proyectoSeleccionadoOriginal.fecha_fin_uat, reqData.fecha_fin_uat, motivoUAT.motivoId, motivoUAT.comentario, motivoUAT.motivoTexto, false);
+
+                            await registrarLog('Liberación Producción', proyectoSeleccionadoOriginal.fecha_liberacion_prod, reqData.fecha_liberacion_prod);
+                        }
                     }
 
                     const { data, error } = await _supabase
@@ -1091,7 +1068,8 @@ let todosLosProyectos = [];
 
             } catch (error) {
                 console.error("Error completo al guardar:", error);
-                alert("No se pudo guardar: " + error.message);
+                const msg = error?.message || '';
+                alert("No se pudo guardar: " + msg);
             } finally {
                 btnGuardar.disabled = false;
                 btnGuardar.innerText = 'Guardar Cambios';
@@ -1112,7 +1090,12 @@ let todosLosProyectos = [];
 
         if (error) throw error;
 
-        if (!data || data.length === 0) {
+        const historialVisible = (data || []).filter(h => {
+            const razonNormalizada = normalizarTexto(h.razon || '');
+            return !razonNormalizada.includes('AJUSTE ADMINISTRATIVO');
+        });
+
+        if (!historialVisible || historialVisible.length === 0) {
             listaDiv.innerHTML = `
                 <div class="text-center py-6 text-slate-400 text-xs">
                     Sin desfases en hitos.
@@ -1197,7 +1180,7 @@ let todosLosProyectos = [];
         }
 
         const tarjetasFase = fases.map(fase => {
-            const logsFase = data.filter(l => fase.logs.includes(l.fase));
+            const logsFase = historialVisible.filter(l => fase.logs.includes(l.fase));
 
             if (logsFase.length === 0) return '';
 
@@ -1238,9 +1221,17 @@ let todosLosProyectos = [];
                                 </div>
                             </div>
 
-                            <span class="${estilo.bg} ${estilo.text} text-[11px] font-black px-3 py-1 rounded-full">
-                                ${logsFase.length} cambio${logsFase.length === 1 ? '' : 's'}
-                            </span>
+                            <div class="flex items-center gap-2">
+                                <span class="${estilo.bg} ${estilo.text} text-[11px] font-black px-3 py-1 rounded-full">
+                                    ${logsFase.length} cambio${logsFase.length === 1 ? '' : 's'}
+                                </span>
+                                <button type="button"
+                                    onclick='borrarHistorialFase(${JSON.stringify(id)}, ${JSON.stringify(nombre)}, ${JSON.stringify(codigo)}, ${JSON.stringify(fase.nombre)}, ${JSON.stringify(fase.logs)})'
+                                    title="Borrar historial de ${fase.nombre}"
+                                    class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
@@ -1297,6 +1288,31 @@ let todosLosProyectos = [];
         `;
     }
 }
+
+        async function borrarHistorialFase(projectId, nombre, codigo, nombreFase, logsFase) {
+            const confirmar = confirm(`¿Seguro que deseas borrar el historial de ${nombreFase}?
+
+Esta acción eliminará los movimientos registrados de esa fase y no se puede deshacer.`);
+            if (!confirmar) return;
+
+            try {
+                const { error } = await _supabase
+                    .from('pmo_date_history')
+                    .delete()
+                    .eq('project_id', projectId)
+                    .in('fase', logsFase);
+
+                if (error) throw error;
+
+                await cargarTodo();
+                await verHistorial(projectId, nombre, codigo);
+            } catch (e) {
+                console.error('Error al borrar historial:', e);
+                alert('No se pudo borrar el historial: ' + (e?.message || e));
+            }
+        }
+
+        window.borrarHistorialFase = borrarHistorialFase;
 
         function abrirModalNuevo() {
             proyectoSeleccionadoOriginal = null;
@@ -1757,43 +1773,173 @@ let todosLosProyectos = [];
         
 
         let seguimientoCharts = {};
+
+        // Modelo definitivo: se administran ESTATUS operativos y el mapa muestra las 11 actividades del flujo.
+        // El carrito se posiciona automáticamente según el estatus del requerimiento; no se captura fase_actual.
         const fasesSeguimientoEjecutivo = [
-            { key: 'ANALISIS', label: 'Análisis', icono: '🔎' },
-            { key: 'BACKLOG', label: 'Backlog', icono: '📥' },
-            { key: 'DESARROLLO', label: 'Desarrollo', icono: '👨‍💻' },
-            { key: 'QA', label: 'QA', icono: '🧪' },
-            { key: 'UAT', label: 'UAT', icono: '👤' },
-            { key: 'LIBERADO', label: 'Liberación', icono: '🚀' }
+            { key: 'FOLIO', label: '1. SOLICITUD\nDE FOLIO', corto: 'Folio', icono: '✉️' },
+            { key: 'RQM', label: '2. INGRESO\nDE RQM', corto: 'RQM', icono: '📝' },
+            { key: 'RECEPCION', label: '3. RECEPCIÓN\nDEL PROYECTO', corto: 'Recepción', icono: '📂' },
+            { key: 'ASIGNACION', label: '4. ASIGNACIÓN\nDE ORDEN DE ATENCIÓN', corto: 'Asignación', icono: '📋' },
+            { key: 'MESA', label: '5. MESA DE\nTRABAJO', corto: 'Mesa', icono: '👥' },
+            { key: 'DEV', label: '6. DESARROLLO\nDEV', corto: 'DEV', icono: '💻' },
+            { key: 'INST_QA', label: '7. INSTALACIÓN\nQA', corto: 'Inst. QA', icono: '🧪' },
+            { key: 'CERT_QA', label: '8. CERTIFICACIÓN\nQA', corto: 'Cert. QA', icono: '✅' },
+            { key: 'UAT', label: '9. PRUEBAS DE\nUSUARIO UAT', corto: 'UAT', icono: '👤' },
+            { key: 'PROD', label: '10. LIBERACIÓN\nA PRODUCCIÓN', corto: 'PROD', icono: '🚀' },
+            { key: 'FEEDBACK', label: '11. FEEDBACK\nY CALIDAD', corto: 'Feedback', icono: '⭐' }
         ];
 
-        function indiceFaseSeguimiento(estatus) {
-            const e = normalizarTexto(estatus || 'BACKLOG');
-            if (e.includes('ANALISIS') || e.includes('ANÁLISIS')) return 0;
-            if (e.includes('BACKLOG')) return 1;
-            if (e.includes('DESARROLLO')) return 2;
-            if (e === 'QA') return 3;
-            if (e === 'UAT') return 4;
-            if (e.includes('LIBERADO') || e.includes('PRODUCCION') || e.includes('PRODUCCIÓN')) return 5;
-            return 1;
+        const estatusSeguimientoEjecutivo = [
+            { key: 'BACKLOG', label: 'BACKLOG' },
+            { key: 'ANALISIS', label: 'ANÁLISIS' },
+            { key: 'DESARROLLO', label: 'DESARROLLO' },
+            { key: 'QA', label: 'QA' },
+            { key: 'UAT', label: 'UAT' },
+            { key: 'LIBERADO', label: 'LIBERADO' }
+        ];
+
+        function estatusOperativoSeguimiento(valor) {
+            const e = normalizarTexto(valor || 'BACKLOG');
+            if (e.includes('CANCEL')) return 'CANCELADO';
+            if (e.includes('ANALISIS') || e.includes('ANÁLISIS')) return 'ANALISIS';
+            if (e.includes('DESARROLLO') || e.includes('DEV')) return 'DESARROLLO';
+            if (e === 'QA' || e.includes('CERTIFICACION') || e.includes('CERTIFICACIÓN')) return 'QA';
+            if (e.includes('UAT') || e.includes('USUARIO')) return 'UAT';
+            if (e.includes('LIBERADO') || e.includes('PRODUCCION') || e.includes('PRODUCCIÓN') || e.includes('PROD')) return 'LIBERADO';
+            return 'BACKLOG';
+        }
+
+        function calcularAvanceEstatusSeguimiento(valor) {
+            const key = estatusOperativoSeguimiento(valor || 'BACKLOG');
+            const mapa = {
+                BACKLOG: 0,
+                ANALISIS: 20,
+                DESARROLLO: 40,
+                QA: 60,
+                UAT: 80,
+                LIBERADO: 100,
+                CANCELADO: 0
+            };
+            return mapa[key] ?? 0;
+        }
+
+
+        function esProyectoCanceladoSeguimiento(p) {
+            return estatusOperativoSeguimiento(p?.estatus || '') === 'CANCELADO';
+        }
+
+        function proyectosConsideradosAvanceSeguimiento(proyectos = []) {
+            const lista = Array.isArray(proyectos) ? proyectos : [];
+            return lista.filter(p => !esProyectoCanceladoSeguimiento(p));
+        }
+
+        function calcularAvancePromedioSeguimiento(proyectos = []) {
+            const lista = proyectosConsideradosAvanceSeguimiento(proyectos);
+            if (!lista.length) return 0;
+            const total = lista.reduce((acc, p) => acc + calcularAvanceEstatusSeguimiento(p?.estatus || 'BACKLOG'), 0);
+            return Math.round(total / lista.length);
+        }
+
+        function actualizarAvanceGeneralSeguimiento(proyectos = []) {
+            const listaOriginal = Array.isArray(proyectos) ? proyectos : [];
+            const listaConsiderada = proyectosConsideradosAvanceSeguimiento(listaOriginal);
+            const cancelados = listaOriginal.length - listaConsiderada.length;
+            const valor = calcularAvancePromedioSeguimiento(listaOriginal);
+            const valorEl = document.getElementById('seguimiento-avance-general-valor');
+            const detalleEl = document.getElementById('seguimiento-avance-general-detalle');
+            const cardEl = document.getElementById('seguimiento-avance-general');
+
+            if (valorEl) valorEl.textContent = `${valor}%`;
+            if (detalleEl) {
+                const total = listaConsiderada.length;
+                const textoBase = `${total} requerimiento${total === 1 ? '' : 's'} considerado${total === 1 ? '' : 's'}`;
+                detalleEl.textContent = cancelados > 0 ? `${textoBase} · ${cancelados} cancelado${cancelados === 1 ? '' : 's'} no considerado${cancelados === 1 ? '' : 's'}` : textoBase;
+            }
+
+            if (cardEl) {
+                cardEl.classList.remove('bg-emerald-50','border-emerald-100','bg-amber-50','border-amber-100','bg-rose-50','border-rose-100','bg-blue-50','border-blue-100');
+                const color = valor >= 85
+                    ? ['bg-emerald-50','border-emerald-100']
+                    : valor >= 60
+                        ? ['bg-amber-50','border-amber-100']
+                        : ['bg-rose-50','border-rose-100'];
+                cardEl.classList.add(...color);
+            }
+        }
+
+        function indiceFaseSeguimiento(proyectoOestatus) {
+            const estatus = typeof proyectoOestatus === 'object' ? proyectoOestatus?.estatus : proyectoOestatus;
+            const key = estatusOperativoSeguimiento(estatus);
+            const mapa = {
+                BACKLOG: 3,      // Solicitud, RQM, Recepción y Asignación
+                ANALISIS: 4,     // Mesa de Trabajo
+                DESARROLLO: 5,   // Desarrollo DEV
+                QA: 7,           // Instalación QA + Certificación QA
+                UAT: 8,          // Pruebas usuario UAT
+                LIBERADO: 10,     // Liberado: se pinta hasta Feedback y Calidad
+                CANCELADO: 0
+            };
+            return mapa[key] ?? 0;
+        }
+
+        function nombreFaseActualSeguimiento(p) {
+            const fase = fasesSeguimientoEjecutivo[indiceFaseSeguimiento(p)];
+            return fase?.corto || 'Folio';
+        }
+
+
+        function fechasFaseSeguimiento(p, key) {
+            const fmt = (fecha) => fecha ? formatearFechaVista(fecha).replace('.', '') : '';
+            const linea = (a, b) => {
+                const ia = fmt(a);
+                const ib = fmt(b);
+                if (ia && ib) return `${ia}<br>${ib}`;
+                return ia || ib || '';
+            };
+
+            switch (key) {
+                case 'DEV':
+                    return linea(p.fecha_inicio_desarrollo, p.fecha_fin_desarrollo);
+                case 'INST_QA':
+                    return fmt(p.fecha_fin_desarrollo);
+                case 'CERT_QA':
+                    return linea(p.fecha_inicio_qa, p.fecha_fin_qa);
+                case 'UAT':
+                    return linea(p.fecha_inicio_uat, p.fecha_fin_uat);
+                case 'PROD':
+                    return fmt(p.fecha_liberacion_prod);
+                default:
+                    return '';
+            }
         }
 
         function calcularMaxDesviacionProyecto(p) {
-            const vals = [
-                obtenerDesviacionDias(p.fecha_desarrollo, p.fecha_fin_desarrollo),
-                obtenerDesviacionDias(p.fecha_qa, p.fecha_fin_qa),
-                obtenerDesviacionDias(p.fecha_uat, p.fecha_fin_uat)
-            ].filter(v => typeof v === 'number');
+            const vals = [];
 
-            if (!vals.length) return null;
-            return Math.max(...vals);
+            if (!tieneAjusteAdministrativo(p.id, 'Fin Desarrollo')) {
+                vals.push(obtenerDesviacionDias(p.fecha_desarrollo, p.fecha_fin_desarrollo));
+            }
+
+            if (!tieneAjusteAdministrativo(p.id, 'Fin QA')) {
+                vals.push(obtenerDesviacionDias(p.fecha_qa, p.fecha_fin_qa));
+            }
+
+            if (!tieneAjusteAdministrativo(p.id, 'Fin UAT')) {
+                vals.push(obtenerDesviacionDias(p.fecha_uat, p.fecha_fin_uat));
+            }
+
+            const filtrados = vals.filter(v => typeof v === 'number');
+            if (!filtrados.length) return null;
+            return Math.max(...filtrados);
         }
 
         function contarAtrasosRealesProyecto(p) {
-            return [
-                calcularAtrasoReal(p.fecha_desarrollo, p.fecha_fin_desarrollo),
-                calcularAtrasoReal(p.fecha_qa, p.fecha_fin_qa),
-                calcularAtrasoReal(p.fecha_uat, p.fecha_fin_uat)
-            ].filter(Boolean).length;
+            const atrasos = [];
+            if (!tieneAjusteAdministrativo(p.id, 'Fin Desarrollo')) atrasos.push(calcularAtrasoReal(p.fecha_desarrollo, p.fecha_fin_desarrollo));
+            if (!tieneAjusteAdministrativo(p.id, 'Fin QA')) atrasos.push(calcularAtrasoReal(p.fecha_qa, p.fecha_fin_qa));
+            if (!tieneAjusteAdministrativo(p.id, 'Fin UAT')) atrasos.push(calcularAtrasoReal(p.fecha_uat, p.fecha_fin_uat));
+            return atrasos.filter(Boolean).length;
         }
 
         function estadoSemaforoProyecto(p) {
@@ -1802,7 +1948,10 @@ let todosLosProyectos = [];
             const desviacion = calcularMaxDesviacionProyecto(p);
 
             if (atrasos > 0) return { texto: 'Atraso real', clase: 'bg-rose-50 text-rose-700 border-rose-100', icono: '🔴' };
-            if (reprogramaciones > 0 || (desviacion !== null && desviacion > 0)) return { texto: 'Reprogramado', clase: 'bg-amber-50 text-amber-700 border-amber-100', icono: '🟡' };
+            // Reprogramado debe salir únicamente cuando existe auditoría real de reprogramación.
+            // Una desviación positiva (+días) no necesariamente es reprogramación; puede ser un ajuste administrativo.
+            if (reprogramaciones > 0) return { texto: 'Reprogramado', clase: 'bg-amber-50 text-amber-700 border-amber-100', icono: '🟡' };
+            if (desviacion !== null && desviacion > 0) return { texto: 'Con desviación', clase: 'bg-orange-50 text-orange-700 border-orange-100', icono: '🟠' };
             return { texto: 'En tiempo', clase: 'bg-emerald-50 text-emerald-700 border-emerald-100', icono: '🟢' };
         }
 
@@ -1860,55 +2009,70 @@ let todosLosProyectos = [];
         }
 
         function renderizarGraficasSeguimientoEjecutivo(proyectos) {
-            const fasesBase = ['Análisis', 'Desarrollo', 'QA', 'UAT', 'Liberados'];
-            const conteoAvance = { 'Análisis': 0, 'Desarrollo': 0, 'QA': 0, 'UAT': 0, 'Liberados': 0 };
+            const gruposBase = estatusSeguimientoEjecutivo.map(g => g.label);
+            const conteoAvance = Object.fromEntries(gruposBase.map(g => [g, 0]));
 
             proyectos.forEach(p => {
-                const est = normalizarTexto(p.estatus || 'BACKLOG');
-                if (est.includes('ANALISIS') || est.includes('ANÁLISIS') || est === 'BACKLOG') conteoAvance['Análisis']++;
-                else if (est === 'DESARROLLO') conteoAvance['Desarrollo']++;
-                else if (est === 'QA') conteoAvance['QA']++;
-                else if (est === 'UAT') conteoAvance['UAT']++;
-                else if (est.includes('LIBERADO') || est.includes('PRODUCCION') || est.includes('PRODUCCIÓN')) conteoAvance['Liberados']++;
+                const key = estatusOperativoSeguimiento(p.estatus || 'BACKLOG');
+                const label = estatusSeguimientoEjecutivo.find(g => g.key === key)?.label || 'BACKLOG';
+                if (conteoAvance[label] !== undefined) conteoAvance[label] += 1;
             });
 
-            crearGraficaSeguimiento('seguimiento-chart-avance', 'bar', fasesBase, fasesBase.map(f => conteoAvance[f]), 'Requerimientos');
+            crearGraficaSeguimiento('seguimiento-chart-avance', 'bar', gruposBase, gruposBase.map(g => conteoAvance[g]), 'Requerimientos');
 
+            const orden = ['LIBERADO', 'UAT', 'QA', 'DESARROLLO', 'ANALISIS', 'BACKLOG', 'CANCELADO'];
             const porEstatus = {};
             proyectos.forEach(p => {
-                const est = normalizarTexto(p.estatus || 'BACKLOG');
-                const nombre = est.includes('LIBERADO') || est.includes('PRODUCCION') || est.includes('PRODUCCIÓN')
-                    ? 'Liberados'
-                    : est.charAt(0) + est.slice(1).toLowerCase();
-
-                porEstatus[nombre] = (porEstatus[nombre] || 0) + 1;
+                const key = estatusOperativoSeguimiento(p.estatus || 'BACKLOG');
+                porEstatus[key] = (porEstatus[key] || 0) + 1;
             });
 
-            crearGraficaSeguimiento('seguimiento-chart-portafolio', 'doughnut', Object.keys(porEstatus), Object.values(porEstatus), 'Portafolio');
+            const labels = orden.filter(k => porEstatus[k] > 0).map(k => `${k} ${porEstatus[k]}`);
+            const data = orden.filter(k => porEstatus[k] > 0).map(k => porEstatus[k]);
+            crearGraficaSeguimiento('seguimiento-chart-portafolio', 'doughnut', labels, data, 'Portafolio');
         }
 
         function renderizarLineaFases(p) {
-            const actual = indiceFaseSeguimiento(p.estatus);
+            const actual = indiceFaseSeguimiento(p);
+            const progreso = Math.max(0, Math.min(100, (actual / (fasesSeguimientoEjecutivo.length - 1)) * 100));
 
             return `
-                <div class="mt-4">
-                    <div class="grid grid-cols-6 gap-2 items-start">
-                        ${fasesSeguimientoEjecutivo.map((fase, idx) => {
-                            const completada = idx < actual;
-                            const actualFase = idx === actual;
-                            const circuloClase = actualFase ? 'bg-blue-600 text-white ring-4 ring-blue-100 scale-110' : completada ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400';
-                            const lineaClase = idx <= actual ? 'bg-blue-500' : 'bg-slate-200';
+                <div class="mt-7 overflow-x-auto pb-2">
+                    <div class="relative min-w-[1120px] px-2 py-2">
+                        <div class="absolute left-8 right-8 top-[38px] h-1.5 rounded-full bg-slate-200"></div>
+                        <div class="absolute left-8 top-[38px] h-1.5 rounded-full bg-emerald-500 transition-all" style="width: ${progreso}%; max-width: calc(100% - 4rem);"></div>
+                        <div class="grid grid-cols-11 gap-2 relative z-10">
+                            ${fasesSeguimientoEjecutivo.map((fase, idx) => {
+                                const completada = idx < actual;
+                                const actualFase = idx === actual;
+                                const pendiente = idx > actual;
+                                const circuloClase = actualFase
+                                    ? 'bg-blue-600 text-white ring-4 ring-blue-100 scale-110 shadow-lg shadow-blue-200/70'
+                                    : completada
+                                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-100'
+                                        : 'bg-slate-100 text-slate-400';
+                                const textoClase = actualFase ? 'text-blue-700' : completada ? 'text-slate-700' : 'text-slate-400';
+                                const checkClase = actualFase ? 'bg-blue-600 text-white' : completada ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-400';
+                                const fechas = fechasFaseSeguimiento(p, fase.key);
 
-                            return `
-                                <div class="relative flex flex-col items-center text-center">
-                                    ${idx < fasesSeguimientoEjecutivo.length - 1 ? `<div class="absolute top-5 left-1/2 w-full h-1 ${lineaClase} -z-0"></div>` : ''}
-                                    <div class="relative z-10 w-10 h-10 rounded-2xl ${circuloClase} flex items-center justify-center shadow-sm transition">
-                                        <span class="text-lg">${actualFase ? '🚗' : fase.icono}</span>
+                                return `
+                                    <div class="text-center">
+                                        <div class="h-[74px] flex flex-col items-center justify-start">
+                                            <div class="w-14 h-14 rounded-full ${circuloClase} flex items-center justify-center text-2xl transition relative">
+                                                ${actualFase ? '<span class="inline-block" style="transform:scaleX(-1);">🚙</span>' : `<span>${fase.icono}</span>`}
+                                            </div>
+                                            <div class="mt-2 w-5 h-5 rounded-full ${checkClase} flex items-center justify-center text-[11px] font-black">${(completada || actualFase) ? '✓' : ''}</div>
+                                        </div>
+                                        <div class="mt-3 min-h-[54px] flex items-start justify-center">
+                                            <p class="text-[10px] md:text-[11px] font-black uppercase leading-tight whitespace-pre-line ${textoClase}">${fase.label}</p>
+                                        </div>
+                                        <div class="mt-1 min-h-[30px] text-[9px] md:text-[10px] font-black leading-tight text-slate-500">
+                                            ${fechas || '&nbsp;'}
+                                        </div>
                                     </div>
-                                    <p class="text-[10px] font-black text-slate-500 mt-2 uppercase leading-tight">${fase.label}</p>
-                                </div>
-                            `;
-                        }).join('')}
+                                `;
+                            }).join('')}
+                        </div>
                     </div>
                 </div>
             `;
@@ -1916,10 +2080,9 @@ let todosLosProyectos = [];
 
         function renderizarTarjetaSeguimiento(p) {
             const semaforo = estadoSemaforoProyecto(p);
-            const reprogramaciones = contarReprogramacionesProyecto(p.id);
             const desviacion = calcularMaxDesviacionProyecto(p);
             const atrasos = contarAtrasosRealesProyecto(p);
-            const avance = Math.round(((indiceFaseSeguimiento(p.estatus) + 1) / fasesSeguimientoEjecutivo.length) * 100);
+            const avance = calcularAvanceEstatusSeguimiento(p.estatus || 'BACKLOG');
 
             return `
                 <article class="border border-slate-100 rounded-3xl p-5 bg-slate-50/40 hover:bg-white hover:shadow-md transition">
@@ -1928,11 +2091,11 @@ let todosLosProyectos = [];
                             <div class="flex items-center gap-2 flex-wrap">
                                 <span class="text-[11px] font-black bg-slate-900 text-white px-2.5 py-1 rounded-full">${p.id_req || 'SIN ID'}</span>
                                 <span class="text-[11px] font-black px-2.5 py-1 rounded-full border ${semaforo.clase}">${semaforo.icono} ${semaforo.texto}</span>
-                                ${reprogramaciones ? `<span class="text-[11px] font-black px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100">Reprogramado (${reprogramaciones})</span>` : ''}
                             </div>
 
                             <h4 class="text-base font-black text-slate-900 mt-3">${p.nombre_rqm || 'Sin nombre'}</h4>
-                            <p class="text-xs text-slate-500 mt-1">${p.cat_sistemas?.nombre || 'Sin sistema'} · ${p.cat_sprints?.nombre || 'Sin sprint'} · Responsable: ${p.responsable_sistemas || '—'}</p>
+                            <p class="text-xs text-slate-500 mt-1">${p.cat_sistemas?.nombre || 'Sin sistema'} · ${p.cat_sprints?.nombre || 'Sin sprint'}</p>
+                            <p class="text-[11px] text-slate-400 mt-1 font-bold">Estatus: <span class="text-slate-600">${p.estatus || 'BACKLOG'}</span></p>
                         </div>
 
                         <div class="grid grid-cols-3 gap-2 text-center min-w-[260px]">
@@ -1956,7 +2119,309 @@ let todosLosProyectos = [];
             `;
         }
 
+
+        function obtenerMesReporteSeleccionado() {
+            const sel = document.getElementById('seguimiento-mes-reporte');
+            if (!sel?.value) return new Date();
+            const [y, m] = sel.value.split('-').map(Number);
+            return new Date(y, (m || 1) - 1, 1);
+        }
+
+        function nombreMesLargo(fecha) {
+            return fecha.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toUpperCase();
+        }
+
+        function inicializarMesReporteSeguimiento() {
+            const sel = document.getElementById('seguimiento-mes-reporte');
+            if (!sel || sel.options.length) return;
+            const hoy = new Date();
+            const anio = hoy.getFullYear();
+            const meses = Array.from({ length: 12 }, (_, i) => new Date(anio, i, 1));
+            sel.innerHTML = meses.map(f => {
+                const value = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}`;
+                const selected = f.getMonth() === hoy.getMonth() ? 'selected' : '';
+                return `<option class="text-slate-800" value="${value}" ${selected}>${nombreMesLargo(f)}</option>`;
+            }).join('');
+        }
+
+        function obtenerRangoSemanaActual() {
+            const hoy = new Date();
+            const dia = hoy.getDay(); // Domingo = 0
+            const diferenciaLunes = dia === 0 ? -6 : 1 - dia;
+            const lunes = new Date(hoy);
+            lunes.setDate(hoy.getDate() + diferenciaLunes);
+            const viernes = new Date(lunes);
+            viernes.setDate(lunes.getDate() + 4);
+            const ddLunes = String(lunes.getDate()).padStart(2, '0');
+            const ddViernes = String(viernes.getDate()).padStart(2, '0');
+            const mesViernes = viernes.toLocaleDateString('es-MX', { month: 'long' });
+            const anioViernes = viernes.getFullYear();
+            if (lunes.getMonth() === viernes.getMonth()) {
+                return `Semana del ${ddLunes} al ${ddViernes} de ${mesViernes} ${anioViernes}`;
+            }
+            const mesLunes = lunes.toLocaleDateString('es-MX', { month: 'long' });
+            return `Semana del ${ddLunes} de ${mesLunes} al ${ddViernes} de ${mesViernes} ${anioViernes}`;
+        }
+
+        function actualizarTextosReporteSeguimiento() {
+            const tituloAvance = document.getElementById('titulo-avance-sprint');
+            if (tituloAvance) tituloAvance.textContent = `Avance del Sprint - ${nombreMesLargo(obtenerMesReporteSeleccionado())}`;
+            const rango = document.getElementById('seguimiento-rango-semana');
+            if (rango) rango.textContent = obtenerRangoSemanaActual();
+        }
+
+        function nombreArchivoReporte(base) {
+            const limpio = String(base || 'reporte')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9_-]+/g, '_')
+                .replace(/^_+|_+$/g, '')
+                .toLowerCase();
+            return `${limpio}_${new Date().toISOString().slice(0, 10)}`;
+        }
+
+        function ocultarBotonesExportacion(elemento, ocultar = true) {
+            if (!elemento) return;
+            elemento.querySelectorAll('.no-export').forEach(el => {
+                if (ocultar) {
+                    el.dataset.exportVisibility = el.style.visibility || '';
+                    el.style.visibility = 'hidden';
+                } else {
+                    el.style.visibility = el.dataset.exportVisibility || '';
+                    delete el.dataset.exportVisibility;
+                }
+            });
+        }
+
+        function descargarDataUrl(dataUrl, nombreArchivo) {
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = nombreArchivo;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        function dataUrlABlob(dataUrl) {
+            const partes = dataUrl.split(',');
+            const mime = (partes[0].match(/:(.*?);/) || [])[1] || 'image/png';
+            const binario = atob(partes[1] || '');
+            const len = binario.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binario.charCodeAt(i);
+            return new Blob([bytes], { type: mime });
+        }
+
+        async function copiarDataUrlComoImagen(dataUrl) {
+            if (!navigator.clipboard || !window.ClipboardItem) {
+                throw new Error('clipboard_api_no_disponible');
+            }
+            const blob = dataUrlABlob(dataUrl);
+            await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        }
+
+        async function cargarScriptExportacion(src) {
+            return new Promise((resolve, reject) => {
+                const existente = [...document.scripts].find(s => s.src === src);
+                if (existente) {
+                    if (existente.dataset.loaded === 'true') return resolve();
+                    existente.addEventListener('load', resolve, { once: true });
+                    existente.addEventListener('error', reject, { once: true });
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.onload = () => { script.dataset.loaded = 'true'; resolve(); };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        async function asegurarLibreriasExportacion() {
+            const tareas = [];
+            if (!window.htmlToImage) {
+                tareas.push(cargarScriptExportacion('https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js').catch(() => null));
+            }
+            if (!window.jspdf?.jsPDF) {
+                tareas.push(cargarScriptExportacion('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').catch(() => null));
+            }
+            if (!window.html2canvas) {
+                tareas.push(cargarScriptExportacion('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js').catch(() => null));
+            }
+            if (tareas.length) await Promise.all(tareas);
+        }
+
+        async function capturarSeccionReporte(idElemento, opciones = {}) {
+            const elemento = document.getElementById(idElemento);
+            if (!elemento) return null;
+
+            await asegurarLibreriasExportacion();
+            ocultarBotonesExportacion(elemento, true);
+
+            const incluirEncabezadoExport = opciones.incluirEncabezadoExport !== false;
+            let headerTemporal = null;
+            let tituloSeccionOculto = null;
+            let rangoSeccionOculto = null;
+            if (opciones.ocultarTituloSeccion === true && idElemento === 'reporte-mapa-requerimientos') {
+                tituloSeccionOculto = elemento.querySelector('h3');
+                rangoSeccionOculto = elemento.querySelector('#seguimiento-rango-semana');
+                [tituloSeccionOculto, rangoSeccionOculto].forEach(el => {
+                    if (!el) return;
+                    el.dataset.exportDisplay = el.style.display || '';
+                    el.style.display = 'none';
+                });
+            }
+            if (idElemento === 'reporte-mapa-requerimientos' && incluirEncabezadoExport) {
+                headerTemporal = document.createElement('div');
+                headerTemporal.className = 'export-temp-header mb-5 rounded-2xl overflow-hidden';
+                headerTemporal.innerHTML = `
+                    <div style="background:#0f172a;color:white;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;">
+                        <div>
+                            <div style="font-size:24px;font-weight:900;line-height:1.1;">Seguimiento semanal de requerimientos</div>
+                            <div style="font-size:13px;font-weight:700;color:#dbeafe;margin-top:8px;">${obtenerRangoSemanaActual()}</div>
+                        </div>
+                        <div style="font-size:36px;font-weight:900;letter-spacing:1px;">FINSUS</div>
+                    </div>`;
+                elemento.prepend(headerTemporal);
+            }
+
+            try {
+                // Preferimos html-to-image porque maneja mejor los estilos modernos de Tailwind.
+                if (window.htmlToImage?.toPng) {
+                    const dataUrl = await window.htmlToImage.toPng(elemento, {
+                        cacheBust: true,
+                        pixelRatio: 2,
+                        backgroundColor: '#ffffff',
+                        filter: (node) => !(node.classList && node.classList.contains('no-export'))
+                    });
+                    return { dataUrl, width: elemento.scrollWidth, height: elemento.scrollHeight };
+                }
+
+                if (window.html2canvas) {
+                    const canvas = await window.html2canvas(elemento, {
+                        backgroundColor: '#ffffff',
+                        scale: 2,
+                        useCORS: true,
+                        allowTaint: true,
+                        logging: false,
+                        scrollX: 0,
+                        scrollY: -window.scrollY
+                    });
+                    return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
+                }
+
+                return null;
+            } catch (error) {
+                console.error('Error al exportar sección:', error);
+                return null;
+            } finally {
+                if (headerTemporal) headerTemporal.remove();
+                [tituloSeccionOculto, rangoSeccionOculto].forEach(el => {
+                    if (!el) return;
+                    el.style.display = el.dataset.exportDisplay || '';
+                    delete el.dataset.exportDisplay;
+                });
+                ocultarBotonesExportacion(elemento, false);
+            }
+        }
+
+        async function exportarSeccionImagen(idElemento, nombreBase) {
+            const captura = await capturarSeccionReporte(idElemento, {
+                incluirEncabezadoExport: true,
+                ocultarTituloSeccion: idElemento === 'reporte-mapa-requerimientos'
+            });
+            if (!captura?.dataUrl) {
+                alert('No fue posible generar la imagen. Revisa tu conexión a internet y vuelve a intentarlo.');
+                return;
+            }
+            descargarDataUrl(captura.dataUrl, `${nombreArchivoReporte(nombreBase)}.png`);
+        }
+
+        async function copiarSeccionImagen(idElemento) {
+            const captura = await capturarSeccionReporte(idElemento, {
+                incluirEncabezadoExport: true,
+                ocultarTituloSeccion: idElemento === 'reporte-mapa-requerimientos'
+            });
+            if (!captura?.dataUrl) {
+                alert('No fue posible generar la imagen para copiar. Revisa tu conexión a internet y vuelve a intentarlo.');
+                return;
+            }
+
+            try {
+                await copiarDataUrlComoImagen(captura.dataUrl);
+                alert('Imagen copiada. Ahora puedes pegarla en Outlook con Ctrl + V.');
+            } catch (error) {
+                console.error('No fue posible copiar la imagen:', error);
+                alert('Tu navegador no permitió copiar la imagen automáticamente. Usa el botón Imagen para descargarla o prueba desde Chrome/Edge con la página en HTTPS o localhost.');
+            }
+        }
+
+        async function exportarSeguimientoPDF() {
+            await asegurarLibreriasExportacion();
+            if (!window.jspdf?.jsPDF) {
+                alert('No fue posible cargar el generador de PDF. Revisa tu conexión a internet y vuelve a intentarlo.');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('l', 'mm', 'a4');
+            const secciones = [
+                ['reporte-avance-sprint', document.getElementById('titulo-avance-sprint')?.textContent || 'Avance del Sprint'],
+                ['reporte-distribucion-portafolio', 'Distribución actual del portafolio'],
+                ['reporte-mapa-requerimientos', 'Seguimiento semanal de requerimientos']
+            ];
+
+            let paginaAgregada = false;
+
+            for (const [id, titulo] of secciones) {
+                const captura = await capturarSeccionReporte(id, { incluirEncabezadoExport: false, ocultarTituloSeccion: id === 'reporte-mapa-requerimientos' });
+                if (!captura?.dataUrl) continue;
+
+                if (paginaAgregada) pdf.addPage('a4', 'l');
+                paginaAgregada = true;
+
+                pdf.setFillColor(15, 23, 42);
+                pdf.rect(0, 0, 297, 24, 'F');
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFont(undefined, 'bold');
+                pdf.setFontSize(13);
+                pdf.text(String(titulo).slice(0, 80), 12, 10);
+                pdf.setFontSize(8);
+                pdf.text(obtenerRangoSemanaActual(), 12, 17);
+                pdf.setFontSize(18);
+                pdf.text('FINSUS', 276, 14, { align: 'right' });
+
+                const pageW = 297;
+                const pageH = 210;
+                const margin = 10;
+                const maxW = pageW - margin * 2;
+                const maxH = pageH - 36;
+                let imgW = maxW;
+                let imgH = captura.height * imgW / captura.width;
+                if (imgH > maxH) {
+                    imgH = maxH;
+                    imgW = captura.width * imgH / captura.height;
+                }
+                const x = (pageW - imgW) / 2;
+                pdf.addImage(captura.dataUrl, 'PNG', x, 30, imgW, imgH, undefined, 'FAST');
+            }
+
+            if (!paginaAgregada) {
+                alert('No fue posible generar el PDF.');
+                return;
+            }
+
+            pdf.save(`${nombreArchivoReporte('seguimiento_semanal_requerimientos')}.pdf`);
+        }
+
+        // Asegura que los botones con onclick funcionen en cualquier navegador.
+        window.exportarSeccionImagen = exportarSeccionImagen;
+        window.copiarSeccionImagen = copiarSeccionImagen;
+        window.exportarSeguimientoPDF = exportarSeguimientoPDF;
+
         function llenarFiltrosSeguimientoEjecutivo() {
+            inicializarMesReporteSeguimiento();
+            actualizarTextosReporteSeguimiento();
             const sprint = document.getElementById('seguimiento-filtro-sprint');
             const estatus = document.getElementById('seguimiento-filtro-estatus');
 
@@ -1987,11 +2452,13 @@ let todosLosProyectos = [];
         }
 
         function renderizarSeguimientoEjecutivo() {
+            actualizarTextosReporteSeguimiento();
             const lista = document.getElementById('seguimiento-lista');
             if (!lista) return;
 
             const proyectos = obtenerProyectosSeguimientoFiltrados();
             renderizarGraficasSeguimientoEjecutivo(proyectos);
+            actualizarAvanceGeneralSeguimiento(proyectos);
 
             const totalVisible = document.getElementById('seguimiento-total-visible');
             if (totalVisible) totalVisible.textContent = `${proyectos.length} visible${proyectos.length === 1 ? '' : 's'}`;

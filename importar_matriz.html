@@ -9,75 +9,64 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<style>
+/* PMO Control - Encabezado unificado y secciones ejecutivas */
+.pmo-header-shell{max-width:none;margin:0 auto;padding:14px 24px;min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;box-sizing:border-box;}
+.pmo-brand{display:flex;align-items:center;gap:12px;cursor:pointer;min-width:250px;max-width:360px;flex:0 0 auto;}
+.pmo-brand-icon{background:#2563eb;color:white;padding:10px;border-radius:12px;box-shadow:0 10px 18px rgba(37,99,235,.24);display:flex;align-items:center;justify-content:center;}
+.pmo-brand-title{font-size:22px;line-height:1.05;font-weight:900;letter-spacing:-.02em;color:#0f172a;white-space:nowrap;margin:0;}
+.pmo-brand-subtitle{font-size:12px;line-height:1.2;color:#64748b;font-weight:700;display:flex;align-items:center;gap:4px;white-space:nowrap;margin:3px 0 0;}
+.pmo-status-dot{display:inline-block;width:6px;height:6px;background:#34d399;border-radius:9999px;animation:pulse 2s cubic-bezier(.4,0,.6,1) infinite;flex:0 0 auto;}
+.pmo-nav{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:1 1 auto;min-width:0;}
+.nav-btn{border:1px solid #e2e8f0;color:#334155;font-weight:800;font-size:14px;padding:10px 13px;border-radius:12px;display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;background:white;white-space:nowrap;flex:0 0 auto;position:relative;}
+.nav-btn:hover{background:#f8fafc;}
+.nav-btn.active{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
+.nav-btn.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-8px;height:3px;background:#2563eb;border-radius:999px;box-shadow:0 2px 7px rgba(37,99,235,.25);}
+.nav-user{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;white-space:nowrap;flex:0 0 auto;}
+.nav-logout{border:1px solid #fecdd3;color:#e11d48;font-weight:800;font-size:14px;padding:10px 14px;border-radius:12px;display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;background:white;white-space:nowrap;flex:0 0 auto;}
+.nav-logout:hover{background:#fff1f2;}
+.nav-primary{background:#0f172a;color:white;font-weight:900;font-size:14px;padding:11px 16px;border-radius:12px;box-shadow:0 10px 22px rgba(15,23,42,.18);display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;white-space:nowrap;flex:0 0 auto;}
+.nav-primary:hover{background:#1e293b;}
+.pmo-exec-hero{background:linear-gradient(115deg,#020617 0%,#061625 42%,#0f2148 100%);border-radius:24px;color:white;padding:28px 30px;box-shadow:0 18px 35px rgba(15,23,42,.14);display:flex;align-items:center;justify-content:space-between;gap:24px;overflow:hidden;}
+.pmo-exec-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px solid rgba(125,211,252,.24);background:rgba(14,165,233,.12);font-size:12px;font-weight:900;color:#e0f2fe;margin-bottom:20px;}
+.pmo-exec-title{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
+.pmo-exec-subtitle{font-size:14px;color:#cbd5e1;margin-top:12px;max-width:720px;}
+.pmo-exec-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
+.pmo-exec-filter{background:rgba(30,41,59,.88);border:1px solid rgba(148,163,184,.18);color:white;font-weight:900;border-radius:12px;padding:12px 18px;min-width:170px;}
+.pmo-exec-btn{background:white;color:#020617;font-weight:900;border-radius:12px;padding:12px 20px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 12px 25px rgba(0,0,0,.18);}
+.pmo-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;}
+.pmo-exec-hero + .pmo-summary-grid{margin-top:24px;}
+.pmo-exec-title{color:#fff;}
+.pmo-exec-title-tight{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;color:#fff;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
+.pmo-summary-card{background:white;border:1px solid #e2e8f0;border-radius:20px;padding:20px;box-shadow:0 2px 8px rgba(15,23,42,.08);min-height:112px;display:flex;align-items:center;justify-content:space-between;}
+.pmo-summary-label{font-size:12px;text-transform:uppercase;letter-spacing:.03em;font-weight:900;color:#94a3b8;}
+.pmo-summary-value{font-size:30px;line-height:1;font-weight:950;color:#020617;margin-top:12px;}
+.pmo-summary-icon{width:48px;height:48px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#eff6ff;color:#2563eb;}
+@media (max-width:1320px){.pmo-header-shell{align-items:flex-start;flex-direction:column}.pmo-brand{max-width:none}.pmo-nav{width:100%;justify-content:flex-start;flex-wrap:wrap}.nav-user{display:none}.pmo-brand-title,.pmo-brand-subtitle{white-space:normal}}
+@media (max-width:1100px){.pmo-exec-hero{flex-direction:column;align-items:flex-start}.pmo-exec-actions{justify-content:flex-start}.pmo-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.pmo-exec-title{font-size:28px}}
+@media (max-width:640px){.pmo-summary-grid{grid-template-columns:1fr}.pmo-header-shell{padding:12px}.nav-primary,.nav-btn,.nav-logout{font-size:12px;padding:9px 10px}.pmo-exec-hero{padding:22px 18px;border-radius:18px}}
+</style>
+
+    <link rel="stylesheet" href="css/pmo-layout.css">
 </head>
 
 <body class="bg-slate-50/70 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
 
-    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100">
-        <div class="max-w-7xl mx-auto px-6 h-18 flex justify-between items-center">
-            <div onclick="window.location.href='index.html'"
-                title="Regresar al Inicio"
-                class="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition">
-                <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-md">
-                    <i data-lucide="file-up" class="w-6 h-6"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl font-bold tracking-tight text-slate-900">Importar Matriz PMO</h1>
-                    <p class="text-xs text-slate-500 font-medium flex items-center gap-1">
-                        <span class="inline-block w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                        Carga controlada de requerimientos desde Excel
-                    </p>
-                </div>
-            </div>
-
-            <div class="flex items-center gap-3">
-                <button onclick="window.location.href='index.html'"
-                    class="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
-                    <i data-lucide="home" class="w-4 h-4"></i>
-                    Matriz
-                </button>
-
-                <button onclick="window.location.href='seguimiento_ejecutivo.html'"
-                    class="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
-                    <i data-lucide="route" class="w-4 h-4"></i>
-                    Seguimiento
-                </button>
-
-                <div class="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-                    <i data-lucide="user-check" class="w-4 h-4 text-emerald-600"></i>
-                    <span id="usuario-sesion" class="text-xs font-bold text-slate-600 max-w-[180px] truncate">Usuario</span>
-                </div>
-
-                <button onclick="cerrarSesion()"
-                    class="border border-rose-200 hover:bg-rose-50 text-rose-600 font-semibold text-sm px-4 py-2.5 rounded-xl flex items-center gap-2 transition cursor-pointer">
-                    <i data-lucide="log-out" class="w-4 h-4"></i>
-                    Salir
-                </button>
-            </div>
-        </div>
-    </header>
+    <div id="pmo-app-header" data-pmo-module="importar"></div>
 
     <main class="max-w-7xl mx-auto px-6 py-8 space-y-6">
-        <section class="relative overflow-hidden bg-slate-950 rounded-3xl border border-slate-800 shadow-xl p-7 text-white">
-            <div class="absolute -top-24 -right-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl"></div>
-            <div class="absolute -bottom-24 -left-24 w-80 h-80 bg-cyan-400/20 rounded-full blur-3xl"></div>
-
-            <div class="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
-                <div>
-                    <div class="inline-flex items-center gap-2 bg-blue-400/10 border border-blue-300/20 text-blue-200 rounded-full px-4 py-2 text-xs font-black mb-4">
-                        <i data-lucide="shield-check" class="w-4 h-4"></i>
-                        Importación segura
-                    </div>
-                    <h2 class="text-3xl lg:text-4xl font-black tracking-tight">Importador de Matriz PMO</h2>
-                    <p class="text-white/60 text-sm mt-2 max-w-2xl">
-                        Selecciona tu Excel, valida catálogos, revisa la vista previa y después importa a Supabase.
-                    </p>
-                </div>
-
-                <div class="bg-white/10 border border-white/10 rounded-2xl p-4 min-w-[260px]">
-                    <p class="text-xs font-bold text-white/60 uppercase">Formato esperado</p>
-                    <p class="text-sm font-black mt-1">MATRIZ DE PROYECTOS</p>
-                    <p class="text-xs text-white/50 mt-1">También acepta el archivo limpio PMO_CONTROL_IMPORT_PREP.xlsx</p>
+        <section class="pmo-exec-hero">
+            <div>
+                <div class="pmo-exec-pill"><i data-lucide="shield-check" class="w-4 h-4"></i> Importación segura</div>
+                <h2 class="pmo-exec-title">Importador de Matriz PMO</h2>
+                <p class="pmo-exec-subtitle">Selecciona tu Excel, valida catálogos, revisa la vista previa y después importa a Supabase.</p>
+            </div>
+            <div class="pmo-exec-actions">
+                <div class="pmo-exec-filter">
+                    <div style="font-size:11px;opacity:.7;text-transform:uppercase;margin-bottom:3px;">Formato esperado</div>
+                    <div>Matriz de proyectos</div>
+                    <div style="font-size:11px;opacity:.65;margin-top:3px;line-height:1.25;">También acepta archivo limpio</div>
                 </div>
             </div>
         </section>
@@ -170,6 +159,7 @@
     </main>
 
     <script src="js/pmo-app.js"></script>
+    <script src="js/pmo-layout.js"></script>
 </body>
 
 </html>

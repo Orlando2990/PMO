@@ -8,11 +8,14 @@ function renderizarPanelRequerimientos() {
     if (!contenedor) return;
 
     contenedor.innerHTML = String.raw`
-        <!-- Tarjetas de Indicadores -->
-        <section id="contenedor-contadores" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5"></section>
+        <!-- Vista ejecutiva estándar -->
+        ${window.PMOLayout ? window.PMOLayout.renderExecutiveHero() : ''}
+
+        <!-- Indicadores ejecutivos -->
+        <section id="contenedor-contadores" class="pmo-summary-grid"></section>
 
         <!-- Tabla Principal -->
-        <section class="bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
+        <section class="pmo-panel-table bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
             <div
                 class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-slate-50/50">
                 <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center w-full">
@@ -58,23 +61,17 @@ function renderizarPanelRequerimientos() {
                     <thead>
                         <tr
                             class="text-slate-400 text-xs uppercase font-bold tracking-wider border-b border-slate-100 bg-slate-50/20">
-                            <th class="p-4 pl-6">ID / Requerimiento</th>
-                            <th class="p-4">Sprint / Sistema</th>
-                            <th class="p-4">Prioridad / Clasificación</th>
-                            <th class="p-4">Responsable / Asignado</th>
-                            <th class="p-4">Desarrollo</th>
-                            <th class="p-4">QA</th>
-                            <th class="p-4">UAT</th>
-                            <th class="p-4">Liberación</th>
+                            <th class="p-4 pl-6">Requerimiento</th>
+                            <th class="p-4">Sprint / Sistema / Prioridad</th>
+                            <th class="p-4">Avance</th>
                             <th class="p-4">Días / Desviación</th>
-
-                            <th class="p-4">Estatus</th>
+                            <th class="p-4">Estado</th>
                             <th class="p-4 pr-6 text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-proyectos-body" class="text-sm divide-y divide-slate-100">
                         <tr>
-                            <td colspan="11" class="p-8 text-center text-slate-400">Cargando...</td>
+                            <td colspan="6" class="p-8 text-center text-slate-400">Cargando...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -315,6 +312,19 @@ function renderizarModalesRequerimientos() {
                     </label>
                     <input type="text" id="form-comentarios"
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
+                </div>
+
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <label class="flex items-start gap-3 cursor-pointer select-none">
+                        <input type="checkbox" id="form-ajuste-sin-reprogramacion"
+                            class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                        <span>
+                            <span class="block text-xs font-black uppercase text-slate-700">Ajuste administrativo sin reprogramación</span>
+                            <span class="block text-[11px] text-slate-500 mt-0.5">
+                                Permite cambiar fechas fin de Desarrollo, QA o UAT sin registrar reprogramación y sin solicitar motivo.
+                            </span>
+                        </span>
+                    </label>
                 </div>
 
                 <div id="contenedor-razon" class="hidden bg-amber-50 border border-amber-100 p-4 rounded-xl space-y-4">

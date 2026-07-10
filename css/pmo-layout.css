@@ -1,18 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PMO Control - Dashboard Corporativo</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-
-    
-<style>
-/* PMO Control - Encabezado unificado y secciones ejecutivas */
+/* PMO Control - Layout centralizado */
 .pmo-header-shell{max-width:none;margin:0 auto;padding:14px 24px;min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:18px;width:100%;box-sizing:border-box;}
 .pmo-brand{display:flex;align-items:center;gap:12px;cursor:pointer;min-width:250px;max-width:360px;flex:0 0 auto;}
 .pmo-brand-icon{background:#2563eb;color:white;padding:10px;border-radius:12px;box-shadow:0 10px 18px rgba(37,99,235,.24);display:flex;align-items:center;justify-content:center;}
@@ -23,48 +9,27 @@
 .nav-btn{border:1px solid #e2e8f0;color:#334155;font-weight:800;font-size:14px;padding:10px 13px;border-radius:12px;display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;background:white;white-space:nowrap;flex:0 0 auto;position:relative;}
 .nav-btn:hover{background:#f8fafc;}
 .nav-btn.active{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;}
-.nav-btn.active::after{content:"";position:absolute;left:14px;right:14px;bottom:-8px;height:3px;background:#2563eb;border-radius:999px;box-shadow:0 2px 7px rgba(37,99,235,.25);}
-.nav-user{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;white-space:nowrap;flex:0 0 auto;}
-.nav-logout{border:1px solid #fecdd3;color:#e11d48;font-weight:800;font-size:14px;padding:10px 14px;border-radius:12px;display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;background:white;white-space:nowrap;flex:0 0 auto;}
+.nav-btn.active::after{content:"";position:absolute;left:18px;right:18px;bottom:-10px;height:3px;border-radius:999px;background:#2563eb;box-shadow:0 6px 14px rgba(37,99,235,.28);}
+.nav-user{border:1px solid #e2e8f0;border-radius:12px;padding:10px 13px;background:#f8fafc;display:flex;align-items:center;gap:8px;white-space:nowrap;flex:0 0 auto;}
+.nav-logout{border:1px solid #fecdd3;color:#e11d48;background:white;font-weight:900;font-size:14px;padding:10px 13px;border-radius:12px;display:flex;align-items:center;gap:8px;white-space:nowrap;flex:0 0 auto;}
 .nav-logout:hover{background:#fff1f2;}
 .nav-primary{background:#0f172a;color:white;font-weight:900;font-size:14px;padding:11px 16px;border-radius:12px;box-shadow:0 10px 22px rgba(15,23,42,.18);display:flex;align-items:center;gap:8px;transition:.15s;cursor:pointer;white-space:nowrap;flex:0 0 auto;}
 .nav-primary:hover{background:#1e293b;}
-.pmo-exec-hero{background:linear-gradient(115deg,#020617 0%,#061625 42%,#0f2148 100%);border-radius:24px;color:white;padding:28px 30px;box-shadow:0 18px 35px rgba(15,23,42,.14);display:flex;align-items:center;justify-content:space-between;gap:24px;overflow:hidden;}
+.pmo-exec-hero{background:linear-gradient(115deg,#020617 0%,#061625 42%,#0f2148 100%);border-radius:24px;color:white;padding:28px 30px;box-shadow:0 18px 35px rgba(15,23,42,.14);display:flex;align-items:center;justify-content:space-between;gap:24px;overflow:hidden;margin-bottom:28px;}
 .pmo-exec-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;border:1px solid rgba(125,211,252,.24);background:rgba(14,165,233,.12);font-size:12px;font-weight:900;color:#e0f2fe;margin-bottom:20px;}
-.pmo-exec-title{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
+.pmo-exec-title{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;color:#fff;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
+.pmo-exec-title-tight{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;color:#fff;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
 .pmo-exec-subtitle{font-size:14px;color:#cbd5e1;margin-top:12px;max-width:720px;}
 .pmo-exec-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
 .pmo-exec-filter{background:rgba(30,41,59,.88);border:1px solid rgba(148,163,184,.18);color:white;font-weight:900;border-radius:12px;padding:12px 18px;min-width:170px;}
 .pmo-exec-btn{background:white;color:#020617;font-weight:900;border-radius:12px;padding:12px 20px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 12px 25px rgba(0,0,0,.18);}
-.pmo-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;}
-.pmo-exec-hero + .pmo-summary-grid{margin-top:24px;}
-.pmo-exec-title{color:#fff;}
-.pmo-exec-title-tight{font-size:34px;line-height:1.08;font-weight:950;letter-spacing:-.03em;margin:0;color:#fff;text-shadow:2px 2px 0 rgba(249,115,22,.55);}
+.pmo-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px;margin-top:0;margin-bottom:28px;}
+.pmo-exec-hero + .pmo-summary-grid{margin-top:0;}
 .pmo-summary-card{background:white;border:1px solid #e2e8f0;border-radius:20px;padding:20px;box-shadow:0 2px 8px rgba(15,23,42,.08);min-height:112px;display:flex;align-items:center;justify-content:space-between;}
 .pmo-summary-label{font-size:12px;text-transform:uppercase;letter-spacing:.03em;font-weight:900;color:#94a3b8;}
 .pmo-summary-value{font-size:30px;line-height:1;font-weight:950;color:#020617;margin-top:12px;}
 .pmo-summary-icon{width:48px;height:48px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:#eff6ff;color:#2563eb;}
+.pmo-panel-table{margin-top:28px;}
 @media (max-width:1320px){.pmo-header-shell{align-items:flex-start;flex-direction:column}.pmo-brand{max-width:none}.pmo-nav{width:100%;justify-content:flex-start;flex-wrap:wrap}.nav-user{display:none}.pmo-brand-title,.pmo-brand-subtitle{white-space:normal}}
 @media (max-width:1100px){.pmo-exec-hero{flex-direction:column;align-items:flex-start}.pmo-exec-actions{justify-content:flex-start}.pmo-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.pmo-exec-title{font-size:28px}}
 @media (max-width:640px){.pmo-summary-grid{grid-template-columns:1fr}.pmo-header-shell{padding:12px}.nav-primary,.nav-btn,.nav-logout{font-size:12px;padding:9px 10px}.pmo-exec-hero{padding:22px 18px;border-radius:18px}}
-</style>
-
-
-    <link rel="stylesheet" href="css/pmo-layout.css">
-</head>
-
-<body class="bg-slate-50/50 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
-    <div id="pmo-app-header" data-pmo-module="matriz"></div>
-
-    <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        <div id="pmo-panel-requerimientos"></div>
-    </main>
-
-    <div id="orbita-modales-requerimientos"></div>
-
-    <script src="js/pmo-layout.js"></script>
-    <script src="js/pmo-panel-html.js"></script>
-    <script src="js/pmo-app.js"></script>
-</body>
-
-</html>

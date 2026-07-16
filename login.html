@@ -134,6 +134,7 @@
         </main>
     </div>
 
+    <script src="js/pmo-auth.js"></script>
     <script>
         const SUPABASE_URL = "https://cogiyoslnmtnnvnohoht.supabase.co";
         const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvZ2l5b3Nsbm10bm52bm9ob2h0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDI5NDQsImV4cCI6MjA5NjY3ODk0NH0.sikG94OCbALSbHRN8-jc2W_QOgP15qXn4VwsqhOK7lM";
@@ -141,7 +142,12 @@
 
         async function revisarSesionActiva() {
             const { data: { session } } = await _supabase.auth.getSession();
-            if (session) window.location.href = 'index.html';
+            if (session) {
+                try {
+                    const profile = await window.PMOAuth.loadProfile(session.user);
+                    if(profile?.activo !== false && profile?.rol){ window.PMOAuth.cacheProfile(profile); window.location.href = window.PMOAuth.homeForRole(profile.rol); }
+                } catch(e) { console.error(e); }
+            }
         }
 
         async function iniciarSesion(event) {
@@ -170,7 +176,20 @@
                 return;
             }
 
-            window.location.href = 'index.html';
+            try {
+                const profile = await window.PMOAuth.loadProfile(data.user);
+                if(!profile){ throw new Error('Tu cuenta no tiene un perfil asignado.'); }
+                if(profile.activo === false){ throw new Error('Tu cuenta está desactivada.'); }
+                window.PMOAuth.cacheProfile(profile);
+                window.location.href = window.PMOAuth.homeForRole(profile.rol);
+            } catch(profileError) {
+                await _supabase.auth.signOut();
+                errorBox.textContent = profileError.message || 'No se pudo cargar tu perfil.';
+                errorBox.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="log-in" class="w-5 h-5"></i> Ingresar a PMO Control';
+                lucide.createIcons();
+            }
         }
 
         function togglePassword() {
@@ -186,5 +205,6 @@
             lucide.createIcons();
         };
     </script>
+    <script src="js/pmo-dialogs.js"></script>
 </body>
 </html>

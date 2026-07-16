@@ -43,8 +43,12 @@
       appearance:auto;
       padding-right:34px;
     }
+    #modal-rqm{display:flex;align-items:center;justify-content:center;overflow-y:auto;}
+    #modal-rqm.hidden{display:none;}
     #modal-rqm .modal-rqm-card{
       max-width:960px;
+      max-height:calc(100vh - 32px);
+      margin:auto;
       border-radius:24px;
     }
     .pmo-modal-pro{position:fixed;inset:0;z-index:95;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.52);backdrop-filter:blur(8px);padding:24px}
@@ -72,7 +76,7 @@
           <p class="text-blue-100/80 text-sm mt-2 max-w-3xl">Registra quién solicitó el requerimiento, cuándo se asignó el folio, el sistema relacionado, el número RQM y observaciones.</p>
         </div>
         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-          <button onclick="abrirModalRQM()" class="bg-white text-slate-950 font-black text-sm rounded-xl px-5 py-3 shadow-lg flex items-center gap-2"><i data-lucide="file-plus-2" class="w-4 h-4"></i>Nuevo registro</button>
+          <button onclick="abrirModalRQM()" class="pmo-hero-primary"><i data-lucide="plus" class="w-4 h-4"></i>Nuevo RQM</button>
         </div>
       </div>
     </section>
@@ -428,6 +432,7 @@ function renderRegistrosRQM(){
       <button onclick="actualizarEstatusConComentario('${r.id}','REQUIERE AJUSTE','Requiere ajuste')" class="pmo-action-btn text-amber-600" title="Solicitar ajuste / comentar"><i data-lucide="message-square-warning" class="w-4 h-4"></i></button>
       <button onclick="actualizarEstatusConComentario('${r.id}','RECHAZADO','Rechazado')" class="pmo-action-btn text-rose-600" title="Rechazar"><i data-lucide="x-circle" class="w-4 h-4"></i></button>
       <button onclick="editarRegistroRQM('${r.id}')" class="pmo-action-btn text-blue-600" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+      <button onclick="eliminarRegistroRQM('${r.id}')" class="pmo-action-btn text-rose-600" title="Eliminar requerimiento"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
     </td>
   </tr>`).join('');
   lucide.createIcons();
@@ -458,15 +463,17 @@ async function guardarRegistroRQM(ev){
       solicitado_por:document.getElementById('rqm-solicitado').value.trim(),
       fecha_asignacion:document.getElementById('rqm-fecha').value || null,
       numero_rqm:document.getElementById('rqm-numero').value.trim(),
-      estatus:'REGISTRADO',
       observaciones:document.getElementById('rqm-observaciones').value.trim() || null,
       updated_at:new Date().toISOString()
     };
     if(!payload.numero_rqm){ throw new Error('Captura el número de requerimiento.'); }
     if(id){
+      // Al editar se conserva el estatus actual; solo se actualizan los datos capturados.
       const {error}=await _supabase.from('rqm_control_requerimientos').update(payload).eq('id',id);
       if(error) throw error;
     }else{
+      payload.estatus='REGISTRADO';
+      payload.origen_registro='CONTROL_RQM';
       payload.creado_por=usuarioActual?.id||null;
       const {error}=await _supabase.from('rqm_control_requerimientos').insert([payload]);
       if(error) throw error;
@@ -508,7 +515,7 @@ function convertirRQMProyecto(id){
   const body = `<div class="space-y-4">
     <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4 text-blue-900">Se creará el proyecto en la matriz principal sin fechas obligatorias para completarlo después.</div>
     <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Requerimiento</p><p class="font-black text-slate-950 mt-1">${esc(r.numero_rqm)} · ${esc(r.proyecto)}</p></div>
-    <div><label class="label-rqm">Comentario para el usuario</label><textarea id="comentario-aprobar-pmo" class="input-rqm" style="min-height:120px;padding-top:12px">Solicitud aprobada por PMO.</textarea></div>
+    <p class="text-sm text-slate-500">La aprobación actualizará el estatus sin agregar comentarios automáticos en Observaciones.</p>
   </div>`;
   const footer = `<button type="button" onclick="cerrarModalPMO()" class="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-black">Cancelar</button>
     <button type="button" onclick="ejecutarConversionRQM('${id}')" class="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black">Aprobar y convertir</button>`;
@@ -516,7 +523,6 @@ function convertirRQMProyecto(id){
 }
 async function ejecutarConversionRQM(id){
   const r=registrosRQM.find(x=>x.id===id); if(!r) return;
-  const comentarioAprobacion = document.getElementById('comentario-aprobar-pmo')?.value.trim() || 'Solicitud aprobada por PMO.';
   try{
     const {data:existente,error:errorConsulta}=await _supabase
       .from('pmo_projects')
@@ -525,7 +531,7 @@ async function ejecutarConversionRQM(id){
       .maybeSingle();
     if(errorConsulta) throw errorConsulta;
     if(existente){
-      await _supabase.from('rqm_control_requerimientos').update({estatus:'CONVERTIDO A PMO', observaciones: appendComentarioPMO(r.observaciones, comentarioAprobacion, 'Aprobado'), updated_at:new Date().toISOString()}).eq('id',id);
+      await _supabase.from('rqm_control_requerimientos').update({estatus:'CONVERTIDO A PMO', updated_at:new Date().toISOString()}).eq('id',id);
       cerrarModalPMO();
       await cargarRegistrosRQM();
       return;
@@ -545,7 +551,7 @@ async function ejecutarConversionRQM(id){
     if(errorInsert) throw errorInsert;
     const {error:errorUpdate}=await _supabase
       .from('rqm_control_requerimientos')
-      .update({estatus:'CONVERTIDO A PMO', observaciones: appendComentarioPMO(r.observaciones, comentarioAprobacion, 'Aprobado'), updated_at:new Date().toISOString()})
+      .update({estatus:'CONVERTIDO A PMO', updated_at:new Date().toISOString()})
       .eq('id',id);
     if(errorUpdate) throw errorUpdate;
     cerrarModalPMO();
@@ -558,7 +564,7 @@ async function ejecutarConversionRQM(id){
 
 async function eliminarRegistroRQM(id){
   const r=registrosRQM.find(x=>x.id===id); if(!r) return;
-  if(!confirm(`¿Eliminar el registro ${r.numero_rqm || ''}?`)) return;
+  if(!(await PMOConfirm(`Se eliminará ${r.numero_rqm || 'este registro'} de Control RQM. Esta acción no se puede deshacer.`))) return;
   const {error}=await _supabase.from('rqm_control_requerimientos').delete().eq('id',id);
   if(error){ alert('No se pudo eliminar: '+error.message); return; }
   await cargarRegistrosRQM();
@@ -609,7 +615,9 @@ window.onload=async()=>{
 @media (max-width:1100px){.pmo-exec-hero{flex-direction:column;align-items:flex-start}.pmo-exec-actions{justify-content:flex-start}.pmo-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.pmo-exec-title{font-size:28px}}
 @media (max-width:640px){.pmo-summary-grid{grid-template-columns:1fr}.pmo-header-shell{padding:12px}.nav-primary,.nav-btn,.nav-logout{font-size:12px;padding:9px 10px}.pmo-exec-hero{padding:22px 18px;border-radius:18px}}
 </style>
+    <script src="js/pmo-auth.js"></script>
 
     <script src="js/pmo-layout.js"></script>
+    <script src="js/pmo-dialogs.js"></script>
 </body>
 </html>

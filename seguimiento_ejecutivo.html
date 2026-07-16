@@ -76,10 +76,6 @@
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3">
-                    <select id="seguimiento-mes-reporte" onchange="actualizarTextosReporteSeguimiento()"
-                        class="bg-white/10 border border-white/10 text-white rounded-xl px-4 py-2.5 text-sm font-bold outline-none">
-                    </select>
-
                     <select id="seguimiento-filtro-sprint" onchange="filtrarSeguimientoEjecutivo()"
                         class="bg-white/10 border border-white/10 text-white rounded-xl px-4 py-2.5 text-sm font-bold outline-none">
                         <option class="text-slate-800" value="">Todos los sprints</option>
@@ -95,7 +91,13 @@
 
         <section id="seguimiento-kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4"></section>
 
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <section>
+            <div class="flex justify-end mb-3 no-export">
+                <button onclick="exportarGraficasJuntas()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition shadow-sm">
+                    <i data-lucide="images" class="w-4 h-4"></i> Descargar ambas gráficas
+                </button>
+            </div>
+            <div id="reporte-graficas-conjuntas" class="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div id="reporte-avance-sprint" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
                 <div class="flex items-start justify-between mb-4 gap-3">
                     <div>
@@ -122,10 +124,18 @@
             <div id="reporte-distribucion-portafolio" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
                 <div class="flex items-start justify-between mb-4 gap-3">
                     <div>
-                        <h3 class="text-lg font-black text-slate-900 uppercase">Distribución actual del portafolio</h3>
-                        <p class="text-xs text-slate-500 mt-1">Estado general de requerimientos</p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h3 id="titulo-distribucion-portafolio" class="text-lg font-black text-slate-900 uppercase">Distribución general del portafolio</h3>
+                            <span id="badge-vista-portafolio" class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Vista general</span>
+                        </div>
+                        <p id="subtitulo-distribucion-portafolio" class="text-xs text-slate-500 mt-1">Todos los requerimientos registrados</p>
                     </div>
                     <div class="flex items-center gap-2 no-export">
+                        <select id="seguimiento-vista-portafolio" onchange="cambiarVistaPortafolio()"
+                            class="bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-black outline-none focus:border-emerald-400">
+                            <option value="general">Portafolio general</option>
+                            <option value="sprint">Sprint seleccionado</option>
+                        </select>
                         <button onclick="copiarSeccionImagen('reporte-distribucion-portafolio')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
                             <i data-lucide="copy" class="w-4 h-4"></i> Copiar
                         </button>
@@ -140,6 +150,7 @@
                 <div class="h-72">
                     <canvas id="seguimiento-chart-portafolio"></canvas>
                 </div>
+            </div>
             </div>
         </section>
 
@@ -170,6 +181,7 @@
                             <i data-lucide="file-down" class="w-4 h-4"></i> PDF
                         </button>
                         <span id="seguimiento-total-visible" class="text-xs font-black bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full">0 visibles</span>
+                        <span class="text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-full" title="Liberado, UAT, QA, Desarrollo, Análisis, Backlog y Cancelado">Orden: mayor avance primero</span>
                     </div>
                 </div>
 
@@ -213,9 +225,11 @@
             </aside>
         </section>
     </main>
+    <script src="js/pmo-auth.js"></script>
 
     <script src="js/pmo-app.js"></script>
     <script src="js/pmo-layout.js"></script>
+    <script src="js/pmo-dialogs.js"></script>
 </body>
 
 </html>

@@ -9,12 +9,15 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="css/pmo-layout.css">
+<style>
+.catalog-scroll{scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent}.catalog-scroll::-webkit-scrollbar{width:6px}.catalog-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
+</style>
 </head>
 <body class="bg-slate-50/50 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
     <div id="pmo-app-header" data-pmo-module="catalogos"></div>
-    <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
-        <section id="panel-admin" class="bg-white p-6 rounded-3xl border border-slate-200 shadow-lg space-y-6">
-            <div class="flex justify-between items-start border-b border-slate-100 pb-5">
+    <main class="max-w-[1500px] mx-auto px-6 py-8 space-y-8">
+        <section id="panel-admin" class="space-y-7">
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex justify-between items-start">
                 <div class="flex items-start gap-3">
                     <div class="bg-blue-50 text-blue-600 p-2 rounded-xl">
                         <i data-lucide="shield-check" class="w-6 h-6"></i>
@@ -32,7 +35,7 @@
                 
             </div>
 
-            <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-5"></div>
+            <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
 
             <div class="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 flex items-center gap-4">
                 <div class="bg-blue-600 text-white p-2 rounded-xl">
@@ -46,7 +49,7 @@
                 </div>
             </div>
 
-            <div class="flex justify-end">
+            <div class="flex justify-end bg-white border border-slate-200 rounded-2xl p-4">
                 <button onclick="exportarExcel()"
                     class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition cursor-pointer">
                     <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
@@ -154,8 +157,8 @@ let todosLosProyectos = [];
                     </li>`).join('') : `<li class="p-4 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">Sin elementos registrados</li>`;
 
                 return `
-                    <div class="bg-white rounded-2xl border border-slate-200 border-t-4 ${colores.border} shadow-sm p-4 flex flex-col min-h-[390px]">
-                        <div class="flex justify-between items-center mb-5">
+                    <div class="bg-white rounded-3xl border border-slate-200 border-t-4 ${colores.border} shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all p-5 flex flex-col min-h-[430px]">
+                        <div class="flex justify-between items-center mb-5 pb-4 border-b border-slate-100">
                             <div class="flex items-center gap-2"><div class="${colores.bg} ${colores.text} p-2 rounded-xl"><i data-lucide="${cat.icono}" class="w-5 h-5"></i></div><h3 class="text-sm font-black uppercase tracking-wide ${colores.text}">${cat.titulo}</h3></div>
                             <span class="text-xs font-black px-2.5 py-1 rounded-full ${colores.badge}">${total}</span>
                         </div>
@@ -163,7 +166,7 @@ let todosLosProyectos = [];
                             <input type="text" id="${cat.inputId}" placeholder="${cat.placeholder}" class="min-w-0 flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-100">
                             <button onclick="crearCatalogo('${cat.tipo}')" class="${colores.button} text-white px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-4 h-4"></i>Añadir</button>
                         </div>
-                        <ul class="space-y-2 overflow-y-auto pr-1 max-h-60 flex-1">${lista}</ul>
+                        <ul class="space-y-2.5 overflow-y-auto pr-2 max-h-64 flex-1 catalog-scroll">${lista}</ul>
                         <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs font-bold text-slate-500"><div class="${colores.bg} ${colores.text} p-1.5 rounded-lg"><i data-lucide="database" class="w-3.5 h-3.5"></i></div>Total: ${total} elemento${total === 1 ? '' : 's'}</div>
                     </div>`;
             }).join('');
@@ -196,7 +199,7 @@ let todosLosProyectos = [];
         }
 
         async function eliminarCatalogo(tabla, id) {
-            if (confirm('¿Seguro de eliminar este elemento?')) {
+            if (await PMOConfirm('Se eliminará este elemento del catálogo. Esta acción no se puede deshacer.')) {
                 try {
                     const { error } = await _supabase.from(tabla).delete().eq('id', id);
                     if (error) throw error;
@@ -269,6 +272,8 @@ let todosLosProyectos = [];
             lucide.createIcons();
         };
     </script>
+    <script src="js/pmo-auth.js"></script>
     <script src="js/pmo-layout.js"></script>
+    <script src="js/pmo-dialogs.js"></script>
 </body>
 </html>

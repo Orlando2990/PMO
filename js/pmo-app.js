@@ -498,7 +498,7 @@ let todosLosProyectos = [];
         }
 
         async function eliminarCatalogo(tabla, id) {
-            if (confirm("¿Seguro de eliminar este elemento?")) {
+            if (await PMOConfirm("Se eliminará este elemento del catálogo. Esta acción no se puede deshacer.")) {
                 try {
                     const { error } = await _supabase.from(tabla).delete().eq('id', id);
                     if (error) throw error;
@@ -1290,9 +1290,7 @@ let todosLosProyectos = [];
 }
 
         async function borrarHistorialFase(projectId, nombre, codigo, nombreFase, logsFase) {
-            const confirmar = confirm(`¿Seguro que deseas borrar el historial de ${nombreFase}?
-
-Esta acción eliminará los movimientos registrados de esa fase y no se puede deshacer.`);
+            const confirmar = await PMOConfirm(`Se borrará el historial de ${nombreFase}. Los movimientos registrados de esa fase no podrán recuperarse.`, {title:"Confirmar limpieza de historial", confirmText:"Sí, borrar historial"});
             if (!confirmar) return;
 
             try {
@@ -1390,7 +1388,7 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
         function cerrarModalHistorial() { document.getElementById('modal-historial').classList.add('hidden'); }
 
         async function eliminarProyecto(id, nombre) {
-            if (confirm(`¿Eliminar permanently "${nombre}"?`)) {
+            if (await PMOConfirm(`Se eliminará el requerimiento "${nombre}". Esta acción no se puede deshacer.`)) {
                 await _supabase.from('pmo_projects').delete().eq('id', id);
                 await cargarProyectos();
             }
@@ -1962,6 +1960,85 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
             }
         }
 
+        const etiquetasValoresSeguimiento = {
+            id: 'etiquetasValoresSeguimiento',
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                const tipo = chart.config.type;
+                const dataset = chart.data.datasets?.[0];
+                const meta = chart.getDatasetMeta(0);
+                if (!dataset || !meta) return;
+
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '900 13px Arial, sans-serif';
+
+                meta.data.forEach((elemento, indice) => {
+                    const valor = Number(dataset.data[indice] || 0);
+                    const visible = typeof chart.getDataVisibility === 'function'
+                        ? chart.getDataVisibility(indice)
+                        : !elemento.hidden;
+                    if (!visible) return;
+
+                    if (tipo === 'bar') {
+                        const pos = elemento.getCenterPoint();
+                        if (valor > 0) {
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillText(String(valor), pos.x, pos.y);
+                        } else {
+                            const baseY = elemento.base ?? chart.chartArea.bottom;
+                            ctx.fillStyle = '#64748b';
+                            ctx.fillText('0', pos.x, baseY - 12);
+                        }
+                        return;
+                    }
+
+                    if (tipo === 'doughnut' && valor > 0) {
+                        const props = elemento.getProps(['x', 'y', 'startAngle', 'endAngle', 'innerRadius', 'outerRadius'], true);
+                        const angulo = (props.startAngle + props.endAngle) / 2;
+                        const radio = (props.innerRadius + props.outerRadius) / 2;
+                        const x = props.x + Math.cos(angulo) * radio;
+                        const y = props.y + Math.sin(angulo) * radio;
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillText(String(valor), x, y);
+                    }
+                });
+
+                if (tipo === 'doughnut') {
+                    const total = dataset.data.reduce((acumulado, valor, indice) => {
+                        const visible = typeof chart.getDataVisibility === 'function'
+                            ? chart.getDataVisibility(indice)
+                            : !meta.data[indice]?.hidden;
+                        return visible ? acumulado + Number(valor || 0) : acumulado;
+                    }, 0);
+                    const primerArco = meta.data.find((arco, indice) => {
+                        return typeof chart.getDataVisibility === 'function'
+                            ? chart.getDataVisibility(indice)
+                            : !arco.hidden;
+                    });
+                    const centro = primerArco
+                        ? primerArco.getProps(['x', 'y'], true)
+                        : {
+                            x: (chart.chartArea.left + chart.chartArea.right) / 2,
+                            y: (chart.chartArea.top + chart.chartArea.bottom) / 2
+                        };
+
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = '900 32px Arial, sans-serif';
+                    ctx.fillText(String(total), centro.x, centro.y - 8);
+
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '800 11px Arial, sans-serif';
+                    ctx.fillText(total === 1 ? 'REQUERIMIENTO' : 'REQUERIMIENTOS', centro.x, centro.y + 18);
+                }
+
+                ctx.restore();
+            }
+        };
+
         function crearGraficaSeguimiento(idCanvas, tipo, labels, data, label) {
             const canvas = document.getElementById(idCanvas);
             if (!canvas || typeof Chart === 'undefined') return;
@@ -1980,6 +2057,7 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
 
             seguimientoCharts[idCanvas] = new Chart(canvas, {
                 type: tipo,
+                plugins: [etiquetasValoresSeguimiento],
                 data: {
                     labels,
                     datasets: [{
@@ -2008,6 +2086,41 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
             });
         }
 
+        function obtenerVistaPortafolioSeleccionada() {
+            return document.getElementById('seguimiento-vista-portafolio')?.value || 'general';
+        }
+
+        function obtenerProyectosDonaSeguimiento(proyectosFiltrados) {
+            return obtenerVistaPortafolioSeleccionada() === 'sprint'
+                ? proyectosFiltrados
+                : (todosLosProyectos || []);
+        }
+
+        function actualizarTextosVistaPortafolio(proyectosDona) {
+            const vista = obtenerVistaPortafolioSeleccionada();
+            const titulo = document.getElementById('titulo-distribucion-portafolio');
+            const subtitulo = document.getElementById('subtitulo-distribucion-portafolio');
+            const badge = document.getElementById('badge-vista-portafolio');
+            const total = Array.isArray(proyectosDona) ? proyectosDona.length : 0;
+
+            if (vista === 'sprint') {
+                const sprint = obtenerNombreSprintSeleccionado();
+                if (titulo) titulo.textContent = `Distribución del Sprint - ${sprint}`;
+                if (subtitulo) subtitulo.textContent = `${total} requerimiento${total === 1 ? '' : 's'} del sprint seleccionado`;
+                if (badge) {
+                    badge.textContent = 'Vista sprint';
+                    badge.className = 'inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-700';
+                }
+            } else {
+                if (titulo) titulo.textContent = 'Distribución general del portafolio';
+                if (subtitulo) subtitulo.textContent = `${total} requerimiento${total === 1 ? '' : 's'} registrados en total`;
+                if (badge) {
+                    badge.textContent = 'Vista general';
+                    badge.className = 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700';
+                }
+            }
+        }
+
         function renderizarGraficasSeguimientoEjecutivo(proyectos) {
             const gruposBase = estatusSeguimientoEjecutivo.map(g => g.label);
             const conteoAvance = Object.fromEntries(gruposBase.map(g => [g, 0]));
@@ -2020,9 +2133,12 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
 
             crearGraficaSeguimiento('seguimiento-chart-avance', 'bar', gruposBase, gruposBase.map(g => conteoAvance[g]), 'Requerimientos');
 
+            const proyectosDona = obtenerProyectosDonaSeguimiento(proyectos);
+            actualizarTextosVistaPortafolio(proyectosDona);
+
             const orden = ['LIBERADO', 'UAT', 'QA', 'DESARROLLO', 'ANALISIS', 'BACKLOG', 'CANCELADO'];
             const porEstatus = {};
-            proyectos.forEach(p => {
+            proyectosDona.forEach(p => {
                 const key = estatusOperativoSeguimiento(p.estatus || 'BACKLOG');
                 porEstatus[key] = (porEstatus[key] || 0) + 1;
             });
@@ -2120,28 +2236,10 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
         }
 
 
-        function obtenerMesReporteSeleccionado() {
-            const sel = document.getElementById('seguimiento-mes-reporte');
-            if (!sel?.value) return new Date();
-            const [y, m] = sel.value.split('-').map(Number);
-            return new Date(y, (m || 1) - 1, 1);
-        }
-
-        function nombreMesLargo(fecha) {
-            return fecha.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toUpperCase();
-        }
-
-        function inicializarMesReporteSeguimiento() {
-            const sel = document.getElementById('seguimiento-mes-reporte');
-            if (!sel || sel.options.length) return;
-            const hoy = new Date();
-            const anio = hoy.getFullYear();
-            const meses = Array.from({ length: 12 }, (_, i) => new Date(anio, i, 1));
-            sel.innerHTML = meses.map(f => {
-                const value = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}`;
-                const selected = f.getMonth() === hoy.getMonth() ? 'selected' : '';
-                return `<option class="text-slate-800" value="${value}" ${selected}>${nombreMesLargo(f)}</option>`;
-            }).join('');
+        function obtenerNombreSprintSeleccionado() {
+            const sel = document.getElementById('seguimiento-filtro-sprint');
+            if (!sel || !sel.value) return 'TODOS LOS SPRINTS';
+            return String(sel.options[sel.selectedIndex]?.textContent || 'SPRINT').trim().toUpperCase();
         }
 
         function obtenerRangoSemanaActual() {
@@ -2165,7 +2263,7 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
 
         function actualizarTextosReporteSeguimiento() {
             const tituloAvance = document.getElementById('titulo-avance-sprint');
-            if (tituloAvance) tituloAvance.textContent = `Avance del Sprint - ${nombreMesLargo(obtenerMesReporteSeleccionado())}`;
+            if (tituloAvance) tituloAvance.textContent = `Avance del Sprint - ${obtenerNombreSprintSeleccionado()}`;
             const rango = document.getElementById('seguimiento-rango-semana');
             if (rango) rango.textContent = obtenerRangoSemanaActual();
         }
@@ -2356,6 +2454,51 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
             }
         }
 
+        async function cargarImagenDesdeDataUrl(dataUrl) {
+            return await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = dataUrl;
+            });
+        }
+
+        async function exportarGraficasJuntas() {
+            const [avance, portafolio] = await Promise.all([
+                capturarSeccionReporte('reporte-avance-sprint', { incluirEncabezadoExport: false }),
+                capturarSeccionReporte('reporte-distribucion-portafolio', { incluirEncabezadoExport: false })
+            ]);
+
+            if (!avance?.dataUrl || !portafolio?.dataUrl) {
+                alert('No fue posible generar la imagen conjunta. Revisa tu conexión a internet y vuelve a intentarlo.');
+                return;
+            }
+
+            try {
+                const [imgAvance, imgPortafolio] = await Promise.all([
+                    cargarImagenDesdeDataUrl(avance.dataUrl),
+                    cargarImagenDesdeDataUrl(portafolio.dataUrl)
+                ]);
+                const separacion = 28;
+                const margen = 24;
+                const altoObjetivo = Math.max(imgAvance.height, imgPortafolio.height);
+                const anchoAvance = Math.round(imgAvance.width * altoObjetivo / imgAvance.height);
+                const anchoPortafolio = Math.round(imgPortafolio.width * altoObjetivo / imgPortafolio.height);
+                const canvas = document.createElement('canvas');
+                canvas.width = anchoAvance + anchoPortafolio + separacion + margen * 2;
+                canvas.height = altoObjetivo + margen * 2;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(imgAvance, margen, margen, anchoAvance, altoObjetivo);
+                ctx.drawImage(imgPortafolio, margen + anchoAvance + separacion, margen, anchoPortafolio, altoObjetivo);
+                descargarDataUrl(canvas.toDataURL('image/png'), `${nombreArchivoReporte('graficas_seguimiento_ejecutivo')}.png`);
+            } catch (error) {
+                console.error('Error al combinar las gráficas:', error);
+                alert('No fue posible combinar las gráficas en una sola imagen.');
+            }
+        }
+
         async function exportarSeguimientoPDF() {
             await asegurarLibreriasExportacion();
             if (!window.jspdf?.jsPDF) {
@@ -2367,7 +2510,7 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
             const pdf = new jsPDF('l', 'mm', 'a4');
             const secciones = [
                 ['reporte-avance-sprint', document.getElementById('titulo-avance-sprint')?.textContent || 'Avance del Sprint'],
-                ['reporte-distribucion-portafolio', 'Distribución actual del portafolio'],
+                ['reporte-distribucion-portafolio', document.getElementById('titulo-distribucion-portafolio')?.textContent || 'Distribución del portafolio'],
                 ['reporte-mapa-requerimientos', 'Seguimiento semanal de requerimientos']
             ];
 
@@ -2417,10 +2560,11 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
         // Asegura que los botones con onclick funcionen en cualquier navegador.
         window.exportarSeccionImagen = exportarSeccionImagen;
         window.copiarSeccionImagen = copiarSeccionImagen;
+        window.exportarGraficasJuntas = exportarGraficasJuntas;
         window.exportarSeguimientoPDF = exportarSeguimientoPDF;
+        window.cambiarVistaPortafolio = cambiarVistaPortafolio;
 
         function llenarFiltrosSeguimientoEjecutivo() {
-            inicializarMesReporteSeguimiento();
             actualizarTextosReporteSeguimiento();
             const sprint = document.getElementById('seguimiento-filtro-sprint');
             const estatus = document.getElementById('seguimiento-filtro-estatus');
@@ -2436,18 +2580,88 @@ Esta acción eliminará los movimientos registrados de esa fase y no se puede de
             }
         }
 
+        function prioridadOrdenSeguimiento(estatus) {
+            const orden = {
+                LIBERADO: 0,
+                UAT: 1,
+                QA: 2,
+                DESARROLLO: 3,
+                ANALISIS: 4,
+                BACKLOG: 5,
+                CANCELADO: 6
+            };
+            return orden[estatusOperativoSeguimiento(estatus)] ?? 99;
+        }
+
+        function fechaCompromisoOrdenSeguimiento(p) {
+            const estatus = estatusOperativoSeguimiento(p?.estatus || 'BACKLOG');
+            const candidatasPorEstatus = {
+                LIBERADO: [p?.fecha_liberacion_prod],
+                UAT: [p?.fecha_fin_uat, p?.fecha_uat, p?.fecha_liberacion_prod],
+                QA: [p?.fecha_fin_qa, p?.fecha_qa, p?.fecha_inicio_uat, p?.fecha_fin_uat],
+                DESARROLLO: [p?.fecha_fin_desarrollo, p?.fecha_desarrollo, p?.fecha_inicio_qa],
+                ANALISIS: [p?.fecha_inicio_desarrollo, p?.fecha_fin_desarrollo, p?.fecha_desarrollo],
+                BACKLOG: [p?.fecha_ingreso_pmo, p?.fecha_ingreso, p?.created_at],
+                CANCELADO: [p?.updated_at, p?.created_at]
+            };
+
+            const fechas = (candidatasPorEstatus[estatus] || [])
+                .filter(Boolean)
+                .map(valor => {
+                    const fecha = new Date(String(valor).length === 10 ? `${valor}T00:00:00` : valor);
+                    return Number.isNaN(fecha.getTime()) ? null : fecha.getTime();
+                })
+                .filter(valor => valor !== null);
+
+            return fechas.length ? Math.min(...fechas) : Number.POSITIVE_INFINITY;
+        }
+
+        function claveRqmOrdenSeguimiento(p) {
+            const texto = String(p?.id_req || p?.numero_rqm || '').trim();
+            const numeros = texto.match(/\d+/g);
+            return {
+                numero: numeros?.length ? Number(numeros[numeros.length - 1]) : Number.POSITIVE_INFINITY,
+                texto: normalizarTexto(texto)
+            };
+        }
+
+        function ordenarProyectosSeguimiento(proyectos = []) {
+            return [...proyectos].sort((a, b) => {
+                const porEstatus = prioridadOrdenSeguimiento(a?.estatus) - prioridadOrdenSeguimiento(b?.estatus);
+                if (porEstatus !== 0) return porEstatus;
+
+                const porAvance = calcularAvanceEstatusSeguimiento(b?.estatus || 'BACKLOG') - calcularAvanceEstatusSeguimiento(a?.estatus || 'BACKLOG');
+                if (porAvance !== 0) return porAvance;
+
+                const porFecha = fechaCompromisoOrdenSeguimiento(a) - fechaCompromisoOrdenSeguimiento(b);
+                if (porFecha !== 0) return porFecha;
+
+                const rqmA = claveRqmOrdenSeguimiento(a);
+                const rqmB = claveRqmOrdenSeguimiento(b);
+                if (rqmA.numero !== rqmB.numero) return rqmA.numero - rqmB.numero;
+                return rqmA.texto.localeCompare(rqmB.texto, 'es', { numeric: true, sensitivity: 'base' });
+            });
+        }
+
         function obtenerProyectosSeguimientoFiltrados() {
             const sprint = document.getElementById('seguimiento-filtro-sprint')?.value || '';
             const estatus = document.getElementById('seguimiento-filtro-estatus')?.value || '';
 
-            return (todosLosProyectos || []).filter(p => {
+            const filtrados = (todosLosProyectos || []).filter(p => {
                 const okSprint = !sprint || String(p.sprint_id || '') === String(sprint);
                 const okEstatus = !estatus || normalizarTexto(p.estatus || 'BACKLOG') === estatus;
                 return okSprint && okEstatus;
             });
+
+            return ordenarProyectosSeguimiento(filtrados);
+        }
+
+        function cambiarVistaPortafolio() {
+            renderizarSeguimientoEjecutivo();
         }
 
         function filtrarSeguimientoEjecutivo() {
+            actualizarTextosReporteSeguimiento();
             renderizarSeguimientoEjecutivo();
         }
 

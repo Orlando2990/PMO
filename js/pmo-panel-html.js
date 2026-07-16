@@ -9,7 +9,9 @@ function renderizarPanelRequerimientos() {
 
     contenedor.innerHTML = String.raw`
         <!-- Vista ejecutiva estándar -->
-        ${window.PMOLayout ? window.PMOLayout.renderExecutiveHero() : ''}
+        ${window.PMOLayout ? window.PMOLayout.renderExecutiveHero({
+            actions:`<button type="button" onclick="abrirModalNuevo()" class="pmo-hero-primary"><i data-lucide="plus"></i>Nuevo requerimiento</button>`
+        }) : ''}
 
         <!-- Indicadores ejecutivos -->
         <section id="contenedor-contadores" class="pmo-summary-grid"></section>
@@ -87,8 +89,8 @@ function renderizarModalesRequerimientos() {
     contenedor.innerHTML = String.raw`
     <!-- MODAL FORMULARIO REQUERIMIENTO -->
     <div id="modal-proyecto"
-        class="hidden fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex justify-center items-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden border border-slate-100">
+        class="hidden fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xs flex justify-center items-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[calc(100vh-32px)] my-auto overflow-hidden border border-slate-100 flex flex-col">
             <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div class="flex items-center space-x-2.5">
                     <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
@@ -105,7 +107,7 @@ function renderizarModalesRequerimientos() {
             </div>
 
             <form id="form-proyecto" onsubmit="procesarFormulario(event)"
-                class="p-6 space-y-4 max-h-[75vh] overflow-y-auto overflow-x-hidden">
+                class="p-6 space-y-4 overflow-y-auto overflow-x-hidden flex-1 min-h-0">
                 <input type="hidden" id="form-id">
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

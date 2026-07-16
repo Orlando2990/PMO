@@ -75,7 +75,30 @@
     @media(max-width:900px){.user-shell,.portal-hero{flex-direction:column;align-items:flex-start}.user-nav{justify-content:flex-start}.portal-title{font-size:32px}}
 
     .evidence-drop{border:2px dashed #bfdbfe;background:#eff6ff;border-radius:18px;padding:22px;text-align:center;transition:.2s}.evidence-drop:hover{border-color:#2563eb;background:#dbeafe}.evidence-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:16px}.evidence-card{border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:white}.evidence-card img{width:100%;height:120px;object-fit:cover;background:#f8fafc}.evidence-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;font-size:12px;font-weight:800;color:#475569}.evidence-meta span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.evidence-meta button{color:#e11d48}.evidence-empty{grid-column:1/-1;padding:18px;color:#94a3b8;background:#f8fafc;border-radius:14px;text-align:center;font-size:13px}.icon-btn.progress{background:#ecfeff;border-color:#a5f3fc;color:#0e7490}.roadmap-loading,.roadmap-empty{min-height:180px;display:flex;align-items:center;justify-content:center;gap:12px;text-align:center;color:#64748b;background:#f8fafc;border-radius:20px;padding:28px}.roadmap-hero{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px;border-radius:22px;background:linear-gradient(135deg,#07162d,#102b57);color:white}.roadmap-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:#67e8f9;font-weight:900}.roadmap-hero h4{font-size:22px;font-weight:900;margin-top:5px}.roadmap-hero p{color:#cbd5e1;margin-top:5px}.roadmap-percent{width:98px;height:98px;border-radius:50%;display:grid;place-content:center;text-align:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)}.roadmap-percent strong{font-size:27px}.roadmap-percent span{font-size:11px;color:#cbd5e1}.roadmap-progress{height:10px;background:#e2e8f0;border-radius:99px;margin:20px 0;overflow:hidden}.roadmap-progress span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2563eb,#06b6d4)}.roadmap-current{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.roadmap-current>div{padding:15px;border:1px solid #e2e8f0;border-radius:16px;background:#fff}.roadmap-current span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:900}.roadmap-current strong{display:block;margin-top:5px;color:#0f172a}.roadmap-timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:24px}.roadmap-step{position:relative;text-align:center}.roadmap-step:not(:last-child):after{content:'';position:absolute;top:18px;left:62%;width:76%;height:3px;background:#e2e8f0;z-index:0}.roadmap-step.done:not(:last-child):after{background:#22c55e}.roadmap-dot{position:relative;z-index:1;margin:auto;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:900;background:#f1f5f9;color:#94a3b8;border:3px solid white;box-shadow:0 0 0 1px #e2e8f0}.roadmap-step.done .roadmap-dot{background:#22c55e;color:white}.roadmap-step.current .roadmap-dot{background:#2563eb;color:white;box-shadow:0 0 0 6px #dbeafe}.roadmap-step-copy strong{display:block;font-size:11px;margin-top:10px}.roadmap-step-copy span,.roadmap-step-copy small{display:block;font-size:10px;color:#94a3b8;margin-top:3px}.roadmap-note{display:flex;gap:10px;align-items:flex-start;margin-top:22px;padding:14px;border-radius:14px;background:#eff6ff;color:#1e40af;font-size:12px}@media(max-width:800px){.roadmap-current{grid-template-columns:1fr}.roadmap-timeline{grid-template-columns:1fr;text-align:left}.roadmap-step{display:flex;gap:12px;text-align:left}.roadmap-step:not(:last-child):after{display:none}.roadmap-dot{margin:0}.roadmap-step-copy strong{margin-top:2px}.roadmap-hero{align-items:flex-start}.roadmap-percent{width:80px;height:80px;flex:0 0 80px}}
-  </style>
+  
+    .self-form-actions{
+      display:flex;
+      justify-content:flex-end;
+      align-items:center;
+      flex-wrap:wrap;
+      column-gap:18px;
+      row-gap:12px;
+      padding-top:24px;
+      margin-top:8px;
+      border-top:1px solid #f1f5f9;
+    }
+    .self-form-actions button{
+      min-height:50px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      white-space:nowrap;
+    }
+    @media (max-width:640px){
+      .self-form-actions{justify-content:stretch}
+      .self-form-actions button{width:100%}
+    }
+</style>
 </head>
 <body class="bg-slate-50/70 text-slate-800 antialiased">
   <div id="pmo-app-header" data-pmo-module="selfservice"></div>
@@ -91,7 +114,7 @@
 
     <section id="kpis-usuario" class="grid grid-cols-1 md:grid-cols-4 gap-5"></section>
 
-    <section id="formulario-solicitud" class="accordion-card">
+    <section id="formulario-solicitud" class="accordion-card collapsed">
       <button type="button" class="accordion-head" onclick="togglePanel('formulario-solicitud')">
         <div>
           <h2 class="accordion-title"><i data-lucide="file-plus-2" class="w-6 h-6 text-blue-600"></i>Nueva solicitud de requerimiento</h2>
@@ -140,29 +163,14 @@
 
         <div class="rqm-section">
           <h3 class="rqm-section-title"><i data-lucide="tags" class="w-5 h-5 text-blue-600"></i>Tipo de requerimiento</h3>
-          <div class="check-grid" data-single-group="tipo">
-            <label class="check-option"><input type="checkbox" name="ss-tipo" value="Mejora">Mejora</label>
-            <label class="check-option"><input type="checkbox" name="ss-tipo" value="Normativo">Normativo</label>
-            <label class="check-option"><input type="checkbox" name="ss-tipo" value="Proyecto" checked>Proyecto</label>
-            <label class="check-option"><input type="checkbox" name="ss-tipo" value="Mantenimiento">Mantenimiento</label>
-            <label class="check-option"><input type="checkbox" name="ss-tipo" value="Hallazgo">Hallazgo</label>
-            <label class="check-option"><input type="checkbox" name="ss-tipo" value="Solicitud de info">Solicitud de info</label>
-          </div>
+          <div id="ss-tipos-checks" class="check-grid" data-single-group="tipo"></div>
         </div>
 
         <div class="rqm-section">
           <h3 class="rqm-section-title"><i data-lucide="gauge" class="w-5 h-5 text-blue-600"></i>Prioridad y complejidad</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div><label class="field-label">Prioridad *</label><div class="check-grid" data-single-group="prioridad">
-              <label class="check-option"><input type="checkbox" name="ss-prioridad" value="Baja">Baja</label>
-              <label class="check-option"><input type="checkbox" name="ss-prioridad" value="Mediana" checked>Mediana</label>
-              <label class="check-option"><input type="checkbox" name="ss-prioridad" value="Alta">Alta</label>
-            </div></div>
-            <div><label class="field-label">Complejidad *</label><div class="check-grid" data-single-group="complejidad">
-              <label class="check-option"><input type="checkbox" name="ss-complejidad" value="Baja">Baja</label>
-              <label class="check-option"><input type="checkbox" name="ss-complejidad" value="Mediana" checked>Mediana</label>
-              <label class="check-option"><input type="checkbox" name="ss-complejidad" value="Alta">Alta</label>
-            </div></div>
+            <div><label class="field-label">Prioridad *</label><div id="ss-prioridades-checks" class="check-grid" data-single-group="prioridad"></div></div>
+            <div><label class="field-label">Complejidad *</label><div id="ss-complejidades-checks" class="check-grid" data-single-group="complejidad"></div></div>
           </div>
         </div>
 
@@ -178,31 +186,13 @@
 
         <div class="rqm-section">
           <h3 class="rqm-section-title"><i data-lucide="building-2" class="w-5 h-5 text-blue-600"></i>Áreas impactadas</h3>
-          <div class="check-grid">
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Core Bancario">Core Bancario</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Finanzas">Finanzas</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Contabilidad">Contabilidad</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Cobranza">Cobranza</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Crédito al consumo">Crédito al consumo</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Operaciones">Operaciones</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Mesa de control">Mesa de control</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Call Center">Call Center</label>
-            <label class="check-option"><input type="checkbox" name="ss-area-impactada" value="Todas las anteriores">Todas las anteriores</label>
-            <label class="check-option"><input type="checkbox" id="ss-area-otro-check" name="ss-area-impactada" value="Otro">Otro</label>
-          </div>
+          <div id="ss-areas-impactadas-checks" class="check-grid"></div>
           <div id="ss-area-otro-wrap" class="mt-4 hidden"><label class="field-label">Otro, especifique</label><input id="ss-area-otro" class="field-input" /></div>
         </div>
 
         <div class="rqm-section">
           <h3 class="rqm-section-title"><i data-lucide="package-check" class="w-5 h-5 text-blue-600"></i>Dependencias para salida a producción</h3>
-          <div class="check-grid">
-            <label class="check-option"><input type="checkbox" name="ss-dependencia" value="Manuales">Manuales</label>
-            <label class="check-option"><input type="checkbox" name="ss-dependencia" value="CheckList">CheckList</label>
-            <label class="check-option"><input type="checkbox" name="ss-dependencia" value="Boletines">Boletines</label>
-            <label class="check-option"><input type="checkbox" name="ss-dependencia" value="Capacitaciones">Capacitaciones</label>
-            <label class="check-option"><input type="checkbox" name="ss-dependencia" value="Todos los anteriores">Todos los anteriores</label>
-            <label class="check-option"><input type="checkbox" id="ss-dep-otro-check" name="ss-dependencia" value="Otros">Otros</label>
-          </div>
+          <div id="ss-dependencias-checks" class="check-grid"></div>
           <div id="ss-dep-otro-wrap" class="mt-4 hidden"><label class="field-label">Otros, especifique</label><input id="ss-dep-otro" class="field-input" /></div>
         </div>
 
@@ -228,7 +218,7 @@
         <div class="rounded-2xl border border-blue-100 bg-blue-50 p-5 text-sm text-blue-900">
           El PDF conservará la estructura institucional de tres páginas, incluyendo Aprobaciones, Control de versiones, Firmas de usuarios y Firmas de sistemas en blanco para firma autógrafa. No se agregarán comentarios del sistema al formato.
         </div>
-        <div class="border-t border-slate-100 pt-6 flex justify-end gap-3">
+        <div class="self-form-actions">
           <button type="button" onclick="limpiarFormulario()" class="px-6 py-3 rounded-xl border border-slate-200 bg-white font-black text-slate-700">Limpiar</button>
           <button id="btn-guardar-self" type="submit" class="px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg inline-flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i>Guardar y descargar formato</button>
         </div>

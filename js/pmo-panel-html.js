@@ -170,15 +170,14 @@ function renderizarModalesRequerimientos() {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Prioridad</label>
-                        <select id="form-prioridad"
-                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
-                            <option value="BAJA">BAJA</option>
-                            <option value="MEDIA">MEDIA</option>
-                            <option value="ALTA">ALTA</option>
-                        </select>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Prioridad (Catálogo)</label>
+                        <select id="form-prioridad" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Complejidad (Catálogo)</label>
+                        <select id="form-complejidad" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Estatus (Catálogo)</label>

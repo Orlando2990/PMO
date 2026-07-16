@@ -2,9 +2,9 @@ let perfilesUsuarios=[];
 let permisosUsuarios={};
 const clientUsuarios=window.PMOAuth?.client;
 const MODULOS=[
-  {code:'selfservice',name:'Mis solicitudes',desc:'Alta y seguimiento de solicitudes propias',icon:'file-plus-2'},
+  {code:'rqm',name:'Buzón de RQM',desc:'Recepción, revisión, folios y aprobación de solicitudes',icon:'inbox'},
   {code:'matriz',name:'Matriz',desc:'Gestión operativa del portafolio',icon:'list-checks'},
-  {code:'rqm',name:'Control RQM',desc:'Revisión, folios y aprobación de solicitudes',icon:'clipboard-list'},
+  {code:'selfservice',name:'Mis solicitudes',desc:'Alta y seguimiento de solicitudes propias',icon:'file-plus-2'},
   {code:'dashboard',name:'Dashboard',desc:'Indicadores ejecutivos',icon:'layout-dashboard'},
   {code:'seguimiento',name:'Seguimiento',desc:'Roadmap, gráficas y reportes',icon:'route'},
   {code:'importar',name:'Importar',desc:'Carga masiva de la matriz',icon:'file-up'},

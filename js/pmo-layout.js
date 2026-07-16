@@ -5,7 +5,7 @@
         dashboard: { title:'Dashboard ejecutivo', subtitle:'Indicadores y salud del portafolio', icon:'layout-dashboard', active:'dashboard', hideTopAccount:true },
         seguimiento: { title:'Seguimiento ejecutivo', subtitle:'Roadmap, avances y reportes', icon:'route', active:'seguimiento', hideTopAccount:true },
         importar: { title:'Importar matriz', subtitle:'Carga masiva desde Excel', icon:'file-up', active:'importar', hideTopAccount:true },
-        rqm: { title:'Control de RQM', subtitle:'Folios y solicitudes de requerimiento', icon:'clipboard-list', active:'rqm', hideTopAccount:true },
+        rqm: { title:'Buzón de RQM', subtitle:'Recepción, folios y revisión de requerimientos', icon:'clipboard-list', active:'rqm', hideTopAccount:true },
         selfservice: { title:'Portal de solicitudes', subtitle:'Alta y seguimiento de requerimientos', icon:'file-plus-2', active:'selfservice', hideTopAccount:true },
         catalogos: { title:'Catálogos', subtitle:'Configuración funcional del sistema', icon:'settings-2', active:'catalogos', hideTopAccount:true },
         usuarios: { title:'Usuarios y roles', subtitle:'Administración de accesos', icon:'users-round', active:'usuarios', hideTopAccount:true }
@@ -13,9 +13,9 @@
 
     const NAV_GROUPS = [
         { label:'Trabajo', items:[
-            { key:'selfservice', label:'Mis solicitudes', href:'self_service.html', icon:'file-plus-2', roles:['usuario','pmo','administrador'] },
+            { key:'rqm', label:'Buzón de RQM', href:'solicitudes_rqm.html', icon:'inbox', roles:['pmo','administrador'] },
             { key:'matriz', label:'Matriz', href:'index.html', icon:'list-checks', roles:['pmo','administrador'] },
-            { key:'rqm', label:'Control RQM', href:'solicitudes_rqm.html', icon:'clipboard-list', roles:['pmo','administrador'] }
+            { key:'selfservice', label:'Mis solicitudes', href:'self_service.html', icon:'file-plus-2', roles:['usuario','pmo','administrador'] }
         ]},
         { label:'Análisis', items:[
             { key:'dashboard', label:'Dashboard', href:'index_dashboard_ejecutivo.html', icon:'layout-dashboard', roles:['pmo','direccion','administrador'] },

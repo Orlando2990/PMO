@@ -31,7 +31,7 @@ let todosLosProyectos = [];
         let conteoReprogramacionesGlobal = {};
         let ajustesAdministrativosGlobal = {};
         let proyectoSeleccionadoOriginal = null;
-        let cats = { sprints: [], sistemas: [], areas: [], clasificaciones: [], estatus: [], motivos_reprogramacion: [] };
+        let cats = { sprints: [], sistemas: [], areas: [], clasificaciones: [], prioridades: [], complejidades: [], estatus: [], motivos_reprogramacion: [] };
 
         function toggleAdminPanel() { document.getElementById('panel-admin').classList.toggle('hidden'); }
 
@@ -46,6 +46,8 @@ let todosLosProyectos = [];
                 const sis = await _supabase.from('cat_sistemas').select('*').order('nombre');
                 const a = await _supabase.from('cat_areas').select('*').order('nombre');
                 const c = await _supabase.from('cat_clasificaciones').select('*').order('nombre');
+                const pri = await _supabase.from('cat_prioridades').select('*').order('orden').order('nombre');
+                const comp = await _supabase.from('cat_complejidades').select('*').order('orden').order('nombre');
                 const est = await _supabase.from('cat_estatus').select('*').order('nombre');
                 const mot = await _supabase.from('cat_motivos_reprogramacion').select('*').order('nombre');
 
@@ -53,6 +55,8 @@ let todosLosProyectos = [];
                 cats.sistemas = sis.data || [];
                 cats.areas = a.data || [];
                 cats.clasificaciones = c.data || [];
+                cats.prioridades = pri.data || [];
+                cats.complejidades = comp.data || [];
                 cats.estatus = est.data || [];
                 cats.motivos_reprogramacion = mot.data || [];
 
@@ -70,6 +74,8 @@ let todosLosProyectos = [];
             document.getElementById('form-sistema').innerHTML = optionsTemplate(cats.sistemas);
             document.getElementById('form-area').innerHTML = optionsTemplate(cats.areas);
             document.getElementById('form-clasificacion').innerHTML = optionsTemplate(cats.clasificaciones);
+            document.getElementById('form-prioridad').innerHTML = cats.prioridades.map(x=>`<option value="${x.nombre}">${x.nombre.toUpperCase()}</option>`).join('');
+            document.getElementById('form-complejidad').innerHTML = cats.complejidades.map(x=>`<option value="${x.nombre}">${x.nombre.toUpperCase()}</option>`).join('');
             document.getElementById('form-estatus').innerHTML = cats.estatus.map(x =>
                 `<option value="${x.nombre}">${x.nombre.toUpperCase()}</option>`
             ).join('') || '<option value="BACKLOG">BACKLOG</option>';
@@ -942,6 +948,7 @@ let todosLosProyectos = [];
                 responsable_sistemas: document.getElementById('form-responsable-sistemas').value.trim() || null,
                 asignado_a: document.getElementById('form-asignado-a').value.trim() || null,
                 prioridad: document.getElementById('form-prioridad').value,
+                complejidad: document.getElementById('form-complejidad').value || null,
                 estatus: document.getElementById('form-estatus').value,
                 descripcion: document.getElementById('form-descripcion').value.trim() || null,
                 fecha_ingreso_pmo: document.getElementById('form-fecha-ingreso').value || null,
@@ -1348,7 +1355,8 @@ let todosLosProyectos = [];
             setValueIfExists('form-solicitante', p.solicitante);
             setValueIfExists('form-responsable-sistemas', p.responsable_sistemas);
             setValueIfExists('form-asignado-a', p.asignado_a);
-            setValueIfExists('form-prioridad', p.prioridad || 'BAJA');
+            setValueIfExists('form-prioridad', p.prioridad || 'Baja');
+            setValueIfExists('form-complejidad', p.complejidad || 'Mediana');
             setValueIfExists('form-estatus', p.estatus || 'BACKLOG');
             setValueIfExists('form-descripcion', p.descripcion);
             setValueIfExists('form-fecha-ingreso', p.fecha_ingreso_pmo);

@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PMO Control - Control de RQM</title>
+  <title>PMO Control - Buzón de RQM</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="stylesheet" href="css/pmo-layout.css">
   <style>
-    /* Ajuste exclusivo del modal de Control RQM */
+    /* Ajuste exclusivo del modal del Buzón de RQM */
     .label-rqm{
       display:block;
       font-size:12px;
@@ -120,7 +120,7 @@
       <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
         <div class="flex items-center gap-3">
           <div class="p-2 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="file-pen-line" class="w-5 h-5"></i></div>
-          <div><h3 id="titulo-modal-rqm" class="font-bold text-slate-900 text-base">Nuevo registro RQM</h3><p class="text-xs text-slate-500">Control de números de requerimientos por sistema</p></div>
+          <div><h3 id="titulo-modal-rqm" class="font-bold text-slate-900 text-base">Nuevo registro RQM</h3><p class="text-xs text-slate-500">Recepción y control de requerimientos por sistema</p></div>
         </div>
         <button onclick="cerrarModalRQM()" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
       </div>
@@ -215,31 +215,53 @@ function valorObservacion(observaciones, etiqueta){
   const m = txt.match(re);
   return m ? m[1].trim() : '';
 }
+function comentariosConversacion(observaciones){
+  const txt = String(observaciones || '');
+  const bloques = [];
+  const re = /---\s*\n(COMENTARIO\s+(?:PMO|USUARIO)[^\n]*):\s*\n([\s\S]*?)(?=\n\n---\s*\n|$)/gi;
+  let m;
+  while((m = re.exec(txt))){
+    const contenido = String(m[2] || '').trim();
+    if(contenido && !/^sin comentario adicional\.?$/i.test(contenido)) bloques.push(`${m[1]}\n${contenido}`);
+  }
+  return bloques.join('\n\n');
+}
 function rqmToPDFData(r){
   const obs = r.observaciones || '';
+  const splitLista = (v) => String(v || '').split(',').map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/^Otro(?:s)?:\s*/i,''));
   return {
     sistema_nombre: r.sistema_nombre || '—',
     numero_rqm: r.numero_rqm || '—',
     version: valorObservacion(obs, 'Versión') || '1',
     proyecto: r.proyecto || '—',
     tipo_requerimiento: valorObservacion(obs, 'Tipo de requerimiento') || 'Proyecto',
-    prioridad: valorObservacion(obs, 'Prioridad sugerida') || 'Pendiente PMO',
-    descripcion_general: valorObservacion(obs, 'Descripción') || obs || '—',
+    prioridad: valorObservacion(obs, 'Prioridad') || valorObservacion(obs, 'Prioridad sugerida') || 'Mediana',
+    complejidad: valorObservacion(obs, 'Complejidad') || 'Mediana',
+    descripcion_general: valorObservacion(obs, 'Descripción') || '—',
     solicitado_por: r.solicitado_por || '—',
-    area_nombre: valorObservacion(obs, 'Área solicitante') || 'Pendiente',
+    area_nombre: valorObservacion(obs, 'Área solicitante') || '—',
     fecha_asignacion: r.fecha_asignacion || r.created_at,
-    areas_impactadas: valorObservacion(obs, 'Áreas impactadas') || '—',
-    dependencias_produccion: valorObservacion(obs, 'Dependencias') || '—',
-    antecedentes: valorObservacion(obs, 'Antecedentes') || '—',
-    objetivo: valorObservacion(obs, 'Objetivo') || valorObservacion(obs, 'Descripción') || '—',
-    descripcion_detallada: valorObservacion(obs, 'Detalle') || valorObservacion(obs, 'Descripción') || obs || '—'
+    responsable: valorObservacion(obs, 'Responsable') || 'Miriam Lizbeth Arauz Chavez',
+    areas_impactadas_lista: splitLista(valorObservacion(obs, 'Áreas impactadas')),
+    areas_impactadas_otro: '',
+    dependencias_lista: splitLista(valorObservacion(obs, 'Dependencias')),
+    dependencias_otro: '',
+    antecedentes: valorObservacion(obs, 'Antecedentes') || '',
+    objetivo: valorObservacion(obs, 'Objetivo') || '',
+    descripcion_detallada: valorObservacion(obs, 'Detalle') || valorObservacion(obs, 'Descripción detallada') || ''
   };
 }
 
 function appendComentarioPMO(observaciones, comentario, accion){
   const base = String(observaciones || '').trim();
+  const texto = String(comentario || '').trim();
+  if(!texto) return base;
   const fecha = new Date().toLocaleString('es-MX');
-  const bloque = `\n\n---\nCOMENTARIO PMO (${accion} - ${fecha}):\n${comentario || 'Sin comentario adicional.'}`;
+  const bloque = `
+
+---
+COMENTARIO PMO (${accion} - ${fecha}):
+${texto}`;
   return (base + bloque).trim();
 }
 function abrirModalPMO(titulo, subtitulo, bodyHtml, footerHtml=''){
@@ -252,13 +274,15 @@ function abrirModalPMO(titulo, subtitulo, bodyHtml, footerHtml=''){
 }
 function cerrarModalPMO(){ document.getElementById('modal-pmo-accion')?.classList.add('hidden'); }
 function detalleRQMHtml(r){
-  return `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Número RQM</p><p class="font-black text-slate-950 mt-1">${esc(r.numero_rqm || '—')}</p></div>
-    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Sistema</p><p class="font-black text-slate-950 mt-1">${esc(r.sistema_nombre || '—')}</p></div>
-    <div class="rounded-2xl bg-slate-50 p-4 md:col-span-2"><p class="text-xs font-black text-slate-400 uppercase">Proyecto</p><p class="font-black text-slate-950 mt-1">${esc(r.proyecto || '—')}</p></div>
-    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Solicitado por</p><p class="font-black text-slate-950 mt-1">${esc(r.solicitado_por || '—')}</p></div>
-    <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Fecha</p><p class="font-black text-slate-950 mt-1">${fmtFecha(r.fecha_asignacion || r.created_at)}</p></div>
-    <div class="rounded-2xl bg-slate-50 p-4 md:col-span-2"><p class="text-xs font-black text-slate-400 uppercase">Información capturada / comentarios</p><pre class="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed mt-2">${esc(r.observaciones || '—')}</pre></div>
+  const comentarios = comentariosConversacion(r.observaciones);
+  return `<div class="space-y-4 text-sm">
+    <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4 flex items-start gap-3">
+      <i data-lucide="messages-square" class="w-5 h-5 text-blue-600 mt-0.5"></i>
+      <div><p class="font-black text-blue-900">Comentarios entre el usuario y PMO</p><p class="text-blue-700 mt-1">Aquí se muestran únicamente las observaciones intercambiadas durante la revisión del RQM.</p></div>
+    </div>
+    <div class="rounded-2xl bg-slate-50 border border-slate-200 p-5">
+      ${comentarios ? `<pre class="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">${esc(comentarios)}</pre>` : `<div class="py-8 text-center text-slate-400"><i data-lucide="message-circle" class="w-8 h-8 mx-auto mb-3"></i><p class="font-bold">Aún no hay comentarios registrados.</p></div>`}
+    </div>
   </div>`;
 }
 function verDetalleRQM(id){
@@ -296,91 +320,64 @@ async function guardarEstatusComentarioPMO(id, estatus, accion){
   }
 }
 function actualizarEstatusConComentario(id, estatus, accion){ abrirModalComentarioPMO(id, estatus, accion); }
-function generarPDFRQM(id){
+async function cargarImagenesRQM(solicitudId){
+  if(!solicitudId) return [];
+  try{
+    const {data,error}=await _supabase.from('rqm_solicitud_imagenes').select('*').eq('solicitud_id',solicitudId).order('orden');
+    if(error || !data?.length) return [];
+    const salida=[];
+    for(const img of data){
+      const {data:archivo,error:downloadError}=await _supabase.storage.from('rqm-evidencias').download(img.storage_path);
+      if(downloadError || !archivo) continue;
+      const dataUrl=await new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(reader.result);
+        reader.onerror=reject;
+        reader.readAsDataURL(archivo);
+      });
+      salida.push({...img,data_url:dataUrl,nombre:img.nombre_archivo});
+    }
+    return salida;
+  }catch(e){
+    console.warn('No se pudieron cargar las imágenes del RQM:',e);
+    return [];
+  }
+}
+async function generarPDFRQM(id){
   const r = registrosRQM.find(x=>x.id===id);
   if(!r) return;
-  generarPDFFormatoRQM(rqmToPDFData(r));
+  const data=rqmToPDFData(r);
+  data.imagenes=await cargarImagenesRQM(r.id);
+  await generarPDFFormatoRQM(data);
 }
 
-function generarPDFFormatoRQM(data){
-  const jspdf = window.jspdf;
-  if(!jspdf?.jsPDF){ alert('No se pudo cargar el generador PDF.'); return; }
-  const doc = new jspdf.jsPDF({unit:'pt', format:'letter'});
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const margin = 38;
-  let y = 40;
-  let page = 1;
-  const azul = [0,0,102];
-  const gris = [226,232,240];
+async function generarPDFFormatoRQM(data){
+  const jspdf=window.jspdf;
+  if(!jspdf?.jsPDF){ alert('No se pudo cargar el generador PDF. Verifica tu conexión a internet.'); return; }
+  const doc=new jspdf.jsPDF({unit:'pt',format:'letter'}), W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=22, azul=[0,0,110];
+  const paginas=[];
+  const check='[ ]',mark='[X]',isSel=(arr,v)=>Array.isArray(arr)&&arr.includes(v),cb=(sel,label)=>`${sel?mark:check} ${label}`;
+  function head(page,total){doc.setTextColor(42,42,60);doc.setFont('helvetica','bold');doc.setFontSize(38);doc.text('finsus',M+6,58);doc.setFont('helvetica','normal');doc.setFontSize(13);doc.text('Finanzas Transparentes',M+6,79);doc.setDrawColor(195);doc.line(M,98,W-M,98);doc.line(W-190,15,W-190,118);doc.setFontSize(10);doc.text(data.numero_rqm||'RQM 00 00',W-M-80,32);doc.text('Fecha de elaboración:',W-M-126,48);doc.text(fmtFecha(data.fecha_asignacion),W-M-88,62);doc.setDrawColor(170);doc.line(M,H-34,W-M,H-34);doc.setFontSize(7.5);doc.setTextColor(60);doc.text('Fecha de emisión: 10 abril 2024',M+6,H-19);doc.text('Área que emite: Producto Crédito Al Consumo**',W/2,H-19,{align:'center'});doc.text(`Página ${page} de ${total}`,W-M-4,H-19,{align:'right'});}
+  function box(x,y,w,h,title){doc.setDrawColor(...azul);doc.setLineWidth(1.2);doc.rect(x,y,w,h);if(title){doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(0);doc.text(title,x+6,y+14);}}
+  function fit(text,w,size=9){doc.setFontSize(size);return doc.splitTextToSize(String(text||''),w);}
+  function textIn(text,x,y,w,size=9){doc.setFont('helvetica','normal');doc.setFontSize(size);doc.setTextColor(0);doc.text(fit(text,w,size),x,y);}
+  function tableRow(y,label,value,h=25,labelW=115){box(M,y,W-2*M,h);doc.line(M+labelW,y,M+labelW,y+h);doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.text(label,M+5,y+16);textIn(value,M+labelW+6,y+16,W-2*M-labelW-12,8.5);}
+  function nuevaPagina(draw){paginas.push(draw);}
 
-  function header(){
-    doc.setFont('helvetica','bold'); doc.setFontSize(40); doc.setTextColor(35,35,60); doc.text('finsus', margin, 78);
-    doc.setFont('helvetica','normal'); doc.setFontSize(15); doc.text('Finanzas Transparentes', margin, 102);
-    doc.setDrawColor(210); doc.line(margin, 122, pageW-margin, 122);
-    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30); doc.text(data.numero_rqm || '', pageW-margin-80, 72);
-    doc.setFont('helvetica','normal'); doc.text('Fecha de elaboración:', pageW-margin-118, 88);
-    doc.text(fmtFecha(data.fecha_asignacion), pageW-margin-88, 102);
-    y = 170;
-  }
-  function footer(){
-    doc.setDrawColor(180); doc.line(margin, pageH-42, pageW-margin, pageH-42);
-    doc.setFontSize(8); doc.setTextColor(60); doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-MX')}`, margin+40, pageH-24);
-    doc.text(`Página ${page}`, pageW-margin-60, pageH-24);
-  }
-  function newPage(){ footer(); doc.addPage(); page++; header(); }
-  function ensure(h){ if(y + h > pageH - 70) newPage(); }
-  function boxTitle(text){
-    ensure(30);
-    doc.setFillColor(...gris); doc.setDrawColor(...azul); doc.setLineWidth(1.2); doc.rect(margin, y, pageW-margin*2, 24, 'FD');
-    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(0); doc.text(text, margin+8, y+16); y += 24;
-  }
-  function row(label, value, h=28){
-    ensure(h+4);
-    const labelW=165;
-    doc.setDrawColor(...azul); doc.rect(margin,y,labelW,h); doc.rect(margin+labelW,y,pageW-margin*2-labelW,h);
-    doc.setFillColor(...gris); doc.rect(margin,y,labelW,h,'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(0); doc.text(label, margin+8, y+17);
-    doc.setFont('helvetica','normal'); doc.setFontSize(10);
-    const lines=doc.splitTextToSize(String(value||'—'), pageW-margin*2-labelW-14);
-    doc.text(lines, margin+labelW+8, y+17);
-    y+=h;
-  }
-  function paragraphBox(title, text){
-    const lines=doc.splitTextToSize(String(text||'—'), pageW-margin*2-18);
-    const h=Math.max(58, lines.length*12+34);
-    ensure(h+28);
-    boxTitle(title);
-    doc.setDrawColor(...azul); doc.rect(margin,y,pageW-margin*2,h-24);
-    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(0); doc.text(lines, margin+9, y+18);
-    y += h;
-  }
+  nuevaPagina(()=>{let y=148;doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(...azul);doc.text('Requerimiento a Sistemas',W/2,y,{align:'center'});y+=12;box(M,y,W-2*M,50,'SISTEMA AFECTADO:');const sys=normalizar(data.sistema_nombre);textIn([cb(sys==='GENESIS','GENESIS'),cb(sys==='COBRANZA','COBRANZA'),cb(sys==='COTIZADOR WEB','COTIZADOR WEB'),cb(!['GENESIS','COBRANZA','COTIZADOR WEB'].includes(sys),'OTRO'),`ESPECIFIQUE: ${!['GENESIS','COBRANZA','COTIZADOR WEB'].includes(sys)?data.sistema_nombre:''}`].join('     '),M+6,y+34,W-2*M-12,8);y+=76;tableRow(y,'Nombre del RQM',data.proyecto,24);y+=24;tableRow(y,'Número del RQM',data.numero_rqm,24);y+=24;tableRow(y,'Versión',data.version,24);y+=24;tableRow(y,'Descripción general',data.descripcion_general,64);y+=82;box(M,y,W-2*M,48,'TIPO DE REQUERIMIENTO:');textIn(['Mejora','Normativo','Proyecto','Mantenimiento','Hallazgo','Solicitud de info'].map(v=>cb(data.tipo_requerimiento===v,v)).join('    '),M+6,y+32,W-2*M-12,8);y+=66;box(M,y,W-2*M,150);let ry=y;const rows=[['Prioridad',['Baja','Mediana','Alta'].map(v=>cb(data.prioridad===v,v)).join('        ')],['Complejidad',['Baja','Mediana','Alta'].map(v=>cb(data.complejidad===v,v)).join('        ')],['Solicitante',data.solicitado_por],['Área solicitante',data.area_nombre],['Fecha de ingreso',fmtFecha(data.fecha_asignacion)],['Responsable',data.responsable]];rows.forEach((r,i)=>{if(i)doc.line(M,ry+i*25,W-M,ry+i*25);doc.line(M+105,ry+i*25,M+105,ry+(i+1)*25);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text(r[0],M+5,ry+i*25+16);textIn(r[1],M+111,ry+i*25+16,W-2*M-117,8);});y+=168;box(M,y,W-2*M,62,'AREAS IMPACTADAS:');const areas=['Core Bancario','Finanzas','Contabilidad','Cobranza','Crédito al consumo','Operaciones','Mesa de control','Call Center','Todas las anteriores'];textIn(areas.slice(0,6).map(v=>cb(isSel(data.areas_impactadas_lista,v),v)).join('   '),M+6,y+31,W-2*M-12,7.3);textIn(`${areas.slice(6).map(v=>cb(isSel(data.areas_impactadas_lista,v),v)).join('   ')}   ${cb(isSel(data.areas_impactadas_lista,'Otro'),'Otro')}  Especifique: ${data.areas_impactadas_otro||''}`,M+6,y+48,W-2*M-12,7.3);});
 
-  header();
-  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(...azul); doc.text('REQUERIMIENTO A SISTEMAS', pageW/2, y, {align:'center'}); y += 24;
-  boxTitle('SISTEMA AFECTADO:'); row('', data.sistema_nombre || '—', 26); y += 16;
-  row('Nombre del RQM', data.proyecto || '—', 28);
-  row('Número del RQM', `${data.numero_rqm || '—'}     Versión: ${data.version || '1'}`, 28);
-  row('Descripción general', data.descripcion_general || '—', 68);
-  y += 16;
-  boxTitle('TIPO DE REQUERIMIENTO:'); row('', data.tipo_requerimiento || 'Proyecto', 26); y += 16;
-  row('Prioridad', data.prioridad || '—', 28);
-  row('Solicitante', data.solicitado_por || '—', 28);
-  row('Área solicitante', data.area_nombre || '—', 28);
-  row('Fecha de ingreso', fmtFecha(data.fecha_asignacion), 28);
-  y += 16;
-  boxTitle('AREAS IMPACTADAS:'); row('', data.areas_impactadas || '—', 32);
-  y += 12;
-  paragraphBox('DEPENDENCIAS PARA SALIDA A PRODUCCIÓN:', data.dependencias_produccion);
-  paragraphBox('ANTECEDENTES:', data.antecedentes);
-  paragraphBox('OBJETIVO:', data.objetivo || data.descripcion_general);
-  paragraphBox('DESCRIPCIÓN / OBSERVACIONES:', data.descripcion_detallada || data.descripcion_general);
-  y += 12;
-  boxTitle('FIRMAS DE SISTEMAS');
-  row('Nombre', 'Fecha recepción        Fecha aceptación        Fecha compromiso        Firma', 42);
-  footer();
-  doc.save(`${(data.numero_rqm || 'Solicitud').replace(/\s+/g,'_')}.pdf`);
+  nuevaPagina(()=>{let y=145;box(M,y,W-2*M,58,'DEPENDENCIAS PARA SALIDA A PRODUCCION:');const deps=['Manuales','CheckList','Boletines','Capacitaciones','Todos los anteriores'];textIn(`${deps.map(v=>cb(isSel(data.dependencias_lista,v),v)).join('    ')}    ${cb(isSel(data.dependencias_lista,'Otros'),'Otros')}  Especifique: ${data.dependencias_otro||''}`,M+6,y+35,W-2*M-12,7.5);y+=95;doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Aprobaciones',M+6,y);y+=10;box(M,y,W-2*M,60);[105,145,265,305,465].forEach(x=>doc.line(M+x,y,M+x,y+60));doc.line(M,y+25,W-M,y+25);['Preparado por','Fecha','Revisado por','Fecha','Aprobado por','Fecha y firma'].forEach((t,i)=>{const xs=[M+4,M+110,M+150,M+270,M+310,M+470];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t,xs[i],y+16);});y+=94;doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Control de versiones',M+6,y);y+=10;box(M,y,W-2*M,72);[60,195,295,455,500].forEach(x=>doc.line(M+x,y,M+x,y+72));doc.line(M,y+30,W-M,y+30);doc.line(M+295,y+16,M+455,y+16);doc.line(M+455,y+16,W-M,y+16);['No.\nversión','Descripción del\ncambio','Sección\nmodificada','Modificado','Revisado'].forEach((t,i)=>{const xs=[M+5,M+65,M+200,M+350,M+500];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t.split('\n'),xs[i],y+12,{align:i>2?'center':'left'});});y+=92;box(M,y,W-2*M,56,'ANTECEDENTES');textIn(data.antecedentes,M+7,y+29,W-2*M-14,8.5);y+=56;box(M,y,W-2*M,56,'OBJETIVO');textIn(data.objetivo,M+7,y+29,W-2*M-14,8.5);y+=56;box(M,y,W-2*M,170,'DESCRIPCION (Pantallas, Imágenes, Documentos)');textIn(data.descripcion_detallada,M+7,y+29,W-2*M-14,8.5);});
+
+  for(const img of (data.imagenes||[])){
+    nuevaPagina(async()=>{const titleY=140;box(M,titleY,W-2*M,H-titleY-65,'DESCRIPCION (Pantallas, Imágenes, Documentos)');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(img.nombre_archivo||img.nombre||'Evidencia',M+8,titleY+30);const props=doc.getImageProperties(img.data_url);const maxW=W-2*M-28,maxH=H-titleY-115,ratio=Math.min(maxW/props.width,maxH/props.height);const iw=props.width*ratio,ih=props.height*ratio;doc.addImage(img.data_url,props.fileType||'JPEG',M+(W-2*M-iw)/2,titleY+45,iw,ih);});
+  }
+  nuevaPagina(()=>{let y=145;box(M,y,W-2*M,174,'FIRMAS DE USUARIOS');doc.line(M,y+24,W-M,y+24);doc.line(M,y+49,W-M,y+49);doc.line(M+230,y+24,M+230,y+174);doc.line(M+390,y+24,M+390,y+174);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('Nombre',M+115,y+41,{align:'center'});doc.text('Fecha',M+310,y+41,{align:'center'});doc.text('Firma',M+475,y+41,{align:'center'});for(let i=1;i<5;i++)doc.line(M,y+49+i*25,W-M,y+49+i*25);y+=235;box(M,y,W-2*M,110,'FIRMAS DE SISTEMAS');doc.line(M,y+24,W-M,y+24);doc.line(M,y+53,W-M,y+53);[150,260,370,470].forEach(x=>doc.line(M+x,y+24,M+x,y+110));['Nombre','Fecha de Recepción','Fecha de Aceptación','Fecha compromiso\nde entrega','Firma'].forEach((t,i)=>{const xs=[M+75,M+205,M+315,M+420,M+520];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t.split('\n'),xs[i],y+40,{align:'center'});});});
+
+  const total=paginas.length;
+  for(let i=0;i<total;i++){if(i>0)doc.addPage();head(i+1,total);await paginas[i]();}
+  doc.save(`${(data.numero_rqm||'Solicitud').replace(/\s+/g,'_')}.pdf`);
 }
+
 
 async function cargarCatalogos(){
   const {data,error}=await _supabase.from('cat_sistemas').select('*').order('nombre');
@@ -395,7 +392,7 @@ function llenarSistemas(){
 function getSistemaNombre(){ const sel=document.getElementById('rqm-sistema'); return sel.selectedOptions[0]?.dataset?.nombre || sel.selectedOptions[0]?.textContent || ''; }
 async function cargarRegistrosRQM(){
   const {data,error}=await _supabase.from('rqm_control_requerimientos').select('*').order('fecha_asignacion',{ascending:false}).order('created_at',{ascending:false});
-  if(error){ console.error(error); alert('No se pudo cargar Control RQM: '+error.message); return; }
+  if(error){ console.error(error); alert('No se pudo cargar Buzón de RQM: '+error.message); return; }
   registrosRQM=data||[];
   renderRegistrosRQM();
 }
@@ -403,7 +400,7 @@ function renderKPIs(lista){
   const total=lista.length;
   const conNumero=lista.filter(r=>r.numero_rqm).length;
   const sistemasUnicos=new Set(lista.map(r=>r.sistema_nombre).filter(Boolean)).size;
-  const conObservaciones=lista.filter(r=>r.observaciones).length;
+  const conObservaciones=lista.filter(r=>comentariosConversacion(r.observaciones)).length;
   const cards=[['TOTAL',total,'layers','bg-blue-50 text-blue-700'],['CON NÚMERO',conNumero,'hash','bg-emerald-50 text-emerald-700'],['OBSERVACIONES',conObservaciones,'message-square-text','bg-rose-50 text-rose-700'],['SISTEMAS',sistemasUnicos,'monitor','bg-slate-50 text-slate-700']];
   document.getElementById('rqm-kpis').innerHTML=cards.map(c=>`<div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div class="flex justify-between items-start"><div><p class="text-xs font-black text-slate-400 tracking-wider">${c[0]}</p><p class="text-3xl font-black text-slate-950 mt-2">${c[1]}</p></div><div class="p-3 rounded-2xl ${c[3]}"><i data-lucide="${c[2]}" class="w-5 h-5"></i></div></div></div>`).join('');
 }
@@ -411,7 +408,7 @@ function renderRegistrosRQM(){
   const q=normalizar(document.getElementById('filtro-buscar-rqm').value);
   const sis=normalizar(document.getElementById('filtro-sistema-rqm').value);
   let lista=registrosRQM.filter(r=>{
-    const text=normalizar(`${r.proyecto} ${r.solicitado_por} ${r.numero_rqm} ${r.observaciones} ${r.sistema_nombre}`);
+    const text=normalizar(`${r.proyecto} ${r.solicitado_por} ${r.numero_rqm} ${comentariosConversacion(r.observaciones)} ${r.sistema_nombre}`);
     return (!q || text.includes(q)) && (!sis || normalizar(r.sistema_nombre)===sis);
   });
   renderKPIs(lista);
@@ -423,7 +420,7 @@ function renderRegistrosRQM(){
     <td class="p-4 text-slate-600">${esc(r.solicitado_por||'—')}</td>
     <td class="p-4 text-slate-600">${fmtFecha(r.fecha_asignacion)}</td>
     <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-black">${esc(r.numero_rqm||'—')}</span></td>
-    <td class="p-4 max-w-xs text-slate-500 truncate" title="${esc(r.observaciones||'')}">${esc(r.observaciones||'—')}</td>
+    <td class="p-4 max-w-xs text-slate-500 truncate" title="${esc(comentariosConversacion(r.observaciones))}">${esc(comentariosConversacion(r.observaciones)||'—')}</td>
     <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full border text-xs font-black ${badgeEstatus(r.estatus)}">${esc(r.estatus||'REGISTRADO')}</span></td>
     <td class="p-4 text-right whitespace-nowrap">
       <button onclick="verDetalleRQM('${r.id}')" class="pmo-action-btn text-slate-600" title="Ver detalle capturado"><i data-lucide="eye" class="w-4 h-4"></i></button>
@@ -536,6 +533,16 @@ async function ejecutarConversionRQM(id){
       await cargarRegistrosRQM();
       return;
     }
+    const prioridadCapturada = valorObservacion(r.observaciones, 'Prioridad') || valorObservacion(r.observaciones, 'Prioridad sugerida') || 'Baja';
+    const complejidadCapturada = valorObservacion(r.observaciones, 'Complejidad') || 'Mediana';
+    const tipoCapturado = valorObservacion(r.observaciones, 'Tipo de requerimiento') || null;
+    let clasificacionId = null;
+    if(tipoCapturado){
+      const {data:clasif}=await _supabase.from('cat_clasificaciones').select('id,nombre').ilike('nombre',tipoCapturado).maybeSingle();
+      clasificacionId=clasif?.id||null;
+    }
+    const descripcionGeneral = valorObservacion(r.observaciones, 'Descripción') || null;
+    const fechaCaptura = String(r.fecha_asignacion || r.created_at || '').slice(0,10) || null;
     const payload={
       id_req:r.numero_rqm,
       nombre_rqm:r.proyecto,
@@ -543,9 +550,12 @@ async function ejecutarConversionRQM(id){
       sistema:r.sistema_nombre||null,
       solicitante:r.solicitado_por||null,
       estatus:'REGISTRADO',
-      prioridad:'BAJA',
-      descripcion:r.observaciones||null,
-      comentarios:'Creado desde Control de RQM. Fechas pendientes por completar.'
+      prioridad:prioridadCapturada,
+      complejidad:complejidadCapturada,
+      clasificacion_id:clasificacionId,
+      descripcion:descripcionGeneral,
+      fecha_ingreso_pmo:fechaCaptura,
+      comentarios:null
     };
     const {error:errorInsert}=await _supabase.from('pmo_projects').insert([payload]);
     if(errorInsert) throw errorInsert;
@@ -564,7 +574,7 @@ async function ejecutarConversionRQM(id){
 
 async function eliminarRegistroRQM(id){
   const r=registrosRQM.find(x=>x.id===id); if(!r) return;
-  if(!(await PMOConfirm(`Se eliminará ${r.numero_rqm || 'este registro'} de Control RQM. Esta acción no se puede deshacer.`))) return;
+  if(!(await PMOConfirm(`Se eliminará ${r.numero_rqm || 'este registro'} de Buzón de RQM. Esta acción no se puede deshacer.`))) return;
   const {error}=await _supabase.from('rqm_control_requerimientos').delete().eq('id',id);
   if(error){ alert('No se pudo eliminar: '+error.message); return; }
   await cargarRegistrosRQM();

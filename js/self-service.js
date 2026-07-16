@@ -7,6 +7,9 @@ let sistemas = [];
 let misSolicitudes = [];
 let imagenesSeleccionadas = [];
 let requerimientosBase = [];
+let catalogosSS = { tipos: [], prioridades: [], complejidades: [], areasImpactadas: [], dependencias: [] };
+let solicitudEditandoId = null;
+let solicitudEditandoIndice = null;
 
 function esc(v){ return String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function hoyISO(){ return new Date().toISOString().slice(0,10); }
@@ -43,12 +46,32 @@ function pintarUsuario(user){
 }
 
 async function cargarCatalogos(){
-  const { data, error } = await _supabase.from('cat_sistemas').select('*').order('nombre');
-  if(error){ alert('No se pudieron cargar sistemas: ' + error.message); return; }
-  sistemas = data || [];
-  const cont = document.getElementById('ss-sistemas-checks');
-  cont.innerHTML = sistemas.map((sis, i) => `<label class="check-option"><input type="checkbox" name="ss-sistema-check" value="${esc(sis.id)}" data-nombre="${esc(sis.nombre)}" ${i===0?'checked':''}>${esc(sis.nombre)}</label>`).join('') + `<label class="check-option"><input type="checkbox" name="ss-sistema-check" value="OTRO" data-nombre="OTRO">Otro</label>`;
+  const consultas = await Promise.all([
+    _supabase.from('cat_sistemas').select('*').order('nombre'),
+    _supabase.from('cat_clasificaciones').select('*').order('nombre'),
+    _supabase.from('cat_prioridades').select('*').order('orden').order('nombre'),
+    _supabase.from('cat_complejidades').select('*').order('orden').order('nombre'),
+    _supabase.from('cat_areas_impactadas').select('*').order('orden').order('nombre'),
+    _supabase.from('cat_dependencias_produccion').select('*').order('orden').order('nombre')
+  ]);
+  const error = consultas.find(x => x.error)?.error;
+  if(error){ alert('No se pudieron cargar los catálogos del formulario: ' + error.message); return; }
+  sistemas = consultas[0].data || [];
+  catalogosSS.tipos = consultas[1].data || [];
+  catalogosSS.prioridades = consultas[2].data || [];
+  catalogosSS.complejidades = consultas[3].data || [];
+  catalogosSS.areasImpactadas = consultas[4].data || [];
+  catalogosSS.dependencias = consultas[5].data || [];
+
+  const checks = (items, name, defaultName='') => items.map((item,i) => `<label class="check-option"><input type="checkbox" name="${name}" value="${esc(item.nombre)}" ${(defaultName ? normalizar(item.nombre)===normalizar(defaultName) : i===0)?'checked':''}>${esc(item.nombre)}</label>`).join('');
+  document.getElementById('ss-sistemas-checks').innerHTML = sistemas.map((sis, i) => `<label class="check-option"><input type="checkbox" name="ss-sistema-check" value="${esc(sis.id)}" data-nombre="${esc(sis.nombre)}" ${i===0?'checked':''}>${esc(sis.nombre)}</label>`).join('') + `<label class="check-option"><input type="checkbox" name="ss-sistema-check" value="OTRO" data-nombre="OTRO">Otro</label>`;
+  document.getElementById('ss-tipos-checks').innerHTML = checks(catalogosSS.tipos,'ss-tipo','Proyecto');
+  document.getElementById('ss-prioridades-checks').innerHTML = checks(catalogosSS.prioridades,'ss-prioridad','Mediana');
+  document.getElementById('ss-complejidades-checks').innerHTML = checks(catalogosSS.complejidades,'ss-complejidad','Mediana');
+  document.getElementById('ss-areas-impactadas-checks').innerHTML = checks(catalogosSS.areasImpactadas,'ss-area-impactada','') + `<label class="check-option"><input type="checkbox" id="ss-area-otro-check" name="ss-area-impactada" value="Otro">Otro</label>`;
+  document.getElementById('ss-dependencias-checks').innerHTML = checks(catalogosSS.dependencias,'ss-dependencia','') + `<label class="check-option"><input type="checkbox" id="ss-dep-otro-check" name="ss-dependencia" value="Otros">Otros</label>`;
   activarGruposUnicos();
+  configurarCamposOtro();
 }
 
 async function cargarRequerimientosBase(){
@@ -424,7 +447,45 @@ function getFormData(numeroRQM){
   };
 }
 
+function marcarCheckUnico(name, valor){
+  const objetivo=normalizar(valor);
+  document.querySelectorAll(`input[name="${name}"]`).forEach(x=>x.checked=normalizar(x.value)===objetivo);
+}
+function marcarChecksMultiples(name, texto){
+  const vals=String(texto||'').split(',').map(x=>normalizar(x.replace(/^Otro(?:s)?:\s*/i,''))).filter(Boolean);
+  document.querySelectorAll(`input[name="${name}"]`).forEach(x=>x.checked=vals.includes(normalizar(x.value)));
+}
+async function cargarSolicitudEnFormulario(idx){
+  const r=misSolicitudes[idx]; if(!r) return;
+  if(!puedeEditarSolicitud(r)){ alert('Esta solicitud ya no puede editarse. Solo se permite cuando es nueva o requiere ajuste.'); return; }
+  const f=solicitudToFormData(r);
+  solicitudEditandoId=r.id; solicitudEditandoIndice=idx;
+  togglePanel('formulario-solicitud',true);
+  document.querySelectorAll('input[name="ss-clase-registro"]').forEach(x=>x.checked=x.value===f.tipo_registro);
+  actualizarTipoRegistroUI();
+  if(f.requerimiento_padre_id) document.getElementById('ss-adendum-padre').value=f.requerimiento_padre_id;
+  document.querySelectorAll('input[name="ss-sistema-check"]').forEach(x=>x.checked=(f.sistema_id && x.value===f.sistema_id) || (!f.sistema_id && normalizar(x.dataset.nombre)===normalizar(f.sistema_nombre)));
+  document.getElementById('ss-nombre').value=f.proyecto;
+  document.getElementById('ss-version').value=f.version;
+  document.getElementById('ss-descripcion').value=f.descripcion_general;
+  marcarCheckUnico('ss-tipo',f.tipo_requerimiento);
+  marcarCheckUnico('ss-prioridad',f.prioridad);
+  marcarCheckUnico('ss-complejidad',f.complejidad);
+  document.getElementById('ss-solicitante').value=f.solicitado_por;
+  document.getElementById('ss-area').value=f.area_nombre;
+  document.getElementById('ss-fecha').value=String(f.fecha_asignacion||'').slice(0,10);
+  document.getElementById('ss-responsable').value=f.responsable;
+  marcarChecksMultiples('ss-area-impactada',f.areas_impactadas);
+  marcarChecksMultiples('ss-dependencia',f.dependencias_produccion);
+  document.getElementById('ss-antecedentes').value=f.antecedentes;
+  document.getElementById('ss-objetivo').value=f.objetivo;
+  document.getElementById('ss-detalle').value=f.descripcion_detallada;
+  document.getElementById('folio-preview').textContent=`Editando ${r.numero_rqm}`;
+  const btn=document.getElementById('btn-guardar-self'); if(btn) btn.innerHTML='<i data-lucide="save" class="w-4 h-4"></i>Guardar cambios y descargar formato';
+  scrollToSection('formulario-solicitud'); if(window.lucide) lucide.createIcons();
+}
 function limpiarFormulario(){
+  solicitudEditandoId=null; solicitudEditandoIndice=null;
   document.getElementById('form-self-service').reset();
   document.getElementById('ss-version').value = '1';
   document.getElementById('ss-fecha').value = hoyISO();
@@ -454,8 +515,21 @@ async function guardarSolicitud(ev){
     const clase=getClaseRegistro();
     const padreId=clase==='ADENDUM' ? document.getElementById('ss-adendum-padre')?.value : null;
     if(clase==='ADENDUM' && !padreId) throw new Error('Selecciona el requerimiento original para crear el adendum.');
-    const f = getFormData('PENDIENTE');
-    const observaciones = buildObservacionesFromData(f, clase==='ADENDUM' ? 'Generado desde Self Service como adendum. Pendiente de revisión PMO.' : 'Generado desde Self Service. Pendiente de revisión PMO.');
+    const f = getFormData(solicitudEditandoId ? (misSolicitudes[solicitudEditandoIndice]?.numero_rqm || 'PENDIENTE') : 'PENDIENTE');
+    const observaciones = buildObservacionesFromData(f, solicitudEditandoId ? 'Solicitud actualizada por el usuario. Pendiente de revisión PMO.' : (clase==='ADENDUM' ? 'Generado desde Self Service como adendum. Pendiente de revisión PMO.' : 'Generado desde Self Service. Pendiente de revisión PMO.'));
+    if(solicitudEditandoId){
+      const original=misSolicitudes[solicitudEditandoIndice];
+      const {error:updateError}=await _supabase.from('rqm_control_requerimientos').update({
+        sistema_id:f.sistema_id, sistema_nombre:f.sistema_nombre, proyecto:f.proyecto,
+        solicitado_por:f.solicitado_por, fecha_asignacion:f.fecha_asignacion,
+        observaciones, updated_at:new Date().toISOString()
+      }).eq('id',solicitudEditandoId).eq('creado_por',usuarioActual.id);
+      if(updateError) throw updateError;
+      if(imagenesSeleccionadas.length) await subirImagenesSolicitud(solicitudEditandoId);
+      f.numero_rqm=original.numero_rqm; f.imagenes=await cargarImagenesSolicitud(solicitudEditandoId);
+      await generarPDF(f); limpiarFormulario(); document.getElementById('formulario-solicitud')?.classList.add('collapsed'); await cargarMisSolicitudes(); scrollToSection('mis-solicitudes');
+      alert(`${f.numero_rqm} fue actualizado correctamente.`); return;
+    }
     const {data:solicitudCreada,error}=await _supabase.rpc('crear_solicitud_self_service_atomica',{
       p_tipo_registro:clase,
       p_requerimiento_padre_id:padreId||null,
@@ -479,6 +553,7 @@ async function guardarSolicitud(ev){
 
     await generarPDF(f);
     limpiarFormulario();
+    document.getElementById('formulario-solicitud')?.classList.add('collapsed');
     await cargarMisSolicitudes();
     scrollToSection('mis-solicitudes');
     alert(`${numeroRQM} fue registrado correctamente y enviado a revisión PMO.`);
@@ -538,8 +613,7 @@ function renderMisSolicitudes(){
     <td class="p-4 text-slate-700 whitespace-nowrap">${fmtFecha(r.fecha_asignacion || r.created_at)}</td>
     <td class="p-4"><div class="flex items-center gap-2"><span class="status-light ${semaforoClass(r.estatus)}"></span><span class="text-xs font-black text-slate-500">${esc(semaforoTexto(r.estatus))}</span></div></td>
     <td class="p-4 text-right whitespace-nowrap">
-      <button onclick="verDetalleSolicitud(${idx})" class="icon-btn" title="Ver detalle"><i data-lucide="eye" class="w-4 h-4"></i><span class="hidden xl:inline">Ver</span></button>
-      ${puedeEditarSolicitud(r) ? `<button onclick="abrirEditarSolicitud(${idx})" class="icon-btn blue" title="Editar requerimiento"><i data-lucide="pencil" class="w-4 h-4"></i></button>` : `<button class="icon-btn opacity-40 cursor-not-allowed" disabled title="Solo puede editarse cuando es nuevo o requiere ajuste"><i data-lucide="lock-keyhole" class="w-4 h-4"></i></button>`}
+      ${puedeEditarSolicitud(r) ? `<button onclick="cargarSolicitudEnFormulario(${idx})" class="icon-btn blue" title="Editar mi requerimiento"><i data-lucide="pencil" class="w-4 h-4"></i><span class="hidden xl:inline">Editar</span></button>` : `<button class="icon-btn opacity-40 cursor-not-allowed" disabled title="Solo puede editarse cuando es nuevo o requiere ajuste"><i data-lucide="lock-keyhole" class="w-4 h-4"></i></button>`}
       <button onclick="descargarPDFSolicitud(${idx})" class="icon-btn dark" title="Descargar formato PDF"><i data-lucide="download" class="w-4 h-4"></i><span class="hidden xl:inline">PDF</span></button>
       ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? `<button onclick="verAvanceSolicitud(${idx})" class="icon-btn progress" title="Ver avance"><i data-lucide="route" class="w-4 h-4"></i><span class="hidden xl:inline">Avance</span></button>` : ''}
       <button onclick="eliminarSolicitud(${idx})" class="icon-btn text-rose-600 border-rose-200 bg-rose-50" title="Eliminar solicitud"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
@@ -646,6 +720,8 @@ window.quitarImagenSolicitud=quitarImagenSolicitud;
 window.verAvanceSolicitud=verAvanceSolicitud;
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // El formulario siempre inicia contraído; solo se abre al pulsar la flecha o al editar.
+  document.getElementById('formulario-solicitud')?.classList.add('collapsed');
   usuarioActual = await verificarSesion();
   if(!usuarioActual) return;
   pintarUsuario(usuarioActual);

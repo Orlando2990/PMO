@@ -48,6 +48,27 @@
 @media (max-width:1320px){.pmo-header-shell{align-items:flex-start;flex-direction:column}.pmo-brand{max-width:none}.pmo-nav{width:100%;justify-content:flex-start;flex-wrap:wrap}.nav-user{display:none}.pmo-brand-title,.pmo-brand-subtitle{white-space:normal}}
 @media (max-width:1100px){.pmo-exec-hero{flex-direction:column;align-items:flex-start}.pmo-exec-actions{justify-content:flex-start}.pmo-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.pmo-exec-title{font-size:28px}}
 @media (max-width:640px){.pmo-summary-grid{grid-template-columns:1fr}.pmo-header-shell{padding:12px}.nav-primary,.nav-btn,.nav-logout{font-size:12px;padding:9px 10px}.pmo-exec-hero{padding:22px 18px;border-radius:18px}}
+
+.pmo-health-dot{width:12px;height:12px;border-radius:999px;display:inline-block;box-shadow:0 0 0 4px rgba(148,163,184,.12)}
+.pmo-health-green{background:#10b981}.pmo-health-yellow{background:#f59e0b}.pmo-health-red{background:#ef4444}.pmo-health-neutral{background:#94a3b8}
+.pmo-risk-row{display:grid;grid-template-columns:minmax(0,1.5fr) 90px 100px 110px;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid #f1f5f9}
+.pmo-risk-row:last-child{border-bottom:0}
+.pmo-mini-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.pmo-mini-bar>span{display:block;height:100%;border-radius:999px}
+@media(max-width:760px){.pmo-risk-row{grid-template-columns:1fr 76px}.pmo-risk-hide-mobile{display:none}}
+
+/* PMO Control 3.0 - Command Center visible */
+.pmo-command-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:18px;margin-top:22px}
+.pmo-command-main{background:linear-gradient(135deg,#0f172a,#172554 55%,#1d4ed8);border-radius:24px;padding:24px;color:white;position:relative;overflow:hidden;box-shadow:0 18px 35px rgba(30,64,175,.18)}
+.pmo-command-main:after{content:"";position:absolute;width:260px;height:260px;border-radius:999px;background:rgba(56,189,248,.16);right:-90px;top:-110px}
+.pmo-command-title{font-size:13px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#bfdbfe}
+.pmo-command-value{font-size:42px;line-height:1;font-weight:950;margin-top:10px}
+.pmo-command-detail{font-size:13px;color:#dbeafe;margin-top:10px;max-width:620px}
+.pmo-command-side{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pmo-command-tile{background:white;border:1px solid #e2e8f0;border-radius:20px;padding:18px;box-shadow:0 5px 16px rgba(15,23,42,.06)}
+.pmo-command-tile strong{font-size:27px;display:block;color:#0f172a;margin-top:7px}.pmo-command-tile span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;color:#94a3b8}
+.pmo-exec-callout{border-radius:18px;padding:16px 18px;display:flex;align-items:center;gap:13px;font-size:13px;font-weight:800}
+@media(max-width:900px){.pmo-command-grid{grid-template-columns:1fr}.pmo-command-side{grid-template-columns:1fr 1fr}}
+
 </style>
 
 
@@ -62,9 +83,25 @@
         <!-- Vista ejecutiva estándar -->
         <section class="pmo-exec-hero">
             <div>
-                <div class="pmo-exec-pill"><i data-lucide="sparkles" class="w-4 h-4"></i> Vista ejecutiva semanal</div>
-                <h2 class="pmo-exec-title">Seguimiento Ejecutivo del Portafolio <br class="hidden sm:block"></h2>
-                <p class="pmo-exec-subtitle">Visualiza el avance por fases, KPIs, gráficas, semáforos, desviaciones y reprogramaciones.</p>
+                <h2 class="pmo-exec-title">Resumen Ejecutivo del Portafolio <br class="hidden sm:block"></h2>
+                <p class="pmo-exec-subtitle">Consulta el estado general, los indicadores clave y los requerimientos que necesitan atención.</p>
+            </div>
+        </section>
+
+        <section class="pmo-command-grid" aria-label="Centro de control ejecutivo">
+            <div class="pmo-command-main">
+                <div class="relative z-10">
+                    <p class="pmo-command-title">Resumen ejecutivo</p>
+                    <div id="pmo-pulso-valor" class="pmo-command-value">Analizando...</div>
+                    <p id="pmo-pulso-detalle" class="pmo-command-detail">Evaluando compromisos, atrasos, cumplimiento y estabilidad del plan.</p>
+                    <div id="pmo-pulso-badge" class="inline-flex mt-5 px-4 py-2 rounded-full bg-white/10 border border-white/15 text-xs font-black">Indicadores actualizados</div>
+                </div>
+            </div>
+            <div class="pmo-command-side">
+                <div class="pmo-command-tile"><span>Críticos</span><strong id="pmo-command-criticos">0</strong><small class="text-xs text-rose-500 font-bold">Requieren intervención</small></div>
+                <div class="pmo-command-tile"><span>Próximos 7 días</span><strong id="pmo-command-proximos">0</strong><small class="text-xs text-amber-600 font-bold">Compromisos por vencer</small></div>
+                <div class="pmo-command-tile"><span>Cumplimiento</span><strong id="pmo-command-cumplimiento">—</strong><small class="text-xs text-violet-600 font-bold">Fases cerradas en tiempo</small></div>
+                <div class="pmo-command-tile"><span>Lead time</span><strong id="pmo-command-lead">—</strong><small class="text-xs text-blue-600 font-bold">Ingreso PMO a producción</small></div>
             </div>
         </section>
 
@@ -91,6 +128,29 @@
             </div>
 
             <div id="kpis-ejecutivos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <div class="flex items-center justify-between mb-5">
+                        <div><h3 class="text-sm font-black text-slate-800">Salud del Portafolio</h3><p class="text-xs text-slate-400 mt-0.5">Semáforo calculado por cumplimiento</p></div>
+                        <i data-lucide="heart-pulse" class="w-5 h-5 text-rose-500"></i>
+                    </div>
+                    <div id="salud-portafolio" class="space-y-4"></div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 xl:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <div><h3 class="text-sm font-black text-slate-800">Requerimientos que requieren atención</h3><p class="text-xs text-slate-400 mt-0.5">Incluye casos críticos y compromisos próximos a vencer, sin duplicados.</p></div>
+                        <i data-lucide="siren" class="w-5 h-5 text-amber-500"></i>
+                    </div>
+                    <div id="atencion-ejecutiva"></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><p class="text-xs font-black uppercase tracking-wide text-slate-400">Duración promedio Desarrollo</p><div id="promedio-desarrollo" class="text-3xl font-black text-slate-900 mt-2">—</div><p class="text-xs text-slate-500 mt-1">Fases cerradas con inicio y fin</p></div>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><p class="text-xs font-black uppercase tracking-wide text-slate-400">Duración promedio QA</p><div id="promedio-qa" class="text-3xl font-black text-slate-900 mt-2">—</div><p class="text-xs text-slate-500 mt-1">Fases cerradas con inicio y fin</p></div>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><p class="text-xs font-black uppercase tracking-wide text-slate-400">Duración promedio UAT</p><div id="promedio-uat" class="text-3xl font-black text-slate-900 mt-2">—</div><p class="text-xs text-slate-500 mt-1">Fases cerradas con inicio y fin</p></div>
+            </div>
 
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
@@ -145,6 +205,7 @@
 
     <script src="js/pmo-layout.js"></script>
     <script src="js/pmo-panel-html.js"></script>
+    <script src="js/pmo-metrics.js"></script>
     <script src="js/pmo-app.js"></script>
     <script src="js/pmo-dialogs.js"></script>
 </body>

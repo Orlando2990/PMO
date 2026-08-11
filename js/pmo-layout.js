@@ -126,9 +126,8 @@
         renderExecutiveHero(options={}) {
             const title=options.title || 'Seguimiento Ejecutivo del Portafolio';
             const subtitle=options.subtitle || 'Visualiza el avance por fases, KPIs, semáforos, desviaciones y reprogramaciones.';
-            const pill=options.pill || 'Vista ejecutiva del portafolio';
             const actions=options.actions !== undefined ? options.actions : '';
-            return `<section class="pmo-exec-hero"><div><div class="pmo-exec-pill"><i data-lucide="sparkles"></i> ${pill}</div><h2 class="pmo-exec-title">${title}</h2><p class="pmo-exec-subtitle">${subtitle}</p></div>${actions?`<div class="pmo-exec-actions">${actions}</div>`:''}</section>`;
+            return `<section class="pmo-exec-hero"><div><h2 class="pmo-exec-title">${title}</h2><p class="pmo-exec-subtitle">${subtitle}</p></div>${actions?`<div class="pmo-exec-actions">${actions}</div>`:''}</section>`;
         }
     };
 

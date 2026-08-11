@@ -46,3 +46,38 @@
     });
   };
 })();
+
+
+(function(){
+  function ensureAlert(){
+    if(document.getElementById('pmo-alert-dialog')) return;
+    const wrap=document.createElement('div');
+    wrap.id='pmo-alert-dialog';
+    wrap.className='hidden fixed inset-0 z-[220] bg-slate-950/55 backdrop-blur-sm p-4 flex items-center justify-center';
+    wrap.innerHTML=`<div class="w-full max-w-md rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden" role="alertdialog" aria-modal="true">
+      <div class="p-6 border-b border-slate-100 flex items-start gap-4">
+        <div id="pmo-alert-icon" class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 grid place-items-center shrink-0">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <div class="min-w-0"><h3 id="pmo-alert-title" class="text-xl font-black text-slate-950">Operación completada</h3><p id="pmo-alert-message" class="mt-2 text-sm leading-6 text-slate-600"></p></div>
+      </div>
+      <div class="p-5 bg-slate-50 flex justify-end"><button id="pmo-alert-accept" type="button" class="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-600/20">Aceptar</button></div>
+    </div>`;
+    document.body.appendChild(wrap);
+  }
+  window.PMOAlert=function(message,options={}){
+    ensureAlert();
+    const dialog=document.getElementById('pmo-alert-dialog');
+    document.getElementById('pmo-alert-title').textContent=options.title||'Operación completada';
+    document.getElementById('pmo-alert-message').textContent=message||'';
+    const icon=document.getElementById('pmo-alert-icon');
+    const error=options.type==='error';
+    icon.className=`w-12 h-12 rounded-2xl ${error?'bg-rose-50 text-rose-600':'bg-emerald-50 text-emerald-600'} grid place-items-center shrink-0`;
+    dialog.classList.remove('hidden');
+    return new Promise(resolve=>{
+      const btn=document.getElementById('pmo-alert-accept');
+      const finish=()=>{dialog.classList.add('hidden');btn.onclick=null;resolve(true);};
+      btn.onclick=finish; setTimeout(()=>btn.focus(),0);
+    });
+  };
+})();

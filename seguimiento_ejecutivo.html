@@ -49,6 +49,14 @@
 @media (max-width:1320px){.pmo-header-shell{align-items:flex-start;flex-direction:column}.pmo-brand{max-width:none}.pmo-nav{width:100%;justify-content:flex-start;flex-wrap:wrap}.nav-user{display:none}.pmo-brand-title,.pmo-brand-subtitle{white-space:normal}}
 @media (max-width:1100px){.pmo-exec-hero{flex-direction:column;align-items:flex-start}.pmo-exec-actions{justify-content:flex-start}.pmo-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.pmo-exec-title{font-size:28px}}
 @media (max-width:640px){.pmo-summary-grid{grid-template-columns:1fr}.pmo-header-shell{padding:12px}.nav-primary,.nav-btn,.nav-logout{font-size:12px;padding:9px 10px}.pmo-exec-hero{padding:22px 18px;border-radius:18px}}
+
+/* PMO Control 3.0 - Seguimiento ejecutivo visible */
+.pmo-follow-card{border:1px solid #e2e8f0;border-radius:26px;padding:0;background:white;overflow:hidden;box-shadow:0 7px 22px rgba(15,23,42,.055);transition:.2s}
+.pmo-follow-card:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(15,23,42,.10)}
+.pmo-follow-accent{height:5px;width:100%}.pmo-follow-accent.green{background:#10b981}.pmo-follow-accent.yellow{background:#f59e0b}.pmo-follow-accent.red{background:#ef4444}.pmo-follow-accent.neutral{background:#94a3b8}
+.pmo-metric-state{min-width:112px;border-radius:17px;padding:12px 10px;text-align:center;border:1px solid #e2e8f0;background:#fff}
+.pmo-metric-state .label{font-size:9px;font-weight:950;letter-spacing:.09em;text-transform:uppercase;color:#94a3b8}.pmo-metric-state .value{font-size:15px;line-height:1.15;font-weight:950;margin-top:5px}
+
 </style>
 
     <link rel="stylesheet" href="css/pmo-layout.css">
@@ -65,10 +73,6 @@
 
             <div class="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
                 <div>
-                    <div class="inline-flex items-center gap-2 bg-blue-400/10 border border-blue-300/20 text-blue-200 rounded-full px-4 py-2 text-xs font-black mb-4">
-                        <i data-lucide="sparkles" class="w-4 h-4"></i>
-                        Vista ejecutiva semanal
-                    </div>
                     <h2 class="pmo-exec-title">Seguimiento Ejecutivo del Portafolio <br class="hidden sm:block"></h2>
                     <p class="text-white/60 text-sm mt-2 max-w-2xl">
                         Visualiza el avance por fases, KPIs, gráficas, semáforos, desviaciones y reprogramaciones.
@@ -227,6 +231,7 @@
     </main>
     <script src="js/pmo-auth.js"></script>
 
+    <script src="js/pmo-metrics.js"></script>
     <script src="js/pmo-app.js"></script>
     <script src="js/pmo-layout.js"></script>
     <script src="js/pmo-dialogs.js"></script>

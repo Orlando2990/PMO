@@ -1396,8 +1396,12 @@ let todosLosProyectos = [];
         function cerrarModalHistorial() { document.getElementById('modal-historial').classList.add('hidden'); }
 
         async function eliminarProyecto(id, nombre) {
-            if (await PMOConfirm(`Se eliminará el requerimiento "${nombre}". Esta acción no se puede deshacer.`)) {
-                await _supabase.from('pmo_projects').delete().eq('id', id);
+            if (await PMOConfirm(`Se eliminará "${nombre}" únicamente de la Matriz PMO. La solicitud original y su folio permanecerán en el Buzón de RQM y en la vista del usuario para conservar la trazabilidad. Esta acción no se puede deshacer.`)) {
+                const { error } = await _supabase.from('pmo_projects').delete().eq('id', id);
+                if (error) {
+                    await PMOAlert('No se pudo eliminar', error.message || 'Ocurrió un error al eliminar el proyecto de la Matriz.');
+                    return;
+                }
                 await cargarProyectos();
             }
         }
@@ -1448,71 +1452,114 @@ let todosLosProyectos = [];
             return null;
         }
 
+        function contextoMetricasPMO() {
+            return {
+                reprogramaciones: conteoReprogramacionesGlobal || {},
+                ajustesAdministrativos: ajustesAdministrativosGlobal || {},
+                hoy: new Date()
+            };
+        }
+
+        function escaparHtmlPMO(valor) {
+            return String(valor ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+        }
+
         function renderizarKpisEjecutivos(proyectos) {
             const contenedor = document.getElementById('kpis-ejecutivos');
-            if (!contenedor) return;
-
-            const total = proyectos.length;
-            const liberados = proyectos.filter(p => ['LIBERADO', 'PRODUCCIÓN', 'PRODUCCION'].includes((p.estatus || '').toUpperCase())).length;
-
-            const leadTimes = proyectos
-                .map(p => {
-                    const inicioLead = obtenerFechaInicioLeadTime(p);
-                    return diasEntreFechasKpi(inicioLead, p.fecha_liberacion_prod);
-                })
-                .filter(v => v !== null);
-
-            const desviaciones = [];
-            proyectos.forEach(p => {
-                [
-                    obtenerDesviacionDias(p.fecha_desarrollo, p.fecha_fin_desarrollo),
-                    obtenerDesviacionDias(p.fecha_qa, p.fecha_fin_qa),
-                    obtenerDesviacionDias(p.fecha_uat, p.fecha_fin_uat)
-                ].forEach(v => { if (v !== null) desviaciones.push(v); });
-            });
-
-            const fasesMedidas = desviaciones.length;
-            const fasesEnTiempo = desviaciones.filter(v => v <= 0).length;
-            const cumplimiento = fasesMedidas ? Math.round((fasesEnTiempo / fasesMedidas) * 100) : 0;
-
-            const totalAtrasosReales = proyectos.reduce((acc, p) => {
-                return acc +
-                    (calcularAtrasoReal(p.fecha_desarrollo, p.fecha_fin_desarrollo) ? 1 : 0) +
-                    (calcularAtrasoReal(p.fecha_qa, p.fecha_fin_qa) ? 1 : 0) +
-                    (calcularAtrasoReal(p.fecha_uat, p.fecha_fin_uat) ? 1 : 0);
-            }, 0);
-
-            const totalReprogramaciones = Object.values(conteoReprogramacionesGlobal || {}).reduce((acc, n) => acc + n, 0);
-            const proyectosReprogramados = Object.keys(conteoReprogramacionesGlobal || {}).length;
-
-            const promedioLead = promedio(leadTimes);
-            const detalleLead = leadTimes.length
-                ? `${leadTimes.length} requerimiento${leadTimes.length === 1 ? '' : 's'} medido${leadTimes.length === 1 ? '' : 's'}`
-                : 'Sin liberaciones con fecha';
+            if (!contenedor || !window.PMOMetrics) return;
+            const r = PMOMetrics.resumen(proyectos, contextoMetricasPMO());
 
             const kpis = [
-                { titulo: 'Total requerimientos', valor: total, detalle: 'Portafolio vigente', icono: 'layers', clase: 'bg-blue-50 text-blue-700' },
-                { titulo: 'Liberados', valor: liberados, detalle: `${total ? Math.round((liberados / total) * 100) : 0}% del total`, icono: 'rocket', clase: 'bg-emerald-50 text-emerald-700' },
-                { titulo: 'Cumplimiento fechas', valor: `${cumplimiento}%`, detalle: `${fasesEnTiempo}/${fasesMedidas} fases en tiempo`, icono: 'badge-check', clase: 'bg-violet-50 text-violet-700' },
-                { titulo: 'Lead time promedio', valor: leadTimes.length ? `${promedioLead} d` : '—', detalle: detalleLead, icono: 'timer', clase: 'bg-amber-50 text-amber-700' },
-                { titulo: 'Reprogramaciones', valor: totalReprogramaciones, detalle: `${proyectosReprogramados} requerimiento${proyectosReprogramados === 1 ? '' : 's'}`, icono: 'calendar-clock', clase: 'bg-orange-50 text-orange-700' },
-                { titulo: 'Atrasos reales', valor: totalAtrasosReales, detalle: 'Fases abiertas vencidas', icono: 'alert-triangle', clase: 'bg-rose-50 text-rose-700' }
+                { titulo: 'Portafolio vigente', valor: r.vigentes, detalle: `${r.cancelados} cancelado${r.cancelados === 1 ? '' : 's'} excluido${r.cancelados === 1 ? '' : 's'} de cumplimiento`, icono: 'layers', clase: 'bg-blue-50 text-blue-700' },
+                { titulo: 'Liberados', valor: r.liberados, detalle: `${r.vigentes ? Math.round((r.liberados / r.vigentes) * 100) : 0}% del portafolio vigente`, icono: 'rocket', clase: 'bg-emerald-50 text-emerald-700' },
+                { titulo: 'Cumplimiento', valor: r.cumplimiento === null ? '—' : `${r.cumplimiento}%`, detalle: `${r.fasesCumplidas}/${r.fasesMedidas} fases cerradas en tiempo`, icono: 'badge-check', clase: 'bg-violet-50 text-violet-700' },
+                { titulo: 'Lead time promedio', valor: r.leadTimePromedio === null ? '—' : `${r.leadTimePromedio} d`, detalle: 'Ingreso PMO a liberación', icono: 'timer', clase: 'bg-amber-50 text-amber-700' },
+                { titulo: 'Requerimientos atrasados', valor: r.requerimientosAtrasados, detalle: `${r.atrasos.length} fase${r.atrasos.length === 1 ? '' : 's'} abierta${r.atrasos.length === 1 ? '' : 's'} vencida${r.atrasos.length === 1 ? '' : 's'}`, icono: 'triangle-alert', clase: 'bg-rose-50 text-rose-700' },
+                { titulo: 'Próximos 7 días', valor: r.proximos7.length, detalle: 'Compromisos abiertos por vencer', icono: 'calendar-range', clase: 'bg-cyan-50 text-cyan-700' },
+                { titulo: 'Reprogramaciones', valor: r.reprogramaciones, detalle: `${r.proyectosReprogramados} requerimiento${r.proyectosReprogramados === 1 ? '' : 's'} afectado${r.proyectosReprogramados === 1 ? '' : 's'}`, icono: 'calendar-clock', clase: 'bg-orange-50 text-orange-700' },
+                { titulo: 'Estabilidad del plan', valor: r.estabilidad === null ? '—' : `${r.estabilidad}%`, detalle: 'Requerimientos sin reprogramación', icono: 'shield-check', clase: 'bg-slate-100 text-slate-700' }
             ];
 
             contenedor.innerHTML = kpis.map(k => `
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition">
                     <div class="flex justify-between items-start gap-4">
-                        <div>
-                            <p class="text-xs font-black uppercase tracking-wide text-slate-400">${k.titulo}</p>
-                            <h3 class="text-3xl font-black text-slate-900 mt-2">${k.valor}</h3>
-                            <p class="text-xs text-slate-500 mt-1">${k.detalle}</p>
-                        </div>
-                        <div class="${k.clase} w-11 h-11 rounded-2xl flex items-center justify-center">
-                            <i data-lucide="${k.icono}" class="w-5 h-5"></i>
-                        </div>
+                        <div><p class="text-xs font-black uppercase tracking-wide text-slate-400">${k.titulo}</p><h3 class="text-3xl font-black text-slate-900 mt-2">${k.valor}</h3><p class="text-xs text-slate-500 mt-1">${k.detalle}</p></div>
+                        <div class="${k.clase} w-11 h-11 rounded-2xl flex items-center justify-center"><i data-lucide="${k.icono}" class="w-5 h-5"></i></div>
                     </div>
-                </div>
-            `).join('');
+                </div>`).join('');
+
+            const criticos = r.salud.ROJO || 0;
+            const pulsoValor = document.getElementById('pmo-pulso-valor');
+            const pulsoDetalle = document.getElementById('pmo-pulso-detalle');
+            const pulsoBadge = document.getElementById('pmo-pulso-badge');
+            if (pulsoValor) pulsoValor.textContent = (criticos || r.proximos7.length)
+                ? `${criticos} crítico${criticos === 1 ? '' : 's'} · ${r.proximos7.length} próximo${r.proximos7.length === 1 ? '' : 's'}`
+                : 'Portafolio sin riesgos inmediatos';
+            if (pulsoDetalle) pulsoDetalle.textContent = (criticos || r.proximos7.length)
+                ? 'Consulta el detalle inferior para identificar los requerimientos y el motivo de atención.'
+                : 'No hay casos críticos ni compromisos abiertos que venzan en los próximos 7 días.';
+            if (pulsoBadge) pulsoBadge.textContent = `${r.vigentes} vigentes · ${r.liberados} liberados · ${r.estabilidad ?? '—'}% estabilidad`;
+            const setCommand = (id, value) => { const x=document.getElementById(id); if(x) x.textContent=value; };
+            setCommand('pmo-command-criticos', criticos);
+            setCommand('pmo-command-proximos', r.proximos7.length);
+            setCommand('pmo-command-cumplimiento', r.cumplimiento === null ? '—' : `${r.cumplimiento}%`);
+            setCommand('pmo-command-lead', r.leadTimePromedio === null ? '—' : `${r.leadTimePromedio} d`);
+
+            renderizarSaludPortafolio(r);
+            renderizarAtencionEjecutiva(r);
+            const setText = (id, valor) => { const el = document.getElementById(id); if (el) el.textContent = valor === null ? '—' : `${valor} días`; };
+            setText('promedio-desarrollo', r.duracionDesarrollo);
+            setText('promedio-qa', r.duracionQA);
+            setText('promedio-uat', r.duracionUAT);
+        }
+
+        function renderizarSaludPortafolio(r) {
+            const el = document.getElementById('salud-portafolio');
+            if (!el) return;
+            const base = Math.max(1, r.vigentes);
+            const filas = [
+                { label: 'Saludable', valor: r.salud.VERDE || 0, color: '#10b981', dot: 'pmo-health-green' },
+                { label: 'Atención', valor: r.salud.AMARILLO || 0, color: '#f59e0b', dot: 'pmo-health-yellow' },
+                { label: 'Crítico', valor: r.salud.ROJO || 0, color: '#ef4444', dot: 'pmo-health-red' }
+            ];
+            el.innerHTML = filas.map(f => `
+                <div>
+                    <div class="flex items-center justify-between mb-2"><div class="flex items-center gap-3"><span class="pmo-health-dot ${f.dot}"></span><span class="text-sm font-black text-slate-700">${f.label}</span></div><span class="text-lg font-black text-slate-900">${f.valor}</span></div>
+                    <div class="pmo-mini-bar"><span style="width:${Math.round((f.valor/base)*100)}%;background:${f.color}"></span></div>
+                </div>`).join('') + `<div class="pt-3 border-t border-slate-100 text-xs text-slate-500"><b>${r.vigentes}</b> requerimientos vigentes evaluados automáticamente.</div>`;
+        }
+
+        function renderizarAtencionEjecutiva(r) {
+            const el = document.getElementById('atencion-ejecutiva');
+            if (!el) return;
+
+            const criticos = (r.metricas || [])
+                .filter(m => !m.cancelado && m.salud === 'ROJO')
+                .map(m => {
+                    const fase = m.fasesAtrasadas?.sort((a,b)=>b.atraso-a.atraso)?.[0]
+                        || m.proximas?.sort((a,b)=>a.proximoVencimiento-b.proximoVencimiento)?.[0]
+                        || m.fases?.find(f=>f.fin && f.desviacion>0)
+                        || { nombre: m.estatus, compromiso: null };
+                    return { proyecto:m.proyecto, fase:fase.nombre, fecha:fase.compromiso, motivo:m.motivoSalud, severidad:'ROJO', orden:0 };
+                });
+
+            const idsCriticos = new Set(criticos.map(a => a.proyecto.id));
+            const proximos = (r.proximos7 || [])
+                .filter(a => !idsCriticos.has(a.proyecto.id))
+                .map(a => ({ proyecto:a.proyecto, fase:a.nombre, fecha:a.compromiso, motivo:a.proximoVencimiento===0?'Vence hoy':`Vence en ${a.proximoVencimiento} d`, severidad:'AMARILLO', orden:1, dias:a.proximoVencimiento }));
+
+            const alertas = [...criticos, ...proximos]
+                .sort((a,b)=>a.orden-b.orden || (a.dias??999)-(b.dias??999))
+                .slice(0,12);
+
+            if (!alertas.length) {
+                el.innerHTML = '<div class="rounded-2xl bg-emerald-50 border border-emerald-100 p-5 flex items-center gap-3 text-emerald-800"><i data-lucide="circle-check" class="w-5 h-5"></i><div><b>Sin riesgos inmediatos</b><p class="text-xs mt-1 text-emerald-700">No hay casos críticos ni compromisos abiertos que venzan en los próximos 7 días.</p></div></div>';
+                return;
+            }
+            el.innerHTML = `<div class="pmo-risk-row text-[10px] font-black uppercase tracking-wide text-slate-400"><span>Requerimiento</span><span>Fase</span><span class="pmo-risk-hide-mobile">Compromiso</span><span class="pmo-risk-hide-mobile">Motivo</span></div>` + alertas.map(a => {
+                const rojo = a.severidad === 'ROJO';
+                return `<div class="pmo-risk-row"><div class="min-w-0"><p class="text-sm font-black text-slate-800 truncate">${escaparHtmlPMO(a.proyecto.id_req || 'Sin folio')} · ${escaparHtmlPMO(a.proyecto.nombre_rqm || 'Sin nombre')}</p><p class="text-xs text-slate-400 truncate mt-0.5">${escaparHtmlPMO(a.proyecto.cat_sistemas?.nombre || 'Sin sistema')}</p></div><span class="text-xs font-black text-slate-600">${escaparHtmlPMO(a.fase || '—')}</span><span class="text-xs font-bold text-slate-500 pmo-risk-hide-mobile">${a.fecha ? formatearFechaVista(a.fecha) : '—'}</span><span class="pmo-risk-hide-mobile inline-flex justify-center px-2.5 py-1 rounded-full text-[10px] font-black ${rojo ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}">${escaparHtmlPMO(a.motivo || 'Requiere atención')}</span></div>`;
+            }).join('');
         }
 
         function crearOActualizarGrafica(idCanvas, tipo, labels, data, label) {
@@ -1920,27 +1967,32 @@ let todosLosProyectos = [];
             }
         }
 
+        function obtenerMetricasSeguimientoProyecto(p) {
+            if (!window.PMOMetrics) return null;
+            return PMOMetrics.metricasProyecto(p, contextoMetricasPMO());
+        }
+
         function calcularMaxDesviacionProyecto(p) {
+            const metricas = obtenerMetricasSeguimientoProyecto(p);
+            if (metricas) {
+                const valores = metricas.fases
+                    .filter(f => !f.ajusteAdministrativo && Number.isFinite(f.desviacion))
+                    .map(f => f.desviacion);
+                return valores.length ? Math.max(...valores) : null;
+            }
+
             const vals = [];
-
-            if (!tieneAjusteAdministrativo(p.id, 'Fin Desarrollo')) {
-                vals.push(obtenerDesviacionDias(p.fecha_desarrollo, p.fecha_fin_desarrollo));
-            }
-
-            if (!tieneAjusteAdministrativo(p.id, 'Fin QA')) {
-                vals.push(obtenerDesviacionDias(p.fecha_qa, p.fecha_fin_qa));
-            }
-
-            if (!tieneAjusteAdministrativo(p.id, 'Fin UAT')) {
-                vals.push(obtenerDesviacionDias(p.fecha_uat, p.fecha_fin_uat));
-            }
-
+            if (!tieneAjusteAdministrativo(p.id, 'Fin Desarrollo')) vals.push(obtenerDesviacionDias(p.fecha_desarrollo, p.fecha_fin_desarrollo));
+            if (!tieneAjusteAdministrativo(p.id, 'Fin QA')) vals.push(obtenerDesviacionDias(p.fecha_qa, p.fecha_fin_qa));
+            if (!tieneAjusteAdministrativo(p.id, 'Fin UAT')) vals.push(obtenerDesviacionDias(p.fecha_uat, p.fecha_fin_uat));
             const filtrados = vals.filter(v => typeof v === 'number');
-            if (!filtrados.length) return null;
-            return Math.max(...filtrados);
+            return filtrados.length ? Math.max(...filtrados) : null;
         }
 
         function contarAtrasosRealesProyecto(p) {
+            const metricas = obtenerMetricasSeguimientoProyecto(p);
+            if (metricas) return metricas.fasesAtrasadas.length;
+
             const atrasos = [];
             if (!tieneAjusteAdministrativo(p.id, 'Fin Desarrollo')) atrasos.push(calcularAtrasoReal(p.fecha_desarrollo, p.fecha_fin_desarrollo));
             if (!tieneAjusteAdministrativo(p.id, 'Fin QA')) atrasos.push(calcularAtrasoReal(p.fecha_qa, p.fecha_fin_qa));
@@ -1948,16 +2000,28 @@ let todosLosProyectos = [];
             return atrasos.filter(Boolean).length;
         }
 
+        function calcularMaxAtrasoProyecto(p) {
+            const metricas = obtenerMetricasSeguimientoProyecto(p);
+            if (metricas) return metricas.maxAtraso || 0;
+            const atrasos = [];
+            if (!tieneAjusteAdministrativo(p.id, 'Fin Desarrollo')) atrasos.push(calcularAtrasoReal(p.fecha_desarrollo, p.fecha_fin_desarrollo));
+            if (!tieneAjusteAdministrativo(p.id, 'Fin QA')) atrasos.push(calcularAtrasoReal(p.fecha_qa, p.fecha_fin_qa));
+            if (!tieneAjusteAdministrativo(p.id, 'Fin UAT')) atrasos.push(calcularAtrasoReal(p.fecha_uat, p.fecha_fin_uat));
+            const dias = atrasos.map(v => Number.parseInt(v, 10)).filter(Number.isFinite);
+            return dias.length ? Math.max(...dias) : 0;
+        }
+
         function estadoSemaforoProyecto(p) {
-            const reprogramaciones = contarReprogramacionesProyecto(p.id);
-            const atrasos = contarAtrasosRealesProyecto(p);
+            const metricas = obtenerMetricasSeguimientoProyecto(p);
+            const reprogramaciones = metricas ? metricas.reprogramaciones : contarReprogramacionesProyecto(p.id);
+            const atrasoDias = metricas ? metricas.maxAtraso : calcularMaxAtrasoProyecto(p);
             const desviacion = calcularMaxDesviacionProyecto(p);
 
-            if (atrasos > 0) return { texto: 'Atraso real', clase: 'bg-rose-50 text-rose-700 border-rose-100', icono: '🔴' };
-            // Reprogramado debe salir únicamente cuando existe auditoría real de reprogramación.
-            // Una desviación positiva (+días) no necesariamente es reprogramación; puede ser un ajuste administrativo.
+            if (metricas?.cancelado) return { texto: 'Cancelado', clase: 'bg-slate-100 text-slate-600 border-slate-200', icono: '⚪' };
+            if (atrasoDias > 0) return { texto: `Atraso ${atrasoDias}d`, clase: 'bg-rose-50 text-rose-700 border-rose-100', icono: '🔴' };
             if (reprogramaciones > 0) return { texto: 'Reprogramado', clase: 'bg-amber-50 text-amber-700 border-amber-100', icono: '🟡' };
             if (desviacion !== null && desviacion > 0) return { texto: 'Con desviación', clase: 'bg-orange-50 text-orange-700 border-orange-100', icono: '🟠' };
+            if (metricas?.proximas?.length) return { texto: 'Próximo a vencer', clase: 'bg-cyan-50 text-cyan-700 border-cyan-100', icono: '🔵' };
             return { texto: 'En tiempo', clase: 'bg-emerald-50 text-emerald-700 border-emerald-100', icono: '🟢' };
         }
 
@@ -2203,44 +2267,52 @@ let todosLosProyectos = [];
         }
 
         function renderizarTarjetaSeguimiento(p) {
-            const semaforo = estadoSemaforoProyecto(p);
-            const desviacion = calcularMaxDesviacionProyecto(p);
-            const atrasos = contarAtrasosRealesProyecto(p);
             const avance = calcularAvanceEstatusSeguimiento(p.estatus || 'BACKLOG');
+            const metrica = window.PMOMetrics
+                ? PMOMetrics.metricasProyecto(p, contextoMetricasPMO())
+                : null;
+            const salud = metrica?.salud || 'VERDE';
+            const color = salud === 'ROJO' ? 'red' : salud === 'AMARILLO' ? 'yellow' : salud === 'NEUTRO' ? 'neutral' : 'green';
+            const badgeClase = salud === 'ROJO' ? 'bg-rose-50 text-rose-700 border-rose-200' : salud === 'AMARILLO' ? 'bg-amber-50 text-amber-700 border-amber-200' : salud === 'NEUTRO' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            const icono = salud === 'ROJO' ? '🔴' : salud === 'AMARILLO' ? '🟡' : salud === 'NEUTRO' ? '⚪' : '🟢';
+            const atraso = metrica?.maxAtraso || 0;
+            const desviacion = metrica?.maxDesviacion || 0;
+            const faseAtrasada = metrica?.fasesAtrasadas?.sort((a,b)=>b.atraso-a.atraso)?.[0];
+            const proxima = metrica?.proximas?.sort((a,b)=>a.proximoVencimiento-b.proximoVencimiento)?.[0];
+            const estadoTemporal = metrica?.cancelado ? 'Cancelado' : atraso > 0 ? `${atraso} d de atraso` : proxima ? (proxima.proximoVencimiento === 0 ? 'Vence hoy' : `Vence en ${proxima.proximoVencimiento} d`) : metrica?.estatus === 'LIBERADO' ? 'Finalizado' : 'En tiempo';
+            const estadoTemporalClase = atraso > 0 ? 'text-rose-600' : proxima ? 'text-amber-600' : 'text-emerald-600';
+            const desviacionTexto = metrica?.estatus === 'LIBERADO' || metrica?.fases?.some(f=>f.fin)
+                ? (desviacion > 0 ? `+${desviacion} d` : 'En tiempo') : 'Pendiente';
+            const faseAtencion = faseAtrasada?.nombre || proxima?.nombre || (metrica?.estatus || 'BACKLOG');
 
             return `
-                <article class="border border-slate-100 rounded-3xl p-5 bg-slate-50/40 hover:bg-white hover:shadow-md transition">
-                    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <span class="text-[11px] font-black bg-slate-900 text-white px-2.5 py-1 rounded-full">${p.id_req || 'SIN ID'}</span>
-                                <span class="text-[11px] font-black px-2.5 py-1 rounded-full border ${semaforo.clase}">${semaforo.icono} ${semaforo.texto}</span>
+                <article class="pmo-follow-card">
+                    <div class="pmo-follow-accent ${color}"></div>
+                    <div class="p-5">
+                        <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-[11px] font-black bg-slate-950 text-white px-3 py-1.5 rounded-full">${p.id_req || 'SIN ID'}</span>
+                                    <span class="text-[11px] font-black px-3 py-1.5 rounded-full border ${badgeClase}">${icono} ${metrica?.motivoSalud || 'Sin riesgos actuales'}</span>
+                                </div>
+                                <h4 class="text-lg font-black text-slate-950 mt-3">${escaparHtmlPMO(p.nombre_rqm || 'Sin nombre')}</h4>
+                                <p class="text-xs text-slate-500 mt-1">${escaparHtmlPMO(p.cat_sistemas?.nombre || 'Sin sistema')} · ${escaparHtmlPMO(p.cat_sprints?.nombre || 'Sin sprint')}</p>
+                                <div class="flex gap-2 flex-wrap mt-3 text-[10px] font-black uppercase tracking-wide">
+                                    <span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">${escaparHtmlPMO(p.estatus || 'BACKLOG')}</span>
+                                    <span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full">Fase actual: ${faseAtencion}</span>
+                                    ${metrica?.reprogramaciones ? `<span class="bg-violet-50 text-violet-700 px-2.5 py-1 rounded-full">${metrica.reprogramaciones} reprogramación${metrica.reprogramaciones===1?'':'es'}</span>` : ''}
+                                </div>
                             </div>
-
-                            <h4 class="text-base font-black text-slate-900 mt-3">${p.nombre_rqm || 'Sin nombre'}</h4>
-                            <p class="text-xs text-slate-500 mt-1">${p.cat_sistemas?.nombre || 'Sin sistema'} · ${p.cat_sprints?.nombre || 'Sin sprint'}</p>
-                            <p class="text-[11px] text-slate-400 mt-1 font-bold">Estatus: <span class="text-slate-600">${p.estatus || 'BACKLOG'}</span></p>
-                        </div>
-
-                        <div class="grid grid-cols-3 gap-2 text-center min-w-[260px]">
-                            <div class="bg-white border border-slate-100 rounded-2xl p-3">
-                                <p class="text-[10px] font-black text-slate-400 uppercase">Avance</p>
-                                <p class="text-lg font-black text-slate-900">${avance}%</p>
-                            </div>
-                            <div class="bg-white border border-slate-100 rounded-2xl p-3">
-                                <p class="text-[10px] font-black text-slate-400 uppercase">Desv.</p>
-                                <p class="text-lg font-black ${desviacion && desviacion > 0 ? 'text-rose-600' : 'text-emerald-600'}">${desviacion === null ? '—' : (desviacion > 0 ? '+' : '') + desviacion + 'd'}</p>
-                            </div>
-                            <div class="bg-white border border-slate-100 rounded-2xl p-3">
-                                <p class="text-[10px] font-black text-slate-400 uppercase">Atraso</p>
-                                <p class="text-lg font-black ${atrasos ? 'text-rose-600' : 'text-slate-400'}">${atrasos || '—'}</p>
+                            <div class="flex gap-2 flex-wrap xl:justify-end">
+                                <div class="pmo-metric-state"><div class="label">Avance</div><div class="value text-blue-700">${avance}%</div></div>
+                                <div class="pmo-metric-state"><div class="label">Estado temporal</div><div class="value ${estadoTemporalClase}">${estadoTemporal}</div></div>
+                                <div class="pmo-metric-state"><div class="label">Desviación</div><div class="value ${desviacion>0?'text-rose-600':'text-emerald-600'}">${desviacionTexto}</div></div>
+                                <div class="pmo-metric-state"><div class="label">Estado</div><div class="value ${salud==='ROJO'?'text-rose-600':salud==='AMARILLO'?'text-amber-600':'text-emerald-600'}">${salud==='ROJO'?'Crítico':salud==='AMARILLO'?'Atención':salud==='NEUTRO'?'Neutral':'Saludable'}</div></div>
                             </div>
                         </div>
+                        ${renderizarLineaFases(p)}
                     </div>
-
-                    ${renderizarLineaFases(p)}
-                </article>
-            `;
+                </article>`;
         }
 
 
@@ -2685,10 +2757,11 @@ let todosLosProyectos = [];
             const totalVisible = document.getElementById('seguimiento-total-visible');
             if (totalVisible) totalVisible.textContent = `${proyectos.length} visible${proyectos.length === 1 ? '' : 's'}`;
 
+            const resumenSeguimiento = window.PMOMetrics ? PMOMetrics.resumen(proyectos, contextoMetricasPMO()) : null;
             const total = proyectos.length;
-            const liberados = proyectos.filter(p => ['LIBERADO', 'PRODUCCIÓN', 'PRODUCCION'].includes(normalizarTexto(p.estatus))).length;
-            const reprogramados = proyectos.filter(p => contarReprogramacionesProyecto(p.id) > 0).length;
-            const atrasados = proyectos.filter(p => contarAtrasosRealesProyecto(p) > 0).length;
+            const liberados = resumenSeguimiento ? resumenSeguimiento.liberados : proyectos.filter(p => ['LIBERADO', 'PRODUCCIÓN', 'PRODUCCION'].includes(normalizarTexto(p.estatus))).length;
+            const reprogramados = resumenSeguimiento ? resumenSeguimiento.proyectosReprogramados : proyectos.filter(p => contarReprogramacionesProyecto(p.id) > 0).length;
+            const atrasados = resumenSeguimiento ? resumenSeguimiento.requerimientosAtrasados : proyectos.filter(p => contarAtrasosRealesProyecto(p) > 0).length;
             const enQa = proyectos.filter(p => normalizarTexto(p.estatus) === 'QA').length;
             const enUat = proyectos.filter(p => normalizarTexto(p.estatus) === 'UAT').length;
 
@@ -2750,7 +2823,9 @@ let todosLosProyectos = [];
             registros: [],
             historial: [],
             errores: [],
-            listo: false
+            listo: false,
+            hoja: '',
+            filaEncabezado: 1
         };
 
         function normalizarCatalogoImport(valor) {
@@ -2810,79 +2885,108 @@ let todosLosProyectos = [];
             return diff >= 0 ? diff : null;
         }
 
-        function obtenerHojaImportacion(workbook) {
-            const preferidas = ['IMPORT_PMO_CONTROL', 'MATRIZ DE PROYECTOS'];
-            for (const nombre of preferidas) {
-                if (workbook.SheetNames.includes(nombre)) return { nombre, hoja: workbook.Sheets[nombre] };
+        function normalizarClaveImport(valor) {
+            return String(valor ?? '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9]+/g, ' ')
+                .trim()
+                .toUpperCase();
+        }
+
+        function valorImport(row, ...alias) {
+            const index = {};
+            Object.entries(row || {}).forEach(([clave, valor]) => {
+                index[normalizarClaveImport(clave)] = valor;
+            });
+            for (const nombre of alias) {
+                const valor = index[normalizarClaveImport(nombre)];
+                if (valor !== undefined && valor !== null && String(valor).trim() !== '') return valor;
             }
-            const nombre = workbook.SheetNames[0];
-            return { nombre, hoja: workbook.Sheets[nombre] };
+            return null;
+        }
+
+        function detectarFilaEncabezado(hoja) {
+            const muestra = XLSX.utils.sheet_to_json(hoja, {
+                header: 1,
+                defval: null,
+                raw: true,
+                range: 0
+            }).slice(0, 20);
+
+            let mejorIndice = 0;
+            let mejorPuntaje = -1;
+            const clavesEsperadas = [
+                ['ID REQ', 'NUMERO DE REQUERIMIENTO', 'NUMERO RQM'],
+                ['NOMBRE RQM', 'NOMBRE DEL RQM', 'PROYECTO', 'REQUERIMIENTO'],
+                ['SPRINT'],
+                ['SISTEMA'],
+                ['ESTATUS']
+            ];
+
+            muestra.forEach((fila, indice) => {
+                const normalizadas = (fila || []).map(normalizarClaveImport);
+                const puntaje = clavesEsperadas.reduce((total, grupo) => (
+                    total + (grupo.some(alias => normalizadas.includes(normalizarClaveImport(alias))) ? 1 : 0)
+                ), 0);
+                if (puntaje > mejorPuntaje) {
+                    mejorPuntaje = puntaje;
+                    mejorIndice = indice;
+                }
+            });
+
+            return mejorPuntaje >= 2 ? mejorIndice : 0;
+        }
+
+        function obtenerHojaImportacion(workbook) {
+            const preferidas = ['IMPORT_PMO_CONTROL', 'PMO CONTROL', 'MATRIZ DE PROYECTOS'];
+            let nombre = preferidas.find(preferida =>
+                workbook.SheetNames.some(real => normalizarClaveImport(real) === normalizarClaveImport(preferida))
+            );
+            if (nombre) nombre = workbook.SheetNames.find(real => normalizarClaveImport(real) === normalizarClaveImport(nombre));
+            if (!nombre) nombre = workbook.SheetNames[0];
+
+            const hoja = workbook.Sheets[nombre];
+            const filaEncabezado = detectarFilaEncabezado(hoja);
+            return { nombre, hoja, filaEncabezado };
         }
 
         function mapearDesdeImportPrep(row) {
-            const get = (k) => row[k] ?? row[k?.toUpperCase?.()] ?? null;
-
             return {
-                id_req: get('id_req'),
-                nombre_rqm: get('nombre_rqm'),
-                sprint: get('sprint'),
-                sistema: get('sistema'),
-                clasificacion: get('clasificacion'),
-                prioridad: get('prioridad'),
-                area: get('area'),
-                descripcion: get('descripcion'),
-                solicitante: get('solicitante'),
-                responsable_sistemas: get('responsable_sistemas'),
-                asignado_a: get('asignado_a'),
-                estatus: get('estatus'),
-                fecha_ingreso_pmo: excelSerialADateString(get('fecha_ingreso_pmo')),
-                fecha_desarrollo: excelSerialADateString(get('fecha_desarrollo_compromiso')),
-                fecha_inicio_desarrollo: excelSerialADateString(get('fecha_inicio_desarrollo')),
-                fecha_fin_desarrollo: excelSerialADateString(get('fecha_fin_desarrollo')),
-                fecha_qa: excelSerialADateString(get('fecha_qa_compromiso')),
-                fecha_inicio_qa: excelSerialADateString(get('fecha_inicio_qa')),
-                fecha_fin_qa: excelSerialADateString(get('fecha_fin_qa')),
-                fecha_uat: excelSerialADateString(get('fecha_uat_compromiso')),
-                fecha_inicio_uat: excelSerialADateString(get('fecha_inicio_uat')),
-                fecha_fin_uat: excelSerialADateString(get('fecha_fin_uat')),
-                fecha_liberacion_prod: excelSerialADateString(get('fecha_liberacion_prod')),
-                comentarios: get('comentarios')
+                id_req: valorImport(row, 'id_req', 'ID REQ', 'Número de requerimiento', 'Numero RQM', 'Folio/RQM'),
+                nombre_rqm: valorImport(row, 'nombre_rqm', 'Nombre RQM', 'Nombre del RQM', 'Nombre', 'Proyecto', 'Requerimiento'),
+                sprint: valorImport(row, 'sprint', 'Sprint'),
+                sistema: valorImport(row, 'sistema', 'Sistema'),
+                clasificacion: valorImport(row, 'clasificacion', 'Clasificación', 'Clasificacion', 'Tipo de requerimiento'),
+                prioridad: valorImport(row, 'prioridad', 'Prioridad'),
+                area: valorImport(row, 'area', 'Área', 'Area', 'Área Solicitante', 'Area Solicitante'),
+                descripcion: valorImport(row, 'descripcion', 'Descripción', 'Descripcion', 'Descripción general'),
+                solicitante: valorImport(row, 'solicitante', 'Solicitante', 'Nombre solicitante'),
+                responsable_sistemas: valorImport(row, 'responsable_sistemas', 'Responsable Sistemas'),
+                asignado_a: valorImport(row, 'asignado_a', 'Asignado A', 'Asignado a'),
+                estatus: valorImport(row, 'estatus', 'Estatus', 'Estado'),
+                fecha_ingreso_pmo: excelSerialADateString(valorImport(row, 'fecha_ingreso_pmo', 'Ingreso RQM a PMO', 'Fecha de ingreso RQM a PMO')),
+                fecha_desarrollo: excelSerialADateString(valorImport(row, 'fecha_desarrollo_compromiso', 'Compromiso Desarrollo', 'Fecha de entrega de sistemas')),
+                fecha_inicio_desarrollo: excelSerialADateString(valorImport(row, 'fecha_inicio_desarrollo', 'Inicio Desarrollo', 'Fecha de inicio de desarrollo')),
+                fecha_fin_desarrollo: excelSerialADateString(valorImport(row, 'fecha_fin_desarrollo', 'Fin Desarrollo', 'Nueva fecha compromiso')),
+                fecha_qa: excelSerialADateString(valorImport(row, 'fecha_qa_compromiso', 'Compromiso QA', 'Fecha de salida pruebas QA')),
+                fecha_inicio_qa: excelSerialADateString(valorImport(row, 'fecha_inicio_qa', 'Inicio QA', 'Fecha de entrada a pruebas QA')),
+                fecha_fin_qa: excelSerialADateString(valorImport(row, 'fecha_fin_qa', 'Fin QA', 'Nueva fecha compromiso 1')),
+                fecha_uat: excelSerialADateString(valorImport(row, 'fecha_uat_compromiso', 'Compromiso UAT', 'Fecha de salida pruebas UAT')),
+                fecha_inicio_uat: excelSerialADateString(valorImport(row, 'fecha_inicio_uat', 'Inicio UAT', 'Fecha de entrada pruebas UAT')),
+                fecha_fin_uat: excelSerialADateString(valorImport(row, 'fecha_fin_uat', 'Fin UAT', 'Nueva fecha compromiso 2')),
+                fecha_liberacion_prod: excelSerialADateString(valorImport(row, 'fecha_liberacion_prod', 'Liberación Producción', 'Liberacion Produccion', 'Liberación Productiva')),
+                comentarios: valorImport(row, 'comentarios', 'Comentarios')
             };
         }
 
         function mapearDesdeMatrizOriginal(row) {
-            return {
-                id_req: row['ID REQ'],
-                nombre_rqm: row['NOMBRE DEL RQM'],
-                sprint: row['SPRINT '] || row['SPRINT'],
-                sistema: row['SISTEMA'],
-                clasificacion: row['CLASIFICACIÓN'],
-                prioridad: row['PRIORIDAD'],
-                area: row['ÁREA'],
-                descripcion: row['DESCRIPCIÓN'],
-                solicitante: row['SOLICITANTE'],
-                responsable_sistemas: row['RESPONSABLE SISTEMAS'],
-                asignado_a: row['ASIGNADO A '],
-                estatus: row['ESTATUS'],
-                fecha_ingreso_pmo: excelSerialADateString(row['FECHA DE INGRESO RQM A PMO']),
-                fecha_desarrollo: excelSerialADateString(row['FECHA DE ENTREGA DE SISTEMAS']),
-                fecha_inicio_desarrollo: excelSerialADateString(row['FECHA DE INICIO DE DESARROLLO']),
-                fecha_fin_desarrollo: excelSerialADateString(row['NUEVA FECHA COMPROMISO'] || row['FECHA DE ENTREGA DE SISTEMAS']),
-                fecha_qa: excelSerialADateString(row['FECHA DE SALIDA PRUEBAS QA']),
-                fecha_inicio_qa: excelSerialADateString(row['FECHA DE ENTRADA A PRUEBAS QA']),
-                fecha_fin_qa: excelSerialADateString(row['NUEVA FECHA COMPROMISO_1'] || row['FECHA DE SALIDA PRUEBAS QA']),
-                fecha_uat: excelSerialADateString(row['FECHA DE SALIDA PRUEBAS UAT']),
-                fecha_inicio_uat: excelSerialADateString(row['FECHA DE ENTRADA PRUEBAS UAT']),
-                fecha_fin_uat: excelSerialADateString(row['NUEVA FECHA COMPROMISO_2'] || row['FECHA DE SALIDA PRUEBAS UAT']),
-                fecha_liberacion_prod: excelSerialADateString(row['LIBERACIÓN PRODUCTIVA']),
-                comentarios: row['COMENTARIOS_2'] || row['COMENTARIOS']
-            };
+            // Se conserva por compatibilidad, usando el mismo catálogo de alias.
+            return mapearDesdeImportPrep(row);
         }
 
         function prepararRegistroImport(row, origen) {
-            const base = origen === 'IMPORT_PMO_CONTROL'
-                ? mapearDesdeImportPrep(row)
-                : mapearDesdeMatrizOriginal(row);
+            const base = mapearDesdeImportPrep(row);
 
             base.id_req = base.id_req ? String(base.id_req).trim() : null;
             base.nombre_rqm = base.nombre_rqm ? String(base.nombre_rqm).trim() : null;
@@ -2941,12 +3045,13 @@ let todosLosProyectos = [];
 
                 let rows = XLSX.utils.sheet_to_json(seleccion.hoja, {
                     defval: null,
-                    raw: true
+                    raw: true,
+                    range: seleccion.filaEncabezado
                 });
 
                 rows = rows.filter(r => {
-                    const id = r['id_req'] || r['ID REQ'];
-                    const nombre = r['nombre_rqm'] || r['NOMBRE DEL RQM'];
+                    const id = valorImport(r, 'id_req', 'ID REQ', 'Número de requerimiento', 'Numero RQM', 'Folio/RQM');
+                    const nombre = valorImport(r, 'nombre_rqm', 'Nombre RQM', 'Nombre del RQM', 'Nombre', 'Proyecto', 'Requerimiento');
                     return id || nombre;
                 });
 
@@ -2956,6 +3061,8 @@ let todosLosProyectos = [];
                 importacionPMO.registros = validados;
                 importacionPMO.errores = validados.filter(r => !r.valido);
                 importacionPMO.listo = validados.length > 0 && importacionPMO.errores.length === 0;
+                importacionPMO.hoja = seleccion.nombre;
+                importacionPMO.filaEncabezado = seleccion.filaEncabezado + 1;
 
                 renderizarResumenImportacion();
 
@@ -2994,7 +3101,7 @@ let todosLosProyectos = [];
             document.getElementById('import-kpi-total').textContent = registros.length;
             document.getElementById('import-kpi-validos').textContent = validos.length;
             document.getElementById('import-kpi-errores').textContent = errores.length;
-            document.getElementById('import-kpi-historial').textContent = 'F2';
+            document.getElementById('import-kpi-historial').textContent = importacionPMO.filaEncabezado ? `F${importacionPMO.filaEncabezado}` : '—';
 
             document.getElementById('import-preview-count').textContent = `${registros.length} registro${registros.length === 1 ? '' : 's'}`;
 

@@ -16,7 +16,7 @@
     dashboard:'index_dashboard_ejecutivo.html', seguimiento:'seguimiento_ejecutivo.html',
     importar:'importar_matriz.html', catalogos:'admin_catalogos.html', usuarios:'usuarios.html'
   };
-  const MODULE_ORDER=['selfservice','matriz','rqm','dashboard','seguimiento','importar','catalogos','usuarios'];
+  const MODULE_ORDER=['rqm','matriz','selfservice','dashboard','seguimiento','importar','catalogos','usuarios'];
   const ROLE_DEFAULTS = {
     usuario:{selfservice:'manage'},
     pmo:{selfservice:'manage',matriz:'manage',rqm:'manage',dashboard:'read',seguimiento:'manage',catalogos:'read'},

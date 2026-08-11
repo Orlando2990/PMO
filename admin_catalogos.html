@@ -16,44 +16,59 @@
 <body class="bg-slate-50/50 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
     <div id="pmo-app-header" data-pmo-module="catalogos"></div>
     <main class="max-w-[1500px] mx-auto px-6 py-8 space-y-8">
-        <section id="panel-admin" class="space-y-7">
-            <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex justify-between items-start">
-                <div class="flex items-start gap-3">
-                    <div class="bg-blue-50 text-blue-600 p-2 rounded-xl">
-                        <i data-lucide="shield-check" class="w-6 h-6"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-xl font-black text-slate-900">
-                            Consola de Administración de Catálogos
-                        </h2>
-                        <p class="text-sm text-slate-500 mt-1">
-                            Administra los catálogos del sistema. Agrega, consulta y elimina elementos.
-                        </p>
-                    </div>
-                </div>
-
-                
-            </div>
-
-            <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
-
-            <div class="bg-blue-50/70 border border-blue-100 rounded-2xl p-4 flex items-center gap-4">
-                <div class="bg-blue-600 text-white p-2 rounded-xl">
-                    <i data-lucide="info" class="w-5 h-5"></i>
-                </div>
+        <section id="panel-admin" class="space-y-5">
+            <section class="pmo-exec-hero">
                 <div>
-                    <p class="text-sm font-bold text-blue-700">Información</p>
-                    <p class="text-xs text-blue-700/80 mt-1">
-                        Los elementos de estos catálogos se utilizan en todo el sistema. Elimina con precaución.
-                    </p>
+                    <h2 class="pmo-exec-title">Administración de catálogos</h2>
+                    <p class="pmo-exec-subtitle">Configura los valores utilizados en formularios, seguimiento y reportes de PMO Control.</p>
+                </div>
+            </section>
+
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+                    <div class="flex items-start gap-3">
+                        <div class="bg-indigo-50 text-indigo-600 p-2.5 rounded-xl">
+                            <i data-lucide="file-down" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-black text-slate-900">Formato de descarga de requerimientos</h3>
+                            <p class="text-sm text-slate-500 mt-1">Selecciona el formato institucional utilizado al descargar el documento completo de un RQM.</p>
+                            <div id="estado-formato-rqm" class="mt-2 text-xs font-bold text-slate-500">Formato predeterminado: Word.</div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="formato-rqm" value="word" class="peer sr-only">
+                            <span class="min-w-32 px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 font-black inline-flex justify-center items-center gap-2 peer-checked:border-blue-600 peer-checked:bg-blue-50 peer-checked:text-blue-700 transition">
+                                <i data-lucide="file-text" class="w-4 h-4"></i> Word
+                            </span>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="formato-rqm" value="pdf" class="peer sr-only">
+                            <span class="min-w-32 px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-600 font-black inline-flex justify-center items-center gap-2 peer-checked:border-rose-600 peer-checked:bg-rose-50 peer-checked:text-rose-700 transition">
+                                <i data-lucide="file-type-2" class="w-4 h-4"></i> PDF
+                            </span>
+                        </label>
+                        <button id="btn-guardar-formato-rqm" onclick="guardarFormatoRQM()" class="bg-slate-900 hover:bg-slate-800 text-white font-black px-5 py-3 rounded-xl shadow-md inline-flex justify-center items-center gap-2 transition">
+                            <i data-lucide="save" class="w-4 h-4"></i> Guardar formato
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <div class="bg-blue-50/70 border border-blue-100 rounded-2xl px-5 py-4 flex items-center gap-4">
+                <div class="bg-blue-600 text-white p-2 rounded-xl"><i data-lucide="info" class="w-5 h-5"></i></div>
+                <div>
+                    <p class="text-sm font-bold text-blue-700">Información importante</p>
+                    <p class="text-xs text-blue-700/80 mt-1">Estos elementos se utilizan en todo el sistema. Antes de eliminar alguno, verifica que no esté asociado a requerimientos existentes.</p>
                 </div>
             </div>
+
+            <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
 
             <div class="flex justify-end bg-white border border-slate-200 rounded-2xl p-4">
-                <button onclick="exportarExcel()"
-                    class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition cursor-pointer">
-                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
-                    Exportar Matriz Excel
+                <button onclick="exportarExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition cursor-pointer">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Exportar Matriz Excel
                 </button>
             </div>
         </section>
@@ -163,23 +178,23 @@ let todosLosProyectos = [];
                 const colores = colorClasses[cat.color];
                 const total = cat.items.length;
                 const lista = total > 0 ? cat.items.map(item => `
-                    <li class="flex justify-between items-center gap-3 px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition">
+                    <li class="flex justify-between items-center gap-3 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition">
                         <span class="text-xs font-bold text-slate-700 truncate">${item.nombre}</span>
                         <button onclick="eliminarCatalogo('${cat.tabla}', '${item.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition cursor-pointer" title="Eliminar"><i data-lucide="x" class="w-4 h-4"></i></button>
                     </li>`).join('') : `<li class="p-4 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">Sin elementos registrados</li>`;
 
                 return `
-                    <div class="bg-white rounded-3xl border border-slate-200 border-t-4 ${colores.border} shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all p-5 flex flex-col min-h-[430px]">
-                        <div class="flex justify-between items-center mb-5 pb-4 border-b border-slate-100">
+                    <div class="bg-white rounded-2xl border border-slate-200 border-t-4 ${colores.border} shadow-sm hover:shadow-md transition-all p-4 flex flex-col min-h-[330px]">
+                        <div class="flex justify-between items-center mb-3 pb-3 border-b border-slate-100">
                             <div class="flex items-center gap-2"><div class="${colores.bg} ${colores.text} p-2 rounded-xl"><i data-lucide="${cat.icono}" class="w-5 h-5"></i></div><h3 class="text-sm font-black uppercase tracking-wide ${colores.text}">${cat.titulo}</h3></div>
                             <span class="text-xs font-black px-2.5 py-1 rounded-full ${colores.badge}">${total}</span>
                         </div>
-                        <div class="flex gap-2 mb-4">
+                        <div class="flex gap-2 mb-3">
                             <input type="text" id="${cat.inputId}" placeholder="${cat.placeholder}" class="min-w-0 flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-100">
                             <button onclick="crearCatalogo('${cat.tipo}')" class="${colores.button} text-white px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-4 h-4"></i>Añadir</button>
                         </div>
-                        <ul class="space-y-2.5 overflow-y-auto pr-2 max-h-64 flex-1 catalog-scroll">${lista}</ul>
-                        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs font-bold text-slate-500"><div class="${colores.bg} ${colores.text} p-1.5 rounded-lg"><i data-lucide="database" class="w-3.5 h-3.5"></i></div>Total: ${total} elemento${total === 1 ? '' : 's'}</div>
+                        <ul class="space-y-2 overflow-y-auto pr-2 max-h-44 flex-1 catalog-scroll">${lista}</ul>
+                        <div class="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs font-bold text-slate-500"><div class="${colores.bg} ${colores.text} p-1.5 rounded-lg"><i data-lucide="database" class="w-3.5 h-3.5"></i></div>Total: ${total} elemento${total === 1 ? '' : 's'}</div>
                     </div>`;
             }).join('');
             lucide.createIcons();
@@ -280,16 +295,45 @@ let todosLosProyectos = [];
             XLSX.writeFile(wb, `PMO_Control_${new Date().toISOString().slice(0, 10)}.xlsx`);
         }
 
+
+        async function cargarFormatoRQMAdmin(){
+            const formato = await window.PMORQMConfig.cargar(_supabase);
+            const radio = document.querySelector(`input[name="formato-rqm"][value="${formato}"]`);
+            if(radio) radio.checked = true;
+            actualizarEstadoFormatoRQM(formato);
+        }
+
+        function actualizarEstadoFormatoRQM(formato){
+            const el=document.getElementById('estado-formato-rqm');
+            if(el) el.textContent=`Formato predeterminado actual: ${formato==='pdf'?'PDF':'Word'}. Este formato se utilizará para la descarga del documento completo del RQM.`;
+        }
+
+        async function guardarFormatoRQM(){
+            const seleccionado=document.querySelector('input[name="formato-rqm"]:checked')?.value || 'word';
+            const btn=document.getElementById('btn-guardar-formato-rqm');
+            const original=btn?.innerHTML;
+            try{
+                if(btn){btn.disabled=true;btn.innerHTML='<i data-lucide="loader-circle" class="w-4 h-4 animate-spin"></i> Guardando...';lucide.createIcons();}
+                await window.PMORQMConfig.guardar(_supabase,seleccionado);
+                actualizarEstadoFormatoRQM(seleccionado);
+                if(window.PMOAlert) await PMOAlert(`A partir de ahora los requerimientos se descargarán en ${seleccionado==='pdf'?'PDF':'Word'}.`,{title:'Formato actualizado'});
+            }catch(e){
+                if(window.PMOAlert) await PMOAlert('No se pudo guardar el formato: '+(e.message||e),{title:'Error',type:'error'}); else alert(e.message||e);
+            }finally{if(btn){btn.disabled=false;btn.innerHTML=original;lucide.createIcons();}}
+        }
+
         window.onload = async () => {
             const user = await verificarSesion();
             if (!user) return;
             pintarUsuarioSesion(user);
             await cargarTodo();
+            await cargarFormatoRQMAdmin();
             lucide.createIcons();
         };
     </script>
     <script src="js/pmo-auth.js"></script>
     <script src="js/pmo-layout.js"></script>
+    <script src="js/rqm-config.js"></script>
     <script src="js/pmo-dialogs.js"></script>
 </body>
 </html>

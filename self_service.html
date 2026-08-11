@@ -8,6 +8,10 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cfb@1.2.2/cfb.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -74,7 +78,7 @@
 
     @media(max-width:900px){.user-shell,.portal-hero{flex-direction:column;align-items:flex-start}.user-nav{justify-content:flex-start}.portal-title{font-size:32px}}
 
-    .evidence-drop{border:2px dashed #bfdbfe;background:#eff6ff;border-radius:18px;padding:22px;text-align:center;transition:.2s}.evidence-drop:hover{border-color:#2563eb;background:#dbeafe}.evidence-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:16px}.evidence-card{border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:white}.evidence-card img{width:100%;height:120px;object-fit:cover;background:#f8fafc}.evidence-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;font-size:12px;font-weight:800;color:#475569}.evidence-meta span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.evidence-meta button{color:#e11d48}.evidence-empty{grid-column:1/-1;padding:18px;color:#94a3b8;background:#f8fafc;border-radius:14px;text-align:center;font-size:13px}.icon-btn.progress{background:#ecfeff;border-color:#a5f3fc;color:#0e7490}.roadmap-loading,.roadmap-empty{min-height:180px;display:flex;align-items:center;justify-content:center;gap:12px;text-align:center;color:#64748b;background:#f8fafc;border-radius:20px;padding:28px}.roadmap-hero{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px;border-radius:22px;background:linear-gradient(135deg,#07162d,#102b57);color:white}.roadmap-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:#67e8f9;font-weight:900}.roadmap-hero h4{font-size:22px;font-weight:900;margin-top:5px}.roadmap-hero p{color:#cbd5e1;margin-top:5px}.roadmap-percent{width:98px;height:98px;border-radius:50%;display:grid;place-content:center;text-align:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)}.roadmap-percent strong{font-size:27px}.roadmap-percent span{font-size:11px;color:#cbd5e1}.roadmap-progress{height:10px;background:#e2e8f0;border-radius:99px;margin:20px 0;overflow:hidden}.roadmap-progress span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2563eb,#06b6d4)}.roadmap-current{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.roadmap-current>div{padding:15px;border:1px solid #e2e8f0;border-radius:16px;background:#fff}.roadmap-current span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:900}.roadmap-current strong{display:block;margin-top:5px;color:#0f172a}.roadmap-timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:24px}.roadmap-step{position:relative;text-align:center}.roadmap-step:not(:last-child):after{content:'';position:absolute;top:18px;left:62%;width:76%;height:3px;background:#e2e8f0;z-index:0}.roadmap-step.done:not(:last-child):after{background:#22c55e}.roadmap-dot{position:relative;z-index:1;margin:auto;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:900;background:#f1f5f9;color:#94a3b8;border:3px solid white;box-shadow:0 0 0 1px #e2e8f0}.roadmap-step.done .roadmap-dot{background:#22c55e;color:white}.roadmap-step.current .roadmap-dot{background:#2563eb;color:white;box-shadow:0 0 0 6px #dbeafe}.roadmap-step-copy strong{display:block;font-size:11px;margin-top:10px}.roadmap-step-copy span,.roadmap-step-copy small{display:block;font-size:10px;color:#94a3b8;margin-top:3px}.roadmap-note{display:flex;gap:10px;align-items:flex-start;margin-top:22px;padding:14px;border-radius:14px;background:#eff6ff;color:#1e40af;font-size:12px}@media(max-width:800px){.roadmap-current{grid-template-columns:1fr}.roadmap-timeline{grid-template-columns:1fr;text-align:left}.roadmap-step{display:flex;gap:12px;text-align:left}.roadmap-step:not(:last-child):after{display:none}.roadmap-dot{margin:0}.roadmap-step-copy strong{margin-top:2px}.roadmap-hero{align-items:flex-start}.roadmap-percent{width:80px;height:80px;flex:0 0 80px}}
+    .evidence-drop{border:2px dashed #bfdbfe;background:#eff6ff;border-radius:18px;padding:22px;text-align:center;transition:.2s}.evidence-drop:hover{border-color:#2563eb;background:#dbeafe}.evidence-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-top:16px}.evidence-card{border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:white}.evidence-card img{width:100%;height:120px;object-fit:cover;background:#f8fafc}.evidence-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px;font-size:12px;font-weight:800;color:#475569}.evidence-meta span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.evidence-meta button{color:#e11d48}.evidence-empty{grid-column:1/-1;padding:18px;color:#94a3b8;background:#f8fafc;border-radius:14px;text-align:center;font-size:13px}.document-preview{display:flex;flex-direction:column;gap:10px;margin-top:14px}.document-card{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 15px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.document-card-main{display:flex;align-items:center;gap:11px;min-width:0}.document-card-main strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155;font-size:13px}.document-card-main span{font-size:11px;color:#94a3b8}.document-card button{color:#e11d48;flex:none}.icon-btn.progress{background:#ecfeff;border-color:#a5f3fc;color:#0e7490}.roadmap-loading,.roadmap-empty{min-height:180px;display:flex;align-items:center;justify-content:center;gap:12px;text-align:center;color:#64748b;background:#f8fafc;border-radius:20px;padding:28px}.roadmap-hero{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:24px;border-radius:22px;background:linear-gradient(135deg,#07162d,#102b57);color:white}.roadmap-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:#67e8f9;font-weight:900}.roadmap-hero h4{font-size:22px;font-weight:900;margin-top:5px}.roadmap-hero p{color:#cbd5e1;margin-top:5px}.roadmap-percent{width:98px;height:98px;border-radius:50%;display:grid;place-content:center;text-align:center;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2)}.roadmap-percent strong{font-size:27px}.roadmap-percent span{font-size:11px;color:#cbd5e1}.roadmap-progress{height:10px;background:#e2e8f0;border-radius:99px;margin:20px 0;overflow:hidden}.roadmap-progress span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2563eb,#06b6d4)}.roadmap-current{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.roadmap-current>div{padding:15px;border:1px solid #e2e8f0;border-radius:16px;background:#fff}.roadmap-current span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:900}.roadmap-current strong{display:block;margin-top:5px;color:#0f172a}.roadmap-timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:24px}.roadmap-step{position:relative;text-align:center}.roadmap-step:not(:last-child):after{content:'';position:absolute;top:18px;left:62%;width:76%;height:3px;background:#e2e8f0;z-index:0}.roadmap-step.done:not(:last-child):after{background:#22c55e}.roadmap-dot{position:relative;z-index:1;margin:auto;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:900;background:#f1f5f9;color:#94a3b8;border:3px solid white;box-shadow:0 0 0 1px #e2e8f0}.roadmap-step.done .roadmap-dot{background:#22c55e;color:white}.roadmap-step.current .roadmap-dot{background:#2563eb;color:white;box-shadow:0 0 0 6px #dbeafe}.roadmap-step-copy strong{display:block;font-size:11px;margin-top:10px}.roadmap-step-copy span,.roadmap-step-copy small{display:block;font-size:10px;color:#94a3b8;margin-top:3px}.roadmap-note{display:flex;gap:10px;align-items:flex-start;margin-top:22px;padding:14px;border-radius:14px;background:#eff6ff;color:#1e40af;font-size:12px}@media(max-width:800px){.roadmap-current{grid-template-columns:1fr}.roadmap-timeline{grid-template-columns:1fr;text-align:left}.roadmap-step{display:flex;gap:12px;text-align:left}.roadmap-step:not(:last-child):after{display:none}.roadmap-dot{margin:0}.roadmap-step-copy strong{margin-top:2px}.roadmap-hero{align-items:flex-start}.roadmap-percent{width:80px;height:80px;flex:0 0 80px}}
   
     .self-form-actions{
       display:flex;
@@ -106,7 +110,6 @@
   <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
     <section class="portal-hero">
       <div>
-        <div class="portal-pill"><i data-lucide="sparkles" class="w-4 h-4"></i> Portal de solicitudes</div>
         <h2 class="portal-title">Alta de requerimientos<br>para revisión PMO</h2>
         <p class="portal-subtitle">Captura tu solicitud de forma sencilla. El sistema asignará automáticamente el siguiente folio/RQM disponible para el sistema seleccionado y PMO podrá darle seguimiento.</p>
       </div>
@@ -212,11 +215,39 @@
               </label>
               <div id="ss-imagenes-preview" class="evidence-preview"></div>
             </div>
+            <div class="mt-6">
+              <label class="field-label">DOCUMENTOS DE SOPORTE</label>
+              <label for="ss-documentos" class="evidence-drop block cursor-pointer">
+                <input id="ss-documentos" type="file" accept=".doc,.docx,.xls,.xlsx,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf" multiple class="hidden" />
+                <i data-lucide="paperclip" class="w-8 h-8 text-blue-600 mx-auto mb-2"></i>
+                <strong class="block text-slate-950">Agregar documentos</strong>
+                <span class="text-sm text-slate-500">Word, Excel o PDF · máximo 5 archivos · 5 MB por archivo</span>
+              </label>
+              <div id="ss-documentos-preview" class="document-preview"></div>
+            </div>
+            <div class="mt-6">
+              <div class="flex items-center justify-between gap-4 mb-3">
+                <div>
+                  <label class="field-label mb-1">PERSONAS QUE FIRMARÁN EL REQUERIMIENTO</label>
+                  <p class="text-sm text-slate-500">Agrega tantos firmantes como sean necesarios. La fecha se completará automáticamente con la fecha de alta.</p>
+                </div>
+                <button type="button" onclick="agregarFirmanteUsuario()" class="px-4 py-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 font-black inline-flex items-center gap-2">
+                  <i data-lucide="user-plus" class="w-4 h-4"></i>Agregar firmante
+                </button>
+              </div>
+              <div id="ss-firmantes-lista" class="space-y-3"></div>
+            </div>
           </div>
         </div>
 
+        <div id="ss-respuesta-pmo-wrap" class="rqm-section hidden">
+          <h3 class="rqm-section-title"><i data-lucide="message-square-reply" class="w-5 h-5 text-amber-600"></i>Respuesta para PMO</h3>
+          <p class="text-sm text-slate-500 mb-4">Describe qué corregiste o responde a la observación enviada por PMO. Al guardar, el requerimiento volverá automáticamente a revisión.</p>
+          <textarea id="ss-respuesta-pmo" rows="4" class="field-input" placeholder="Escribe aquí tu respuesta para PMO..."></textarea>
+        </div>
+
         <div class="rounded-2xl border border-blue-100 bg-blue-50 p-5 text-sm text-blue-900">
-          El PDF conservará la estructura institucional de tres páginas, incluyendo Aprobaciones, Control de versiones, Firmas de usuarios y Firmas de sistemas en blanco para firma autógrafa. No se agregarán comentarios del sistema al formato.
+          El formato de descarga se define desde Administración de Catálogos. Tanto Word como PDF conservarán la estructura institucional, incluyendo Aprobaciones, Control de versiones, Firmas de usuarios y Firmas de sistemas. No se agregarán comentarios del sistema al formato.
         </div>
         <div class="self-form-actions">
           <button type="button" onclick="limpiarFormulario()" class="px-6 py-3 rounded-xl border border-slate-200 bg-white font-black text-slate-700">Limpiar</button>
@@ -272,6 +303,8 @@
   </div>
     <script src="js/pmo-auth.js"></script>
   <script src="js/pmo-layout.js"></script>
+  <script src="js/rqm-word.js"></script>
+  <script src="js/rqm-config.js"></script>
   <script src="js/self-service.js"></script>
     <script src="js/pmo-dialogs.js"></script>
 </body>

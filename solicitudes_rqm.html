@@ -8,6 +8,11 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cfb@1.2.2/cfb.min.js"></script>
+  <script src="js/rqm-word.js"></script>
     <link rel="stylesheet" href="css/pmo-layout.css">
   <style>
     /* Ajuste exclusivo del modal del Buzón de RQM */
@@ -183,6 +188,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let usuarioActual=null;
 let registrosRQM=[];
+let formatoDescargaRQM='word';
 let sistemas=[];
 
 async function verificarSesion(){
@@ -196,6 +202,11 @@ function esc(v){ return String(v??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'
 function normalizar(v){ return String(v||'').trim().toUpperCase(); }
 function hoyISO(){ return new Date().toISOString().slice(0,10); }
 function fmtFecha(f){ if(!f) return '—'; const [y,m,d]=String(f).slice(0,10).split('-'); return `${d}/${m}/${y}`; }
+function puedeEliminarDesdeBuzon(r){
+  // Temporalmente habilitado para pruebas en Buzón de RQM.
+  return true;
+}
+
 function badgeEstatus(e){
   const n=normalizar(e);
   if(n==='CANCELADO') return 'bg-rose-50 text-rose-700 border-rose-100';
@@ -226,29 +237,53 @@ function comentariosConversacion(observaciones){
   }
   return bloques.join('\n\n');
 }
+
+function observacionOperativa(observaciones){
+  return String(observaciones || '')
+    .replace(/\n*---\s*\nCOMENTARIO\s+(?:PMO|USUARIO)[^\n]*:\s*\n[\s\S]*?(?=\n\n---\s*\nCOMENTARIO\s+(?:PMO|USUARIO)|$)/gi, '')
+    .trim();
+}
 function rqmToPDFData(r){
   const obs = r.observaciones || '';
-  const splitLista = (v) => String(v || '').split(',').map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/^Otro(?:s)?:\s*/i,''));
+  let datos = {};
+  try{
+    if(r.datos_formulario && typeof r.datos_formulario === 'object') datos = r.datos_formulario;
+    else if(typeof r.datos_formulario === 'string' && r.datos_formulario.trim()) datos = JSON.parse(r.datos_formulario);
+  }catch(e){
+    console.warn('No se pudo interpretar datos_formulario del RQM:', e);
+    datos = {};
+  }
+  const splitLista = (v) => Array.isArray(v)
+    ? v.map(x=>String(x||'').trim()).filter(Boolean)
+    : String(v || '').split(',').map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/^Otro(?:s)?:\s*/i,''));
+  const firmantes = Array.isArray(datos.firmantes_usuarios)
+    ? datos.firmantes_usuarios
+    : (()=>{ try{return JSON.parse(valorObservacion(obs,'Firmantes')||'[]')}catch(e){return []} })();
   return {
-    sistema_nombre: r.sistema_nombre || '—',
+    tipo_registro: r.tipo_registro || (/^A\d+\s/i.test(r.numero_rqm||'')?'ADENDUM':'REQUERIMIENTO'),
+    requerimiento_padre_id: r.requerimiento_padre_id || null,
+    numero_adendum: r.numero_adendum || null,
+    sistema_id: r.sistema_id || datos.sistema_id || '',
+    sistema_nombre: r.sistema_nombre || datos.sistema_nombre || '—',
     numero_rqm: r.numero_rqm || '—',
-    version: valorObservacion(obs, 'Versión') || '1',
-    proyecto: r.proyecto || '—',
-    tipo_requerimiento: valorObservacion(obs, 'Tipo de requerimiento') || 'Proyecto',
-    prioridad: valorObservacion(obs, 'Prioridad') || valorObservacion(obs, 'Prioridad sugerida') || 'Mediana',
-    complejidad: valorObservacion(obs, 'Complejidad') || 'Mediana',
-    descripcion_general: valorObservacion(obs, 'Descripción') || '—',
-    solicitado_por: r.solicitado_por || '—',
-    area_nombre: valorObservacion(obs, 'Área solicitante') || '—',
-    fecha_asignacion: r.fecha_asignacion || r.created_at,
-    responsable: valorObservacion(obs, 'Responsable') || 'Miriam Lizbeth Arauz Chavez',
-    areas_impactadas_lista: splitLista(valorObservacion(obs, 'Áreas impactadas')),
-    areas_impactadas_otro: '',
-    dependencias_lista: splitLista(valorObservacion(obs, 'Dependencias')),
-    dependencias_otro: '',
-    antecedentes: valorObservacion(obs, 'Antecedentes') || '',
-    objetivo: valorObservacion(obs, 'Objetivo') || '',
-    descripcion_detallada: valorObservacion(obs, 'Detalle') || valorObservacion(obs, 'Descripción detallada') || ''
+    version: datos.version || valorObservacion(obs, 'Versión') || '1',
+    proyecto: r.proyecto || datos.proyecto || '—',
+    tipo_requerimiento: datos.tipo_requerimiento || valorObservacion(obs, 'Tipo de requerimiento') || r.tipo_requerimiento || 'Proyecto',
+    prioridad: datos.prioridad || valorObservacion(obs, 'Prioridad') || valorObservacion(obs, 'Prioridad sugerida') || 'Mediana',
+    complejidad: datos.complejidad || valorObservacion(obs, 'Complejidad') || 'Mediana',
+    descripcion_general: datos.descripcion_general || valorObservacion(obs, 'Descripción') || '',
+    solicitado_por: r.solicitado_por || datos.solicitado_por || '—',
+    area_nombre: datos.area_nombre || valorObservacion(obs, 'Área solicitante') || '—',
+    fecha_asignacion: r.fecha_asignacion || datos.fecha_asignacion || r.created_at,
+    responsable: datos.responsable || valorObservacion(obs, 'Responsable') || 'Miriam Lizbeth Arauz Chavez',
+    areas_impactadas_lista: splitLista(datos.areas_impactadas_lista || datos.areas_impactadas || valorObservacion(obs, 'Áreas impactadas')),
+    areas_impactadas_otro: datos.areas_impactadas_otro || '',
+    dependencias_lista: splitLista(datos.dependencias_lista || datos.dependencias_produccion || valorObservacion(obs, 'Dependencias')),
+    dependencias_otro: datos.dependencias_otro || '',
+    antecedentes: datos.antecedentes || valorObservacion(obs, 'Antecedentes') || '',
+    objetivo: datos.objetivo || valorObservacion(obs, 'Objetivo') || '',
+    descripcion_detallada: datos.descripcion_detallada || valorObservacion(obs, 'Detalle') || valorObservacion(obs, 'Descripción detallada') || '',
+    firmantes_usuarios: firmantes
   };
 }
 
@@ -343,15 +378,42 @@ async function cargarImagenesRQM(solicitudId){
     return [];
   }
 }
-async function generarPDFRQM(id){
+async function cargarDocumentosRQM(solicitudId){
+  if(!solicitudId) return [];
+  try{
+    const {data,error}=await _supabase.from('rqm_solicitud_documentos').select('*').eq('solicitud_id',solicitudId).order('orden');
+    if(error || !data?.length) return [];
+    const salida=[];
+    for(const doc of data){
+      const {data:archivo,error:downloadError}=await _supabase.storage.from('rqm-documentos').download(doc.storage_path);
+      if(downloadError || !archivo) continue;
+      salida.push({...doc,blob:archivo});
+    }
+    return salida;
+  }catch(e){
+    console.warn('No se pudieron cargar los documentos del RQM:',e);
+    return [];
+  }
+}
+async function descargarFormatoRQM(id){
   const r = registrosRQM.find(x=>x.id===id);
   if(!r) return;
-  const data=rqmToPDFData(r);
-  data.imagenes=await cargarImagenesRQM(r.id);
-  await generarPDFFormatoRQM(data);
+  try{
+    const data=rqmToPDFData(r);
+    data.imagenes=await cargarImagenesRQM(r.id);
+    data.documentos=await cargarDocumentosRQM(r.id);
+    if(formatoDescargaRQM==='pdf'){
+      await generarPDFFormatoRQMLegacy(data);
+      if(window.descargarAdjuntosRQM) await window.descargarAdjuntosRQM(data);
+    } else await generarWordFormatoRQM(data);
+  }catch(e){
+    console.error('No se pudo descargar el requerimiento:', e);
+    if(window.PMOAlert) await PMOAlert('No se pudo descargar el requerimiento: '+(e.message||e), 'Error de descarga');
+    else alert('No se pudo descargar el requerimiento: '+(e.message||e));
+  }
 }
 
-async function generarPDFFormatoRQM(data){
+async function generarPDFFormatoRQMLegacy(data){
   const jspdf=window.jspdf;
   if(!jspdf?.jsPDF){ alert('No se pudo cargar el generador PDF. Verifica tu conexión a internet.'); return; }
   const doc=new jspdf.jsPDF({unit:'pt',format:'letter'}), W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=22, azul=[0,0,110];
@@ -366,12 +428,21 @@ async function generarPDFFormatoRQM(data){
 
   nuevaPagina(()=>{let y=148;doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(...azul);doc.text('Requerimiento a Sistemas',W/2,y,{align:'center'});y+=12;box(M,y,W-2*M,50,'SISTEMA AFECTADO:');const sys=normalizar(data.sistema_nombre);textIn([cb(sys==='GENESIS','GENESIS'),cb(sys==='COBRANZA','COBRANZA'),cb(sys==='COTIZADOR WEB','COTIZADOR WEB'),cb(!['GENESIS','COBRANZA','COTIZADOR WEB'].includes(sys),'OTRO'),`ESPECIFIQUE: ${!['GENESIS','COBRANZA','COTIZADOR WEB'].includes(sys)?data.sistema_nombre:''}`].join('     '),M+6,y+34,W-2*M-12,8);y+=76;tableRow(y,'Nombre del RQM',data.proyecto,24);y+=24;tableRow(y,'Número del RQM',data.numero_rqm,24);y+=24;tableRow(y,'Versión',data.version,24);y+=24;tableRow(y,'Descripción general',data.descripcion_general,64);y+=82;box(M,y,W-2*M,48,'TIPO DE REQUERIMIENTO:');textIn(['Mejora','Normativo','Proyecto','Mantenimiento','Hallazgo','Solicitud de info'].map(v=>cb(data.tipo_requerimiento===v,v)).join('    '),M+6,y+32,W-2*M-12,8);y+=66;box(M,y,W-2*M,150);let ry=y;const rows=[['Prioridad',['Baja','Mediana','Alta'].map(v=>cb(data.prioridad===v,v)).join('        ')],['Complejidad',['Baja','Mediana','Alta'].map(v=>cb(data.complejidad===v,v)).join('        ')],['Solicitante',data.solicitado_por],['Área solicitante',data.area_nombre],['Fecha de ingreso',fmtFecha(data.fecha_asignacion)],['Responsable',data.responsable]];rows.forEach((r,i)=>{if(i)doc.line(M,ry+i*25,W-M,ry+i*25);doc.line(M+105,ry+i*25,M+105,ry+(i+1)*25);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text(r[0],M+5,ry+i*25+16);textIn(r[1],M+111,ry+i*25+16,W-2*M-117,8);});y+=168;box(M,y,W-2*M,62,'AREAS IMPACTADAS:');const areas=['Core Bancario','Finanzas','Contabilidad','Cobranza','Crédito al consumo','Operaciones','Mesa de control','Call Center','Todas las anteriores'];textIn(areas.slice(0,6).map(v=>cb(isSel(data.areas_impactadas_lista,v),v)).join('   '),M+6,y+31,W-2*M-12,7.3);textIn(`${areas.slice(6).map(v=>cb(isSel(data.areas_impactadas_lista,v),v)).join('   ')}   ${cb(isSel(data.areas_impactadas_lista,'Otro'),'Otro')}  Especifique: ${data.areas_impactadas_otro||''}`,M+6,y+48,W-2*M-12,7.3);});
 
-  nuevaPagina(()=>{let y=145;box(M,y,W-2*M,58,'DEPENDENCIAS PARA SALIDA A PRODUCCION:');const deps=['Manuales','CheckList','Boletines','Capacitaciones','Todos los anteriores'];textIn(`${deps.map(v=>cb(isSel(data.dependencias_lista,v),v)).join('    ')}    ${cb(isSel(data.dependencias_lista,'Otros'),'Otros')}  Especifique: ${data.dependencias_otro||''}`,M+6,y+35,W-2*M-12,7.5);y+=95;doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Aprobaciones',M+6,y);y+=10;box(M,y,W-2*M,60);[105,145,265,305,465].forEach(x=>doc.line(M+x,y,M+x,y+60));doc.line(M,y+25,W-M,y+25);['Preparado por','Fecha','Revisado por','Fecha','Aprobado por','Fecha y firma'].forEach((t,i)=>{const xs=[M+4,M+110,M+150,M+270,M+310,M+470];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t,xs[i],y+16);});y+=94;doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Control de versiones',M+6,y);y+=10;box(M,y,W-2*M,72);[60,195,295,455,500].forEach(x=>doc.line(M+x,y,M+x,y+72));doc.line(M,y+30,W-M,y+30);doc.line(M+295,y+16,M+455,y+16);doc.line(M+455,y+16,W-M,y+16);['No.\nversión','Descripción del\ncambio','Sección\nmodificada','Modificado','Revisado'].forEach((t,i)=>{const xs=[M+5,M+65,M+200,M+350,M+500];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t.split('\n'),xs[i],y+12,{align:i>2?'center':'left'});});y+=92;box(M,y,W-2*M,56,'ANTECEDENTES');textIn(data.antecedentes,M+7,y+29,W-2*M-14,8.5);y+=56;box(M,y,W-2*M,56,'OBJETIVO');textIn(data.objetivo,M+7,y+29,W-2*M-14,8.5);y+=56;box(M,y,W-2*M,170,'DESCRIPCION (Pantallas, Imágenes, Documentos)');textIn(data.descripcion_detallada,M+7,y+29,W-2*M-14,8.5);});
+  nuevaPagina(()=>{let y=145;box(M,y,W-2*M,58,'DEPENDENCIAS PARA SALIDA A PRODUCCION:');const deps=['Manuales','CheckList','Boletines','Capacitaciones','Todos los anteriores'];textIn(`${deps.map(v=>cb(isSel(data.dependencias_lista,v),v)).join('    ')}    ${cb(isSel(data.dependencias_lista,'Otros'),'Otros')}  Especifique: ${data.dependencias_otro||''}`,M+6,y+35,W-2*M-12,7.5);y+=95;doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Aprobaciones',M+6,y);y+=10;box(M,y,W-2*M,60);[105,145,265,305,465].forEach(x=>doc.line(M+x,y,M+x,y+60));doc.line(M,y+25,W-M,y+25);['Preparado por','Fecha','Revisado por','Fecha','Aprobado por','Fecha y firma'].forEach((t,i)=>{const xs=[M+4,M+110,M+150,M+270,M+310,M+470];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t,xs[i],y+16);});y+=94;doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Control de versiones',M+6,y);y+=10;box(M,y,W-2*M,72);[60,195,295,455].forEach(x=>doc.line(M+x,y,M+x,y+72));doc.line(M,y+30,W-M,y+30);['No.\nversión','Descripción del\ncambio','Sección\nmodificada','Modificado','Revisado'].forEach((t,i)=>{const xs=[M+5,M+65,M+200,M+375,M+511.5];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t.split('\n'),xs[i],y+12,{align:i>2?'center':'left'});});y+=92;box(M,y,W-2*M,56,'ANTECEDENTES');textIn(data.antecedentes,M+7,y+29,W-2*M-14,8.5);y+=56;box(M,y,W-2*M,56,'OBJETIVO');textIn(data.objetivo,M+7,y+29,W-2*M-14,8.5);y+=56;box(M,y,W-2*M,170,'DESCRIPCION (Pantallas, Imágenes, Documentos)');textIn(data.descripcion_detallada,M+7,y+29,W-2*M-14,8.5);});
 
   for(const img of (data.imagenes||[])){
     nuevaPagina(async()=>{const titleY=140;box(M,titleY,W-2*M,H-titleY-65,'DESCRIPCION (Pantallas, Imágenes, Documentos)');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(img.nombre_archivo||img.nombre||'Evidencia',M+8,titleY+30);const props=doc.getImageProperties(img.data_url);const maxW=W-2*M-28,maxH=H-titleY-115,ratio=Math.min(maxW/props.width,maxH/props.height);const iw=props.width*ratio,ih=props.height*ratio;doc.addImage(img.data_url,props.fileType||'JPEG',M+(W-2*M-iw)/2,titleY+45,iw,ih);});
   }
-  nuevaPagina(()=>{let y=145;box(M,y,W-2*M,174,'FIRMAS DE USUARIOS');doc.line(M,y+24,W-M,y+24);doc.line(M,y+49,W-M,y+49);doc.line(M+230,y+24,M+230,y+174);doc.line(M+390,y+24,M+390,y+174);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('Nombre',M+115,y+41,{align:'center'});doc.text('Fecha',M+310,y+41,{align:'center'});doc.text('Firma',M+475,y+41,{align:'center'});for(let i=1;i<5;i++)doc.line(M,y+49+i*25,W-M,y+49+i*25);y+=235;box(M,y,W-2*M,110,'FIRMAS DE SISTEMAS');doc.line(M,y+24,W-M,y+24);doc.line(M,y+53,W-M,y+53);[150,260,370,470].forEach(x=>doc.line(M+x,y+24,M+x,y+110));['Nombre','Fecha de Recepción','Fecha de Aceptación','Fecha compromiso\nde entrega','Firma'].forEach((t,i)=>{const xs=[M+75,M+205,M+315,M+420,M+520];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t.split('\n'),xs[i],y+40,{align:'center'});});});
+  if((data.documentos||[]).length){
+    nuevaPagina(()=>{
+      let y=145; box(M,y,W-2*M,Math.min(H-y-70,90+(data.documentos||[]).length*24),'DESCRIPCION (Pantallas, Imágenes, Documentos)');
+      doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text('DOCUMENTOS ADJUNTOS',M+8,y+31);
+      doc.setFont('helvetica','normal');doc.setFontSize(8.5);
+      (data.documentos||[]).forEach((d,i)=>{const nombre=d.nombre_archivo||d.nombre||`Documento ${i+1}`;const mb=d.tamano_bytes?` (${(Number(d.tamano_bytes)/1024/1024).toFixed(2)} MB)`:'';doc.text(`• ${nombre}${mb}`,M+16,y+55+i*22);});
+      doc.setFontSize(8);doc.setTextColor(100);doc.text('Los archivos originales se conservan como adjuntos del requerimiento.',M+8,y+75+(data.documentos||[]).length*22);
+    });
+  }
+  nuevaPagina(()=>{let y=145;box(M,y,W-2*M,174,'FIRMAS DE USUARIOS');doc.line(M,y+24,W-M,y+24);doc.line(M,y+49,W-M,y+49);doc.line(M+230,y+24,M+230,y+174);doc.line(M+390,y+24,M+390,y+174);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.text('Nombre',M+115,y+41,{align:'center'});doc.text('Fecha',M+310,y+41,{align:'center'});doc.text('Firma',M+475,y+41,{align:'center'});for(let i=1;i<5;i++)doc.line(M,y+49+i*25,W-M,y+49+i*25);const firmantes=Array.isArray(data.firmantes_usuarios)?data.firmantes_usuarios.filter(x=>String(x?.nombre||'').trim()).slice(0,5):[];firmantes.forEach((f,i)=>{const yy=y+66+i*25;doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(0);doc.text(String(f.nombre||''),M+8,yy);doc.text(fmtFecha(data.fecha_asignacion),M+240,yy);});y+=235;box(M,y,W-2*M,110,'FIRMAS DE SISTEMAS');doc.line(M,y+24,W-M,y+24);doc.line(M,y+53,W-M,y+53);[150,260,370,470].forEach(x=>doc.line(M+x,y+24,M+x,y+110));['Nombre','Fecha de Recepción','Fecha de Aceptación','Fecha compromiso\nde entrega','Firma'].forEach((t,i)=>{const xs=[M+75,M+205,M+315,M+420,M+520];doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.text(t.split('\n'),xs[i],y+40,{align:'center'});});});
 
   const total=paginas.length;
   for(let i=0;i<total;i++){if(i>0)doc.addPage();head(i+1,total);await paginas[i]();}
@@ -400,7 +471,7 @@ function renderKPIs(lista){
   const total=lista.length;
   const conNumero=lista.filter(r=>r.numero_rqm).length;
   const sistemasUnicos=new Set(lista.map(r=>r.sistema_nombre).filter(Boolean)).size;
-  const conObservaciones=lista.filter(r=>comentariosConversacion(r.observaciones)).length;
+  const conObservaciones=lista.filter(r=>observacionOperativa(r.observaciones)).length;
   const cards=[['TOTAL',total,'layers','bg-blue-50 text-blue-700'],['CON NÚMERO',conNumero,'hash','bg-emerald-50 text-emerald-700'],['OBSERVACIONES',conObservaciones,'message-square-text','bg-rose-50 text-rose-700'],['SISTEMAS',sistemasUnicos,'monitor','bg-slate-50 text-slate-700']];
   document.getElementById('rqm-kpis').innerHTML=cards.map(c=>`<div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div class="flex justify-between items-start"><div><p class="text-xs font-black text-slate-400 tracking-wider">${c[0]}</p><p class="text-3xl font-black text-slate-950 mt-2">${c[1]}</p></div><div class="p-3 rounded-2xl ${c[3]}"><i data-lucide="${c[2]}" class="w-5 h-5"></i></div></div></div>`).join('');
 }
@@ -408,7 +479,7 @@ function renderRegistrosRQM(){
   const q=normalizar(document.getElementById('filtro-buscar-rqm').value);
   const sis=normalizar(document.getElementById('filtro-sistema-rqm').value);
   let lista=registrosRQM.filter(r=>{
-    const text=normalizar(`${r.proyecto} ${r.solicitado_por} ${r.numero_rqm} ${comentariosConversacion(r.observaciones)} ${r.sistema_nombre}`);
+    const text=normalizar(`${r.proyecto} ${r.solicitado_por} ${r.numero_rqm} ${observacionOperativa(r.observaciones)} ${r.sistema_nombre}`);
     return (!q || text.includes(q)) && (!sis || normalizar(r.sistema_nombre)===sis);
   });
   renderKPIs(lista);
@@ -420,16 +491,18 @@ function renderRegistrosRQM(){
     <td class="p-4 text-slate-600">${esc(r.solicitado_por||'—')}</td>
     <td class="p-4 text-slate-600">${fmtFecha(r.fecha_asignacion)}</td>
     <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-black">${esc(r.numero_rqm||'—')}</span></td>
-    <td class="p-4 max-w-xs text-slate-500 truncate" title="${esc(comentariosConversacion(r.observaciones))}">${esc(comentariosConversacion(r.observaciones)||'—')}</td>
+    <td class="p-4 max-w-xs text-slate-500 truncate" title="${esc(observacionOperativa(r.observaciones))}">${esc(observacionOperativa(r.observaciones)||'—')}</td>
     <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full border text-xs font-black ${badgeEstatus(r.estatus)}">${esc(r.estatus||'REGISTRADO')}</span></td>
     <td class="p-4 text-right whitespace-nowrap">
       <button onclick="verDetalleRQM('${r.id}')" class="pmo-action-btn text-slate-600" title="Ver detalle capturado"><i data-lucide="eye" class="w-4 h-4"></i></button>
-      <button onclick="generarPDFRQM('${r.id}')" class="pmo-action-btn text-slate-700" title="Generar formato PDF"><i data-lucide="download" class="w-4 h-4"></i></button>
+      <button onclick="descargarFormatoRQM('${r.id}')" class="pmo-action-btn text-slate-700" title="Descargar formato ${formatoDescargaRQM==='pdf'?'PDF':'Word'}"><i data-lucide="download" class="w-4 h-4"></i></button>
       <button onclick="convertirRQMProyecto('${r.id}')" class="pmo-action-btn text-emerald-600 ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'opacity-40 cursor-not-allowed' : ''}" title="Aprobar / Convertir a Proyecto PMO" ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'disabled' : ''}><i data-lucide="check-circle-2" class="w-4 h-4"></i></button>
       <button onclick="actualizarEstatusConComentario('${r.id}','REQUIERE AJUSTE','Requiere ajuste')" class="pmo-action-btn text-amber-600" title="Solicitar ajuste / comentar"><i data-lucide="message-square-warning" class="w-4 h-4"></i></button>
       <button onclick="actualizarEstatusConComentario('${r.id}','RECHAZADO','Rechazado')" class="pmo-action-btn text-rose-600" title="Rechazar"><i data-lucide="x-circle" class="w-4 h-4"></i></button>
       <button onclick="editarRegistroRQM('${r.id}')" class="pmo-action-btn text-blue-600" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-      <button onclick="eliminarRegistroRQM('${r.id}')" class="pmo-action-btn text-rose-600" title="Eliminar requerimiento"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      ${puedeEliminarDesdeBuzon(r)
+        ? `<button onclick="eliminarRegistroRQM('${r.id}')" class="pmo-action-btn text-rose-600" title="Eliminar requerimiento"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
+        : `<button class="pmo-action-btn text-slate-300 opacity-50 cursor-not-allowed" disabled title="El requerimiento ya fue aprobado o convertido y no puede eliminarse"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
     </td>
   </tr>`).join('');
   lucide.createIcons();
@@ -463,6 +536,13 @@ async function guardarRegistroRQM(ev){
       observaciones:document.getElementById('rqm-observaciones').value.trim() || null,
       updated_at:new Date().toISOString()
     };
+    if(id){
+      const original = registrosRQM.find(x=>x.id===id);
+      if(normalizar(original?.origen_registro)==='SELF_SERVICE'){
+        const textoManual = document.getElementById('rqm-observaciones').value.trim();
+        payload.observaciones = textoManual ? appendComentarioPMO(original.observaciones, textoManual, 'Comentario') : (original.observaciones || null);
+      }
+    }
     if(!payload.numero_rqm){ throw new Error('Captura el número de requerimiento.'); }
     if(id){
       // Al editar se conserva el estatus actual; solo se actualizan los datos capturados.
@@ -496,7 +576,7 @@ function editarRegistroRQM(id){
   document.getElementById('rqm-fecha').value=r.fecha_asignacion||hoyISO();
   document.getElementById('rqm-proyecto').value=r.proyecto||'';
   document.getElementById('rqm-solicitado').value=r.solicitado_por||'';
-  document.getElementById('rqm-observaciones').value=r.observaciones||'';
+  document.getElementById('rqm-observaciones').value=normalizar(r.origen_registro)==='SELF_SERVICE' ? '' : (r.observaciones||'');
 }
 
 function convertirRQMProyecto(id){
@@ -533,15 +613,15 @@ async function ejecutarConversionRQM(id){
       await cargarRegistrosRQM();
       return;
     }
-    const prioridadCapturada = valorObservacion(r.observaciones, 'Prioridad') || valorObservacion(r.observaciones, 'Prioridad sugerida') || 'Baja';
-    const complejidadCapturada = valorObservacion(r.observaciones, 'Complejidad') || 'Mediana';
-    const tipoCapturado = valorObservacion(r.observaciones, 'Tipo de requerimiento') || null;
+    const prioridadCapturada = r.datos_formulario?.prioridad || valorObservacion(r.observaciones, 'Prioridad') || valorObservacion(r.observaciones, 'Prioridad sugerida') || 'Baja';
+    const complejidadCapturada = r.datos_formulario?.complejidad || valorObservacion(r.observaciones, 'Complejidad') || 'Mediana';
+    const tipoCapturado = r.datos_formulario?.tipo_requerimiento || valorObservacion(r.observaciones, 'Tipo de requerimiento') || null;
     let clasificacionId = null;
     if(tipoCapturado){
       const {data:clasif}=await _supabase.from('cat_clasificaciones').select('id,nombre').ilike('nombre',tipoCapturado).maybeSingle();
       clasificacionId=clasif?.id||null;
     }
-    const descripcionGeneral = valorObservacion(r.observaciones, 'Descripción') || null;
+    const descripcionGeneral = r.datos_formulario?.descripcion_general || valorObservacion(r.observaciones, 'Descripción') || null;
     const fechaCaptura = String(r.fecha_asignacion || r.created_at || '').slice(0,10) || null;
     const payload={
       id_req:r.numero_rqm,
@@ -574,7 +654,17 @@ async function ejecutarConversionRQM(id){
 
 async function eliminarRegistroRQM(id){
   const r=registrosRQM.find(x=>x.id===id); if(!r) return;
-  if(!(await PMOConfirm(`Se eliminará ${r.numero_rqm || 'este registro'} de Buzón de RQM. Esta acción no se puede deshacer.`))) return;
+  if(!puedeEliminarDesdeBuzon(r)){
+    await PMOAlert('Acción bloqueada', 'Este requerimiento ya fue aprobado o convertido a PMO. Para conservar la trazabilidad no puede eliminarse desde el Buzón.');
+    return;
+  }
+  if(!(await PMOConfirm(`Se eliminará ${r.numero_rqm || 'este registro'} del Buzón y también dejará de aparecer en la lista del usuario. Esta acción no se puede deshacer.`))) return;
+
+  const {data:imgs}=await _supabase.from('rqm_solicitud_imagenes').select('storage_path').eq('solicitud_id',id);
+  if(imgs?.length) await _supabase.storage.from('rqm-evidencias').remove(imgs.map(x=>x.storage_path));
+  const {data:docs}=await _supabase.from('rqm_solicitud_documentos').select('storage_path').eq('solicitud_id',id);
+  if(docs?.length) await _supabase.storage.from('rqm-documentos').remove(docs.map(x=>x.storage_path));
+
   const {error}=await _supabase.from('rqm_control_requerimientos').delete().eq('id',id);
   if(error){ alert('No se pudo eliminar: '+error.message); return; }
   await cargarRegistrosRQM();
@@ -582,6 +672,7 @@ async function eliminarRegistroRQM(id){
 window.onload=async()=>{
   usuarioActual=await verificarSesion(); if(!usuarioActual) return;
   pintarUsuarioSesion(usuarioActual);
+  formatoDescargaRQM=await window.PMORQMConfig.cargar(_supabase);
   await cargarCatalogos();
   await cargarRegistrosRQM();
   lucide.createIcons();
@@ -628,6 +719,7 @@ window.onload=async()=>{
     <script src="js/pmo-auth.js"></script>
 
     <script src="js/pmo-layout.js"></script>
+    <script src="js/rqm-config.js"></script>
     <script src="js/pmo-dialogs.js"></script>
 </body>
 </html>

@@ -74,30 +74,32 @@
             <div class="relative z-10 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
                 <div>
                     <h2 class="pmo-exec-title">Seguimiento Ejecutivo del Portafolio <br class="hidden sm:block"></h2>
-                    <p class="text-white/60 text-sm mt-2 max-w-2xl">
-                        Visualiza el avance por fases, KPIs, gráficas, semáforos, desviaciones y reprogramaciones.
-                    </p>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3">
                     <select id="seguimiento-filtro-sprint" onchange="filtrarSeguimientoEjecutivo()"
-                        class="bg-white/10 border border-white/10 text-white rounded-xl px-4 py-2.5 text-sm font-bold outline-none">
+                        class="pmo-hero-select bg-blue-600 hover:bg-blue-500 border border-blue-400/70 text-white rounded-xl px-4 py-2.5 text-sm font-black outline-none shadow-lg transition">
                         <option class="text-slate-800" value="">Todos los sprints</option>
                     </select>
 
                     <select id="seguimiento-filtro-estatus" onchange="filtrarSeguimientoEjecutivo()"
-                        class="bg-white/10 border border-white/10 text-white rounded-xl px-4 py-2.5 text-sm font-bold outline-none">
+                        class="pmo-hero-select bg-blue-600 hover:bg-blue-500 border border-blue-400/70 text-white rounded-xl px-4 py-2.5 text-sm font-black outline-none shadow-lg transition">
                         <option class="text-slate-800" value="">Todos los estatus</option>
+                    </select>
+
+                    <select id="seguimiento-filtro-sistema" onchange="filtrarSeguimientoEjecutivo()"
+                        class="pmo-hero-select bg-blue-600 hover:bg-blue-500 border border-blue-400/70 text-white rounded-xl px-4 py-2.5 text-sm font-black outline-none shadow-lg transition">
+                        <option class="text-slate-800" value="">Todos los sistemas</option>
                     </select>
                 </div>
             </div>
         </section>
 
-        <section id="seguimiento-kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4"></section>
+        <section id="seguimiento-kpis" class="pmo-ytd-panel" aria-label="Resumen ejecutivo YTD"></section>
 
         <section>
             <div class="flex justify-end mb-3 no-export">
-                <button onclick="exportarGraficasJuntas()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition shadow-sm">
+                <button onclick="exportarGraficasJuntas()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition shadow-sm">
                     <i data-lucide="images" class="w-4 h-4"></i> Descargar ambas gráficas
                 </button>
             </div>
@@ -109,7 +111,7 @@
                         <p class="text-xs text-slate-500 mt-1">Distribución de requerimientos por estatus operativo</p>
                     </div>
                     <div class="flex items-center gap-2 no-export">
-                        <button onclick="copiarSeccionImagen('reporte-avance-sprint')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                        <button onclick="copiarSeccionImagen('reporte-avance-sprint')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
                             <i data-lucide="copy" class="w-4 h-4"></i> Copiar
                         </button>
                         <button onclick="exportarSeccionImagen('reporte-avance-sprint', 'avance_sprint')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
@@ -130,9 +132,7 @@
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
                             <h3 id="titulo-distribucion-portafolio" class="text-lg font-black text-slate-900 uppercase">Distribución general del portafolio</h3>
-                            <span id="badge-vista-portafolio" class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Vista general</span>
                         </div>
-                        <p id="subtitulo-distribucion-portafolio" class="text-xs text-slate-500 mt-1">Todos los requerimientos registrados</p>
                     </div>
                     <div class="flex items-center gap-2 no-export">
                         <select id="seguimiento-vista-portafolio" onchange="cambiarVistaPortafolio()"
@@ -140,10 +140,10 @@
                             <option value="general">Portafolio general</option>
                             <option value="sprint">Sprint seleccionado</option>
                         </select>
-                        <button onclick="copiarSeccionImagen('reporte-distribucion-portafolio')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                        <button onclick="copiarSeccionImagen('reporte-distribucion-portafolio')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
                             <i data-lucide="copy" class="w-4 h-4"></i> Copiar
                         </button>
-                        <button onclick="exportarSeccionImagen('reporte-distribucion-portafolio', 'distribucion_portafolio')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                        <button onclick="exportarSeccionImagen('reporte-distribucion-portafolio', 'distribucion_portafolio')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
                             <i data-lucide="image-down" class="w-4 h-4"></i> Imagen
                         </button>
                         <div class="bg-emerald-50 text-emerald-700 p-2 rounded-xl">
@@ -178,14 +178,13 @@
                         <button onclick="copiarSeccionImagen('reporte-mapa-requerimientos')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
                             <i data-lucide="copy" class="w-4 h-4"></i> Copiar
                         </button>
-                        <button onclick="exportarSeccionImagen('reporte-mapa-requerimientos', 'seguimiento_semanal_requerimientos')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                        <button onclick="exportarSeccionImagen('reporte-mapa-requerimientos', 'seguimiento_semanal_requerimientos')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
                             <i data-lucide="image-down" class="w-4 h-4"></i> Imagen
                         </button>
-                        <button onclick="exportarSeguimientoPDF()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                        <button onclick="exportarSeguimientoPDF()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
                             <i data-lucide="file-down" class="w-4 h-4"></i> PDF
                         </button>
                         <span id="seguimiento-total-visible" class="text-xs font-black bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full">0 visibles</span>
-                        <span class="text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-full" title="Liberado, UAT, QA, Desarrollo, Análisis, Backlog y Cancelado">Orden: mayor avance primero</span>
                     </div>
                 </div>
 
@@ -229,9 +228,14 @@
             </aside>
         </section>
     </main>
+
+    <!-- Modales reutilizables de la Matriz para consultar/modificar un RQM desde Seguimiento -->
+    <div id="orbita-modales-requerimientos"></div>
+
     <script src="js/pmo-auth.js"></script>
 
     <script src="js/pmo-metrics.js"></script>
+    <script src="js/pmo-panel-html.js"></script>
     <script src="js/pmo-app.js"></script>
     <script src="js/pmo-layout.js"></script>
     <script src="js/pmo-dialogs.js"></script>

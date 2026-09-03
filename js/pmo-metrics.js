@@ -71,18 +71,36 @@
     const antiguedad = cancelado || estatus === 'LIBERADO' ? null : diasEntre(inicioLead, hoy);
     const atrasoTotal = fases.reduce((s, f) => s + (f.ajusteAdministrativo ? 0 : f.atraso), 0);
     const maxAtraso = Math.max(0, ...fases.map(f => f.ajusteAdministrativo ? 0 : f.atraso));
-    const desviacionesPositivas = fases.filter(f => !f.ajusteAdministrativo && typeof f.desviacion === 'number' && f.desviacion > 0);
+    const desviacionesMedidas = fases.filter(f => !f.ajusteAdministrativo && typeof f.desviacion === 'number');
+    const desviacionesPositivas = desviacionesMedidas.filter(f => f.desviacion > 0);
+    const anticipaciones = desviacionesMedidas.filter(f => f.desviacion < 0);
     const maxDesviacion = Math.max(0, ...desviacionesPositivas.map(f => f.desviacion));
+    // Si no hubo ninguna entrega tardía, conservamos la mejor entrega anticipada
+    // para poder mostrar, por ejemplo, "2 d antes" en Seguimiento Ejecutivo.
+    const maxAnticipacion = maxDesviacion === 0 && anticipaciones.length
+      ? Math.max(...anticipaciones.map(f => Math.abs(f.desviacion)))
+      : 0;
     const fasesAtrasadas = fases.filter(f => f.estado === 'ABIERTA_ATRASADA');
     const proximas = fases.filter(f => f.estado === 'PROXIMA_VENCER');
 
+    // Semáforo operativo: muestra únicamente la situación vigente del requerimiento.
+    // Las desviaciones cerradas y las reprogramaciones permanecen como información histórica,
+    // pero no cambian por sí solas el color actual del requerimiento.
     let salud = 'VERDE';
-    let motivoSalud = 'Sin riesgos actuales';
-    if (cancelado) { salud = 'NEUTRO'; motivoSalud = 'Requerimiento cancelado'; }
-    else if (maxAtraso > 5 || maxDesviacion > 5 || reprogramaciones >= 2) { salud = 'ROJO'; motivoSalud = maxAtraso > 5 ? `${maxAtraso} días de atraso` : maxDesviacion > 5 ? `${maxDesviacion} días de desviación` : `${reprogramaciones} reprogramaciones`; }
-    else if (maxAtraso > 0 || maxDesviacion > 0 || reprogramaciones === 1 || proximas.length) { salud = 'AMARILLO'; motivoSalud = maxAtraso > 0 ? `${maxAtraso} días de atraso` : maxDesviacion > 0 ? `${maxDesviacion} días de desviación` : reprogramaciones ? 'Reprogramado' : 'Próximo vencimiento'; }
+    let motivoSalud = 'En tiempo';
+    if (cancelado) {
+      salud = 'NEUTRO';
+      motivoSalud = 'Cancelado';
+    } else if (maxAtraso > 0) {
+      salud = 'ROJO';
+      motivoSalud = `Atrasado ${maxAtraso} d`;
+    } else if (proximas.length) {
+      const masProxima = [...proximas].sort((a, b) => a.proximoVencimiento - b.proximoVencimiento)[0];
+      salud = 'AMARILLO';
+      motivoSalud = masProxima?.proximoVencimiento === 0 ? 'Vence hoy' : 'Próximo a vencer';
+    }
 
-    return { proyecto: p, estatus, cancelado, fases, reprogramaciones, leadTime, cycleTime, antiguedad, atrasoTotal, maxAtraso, maxDesviacion, fasesAtrasadas, proximas, salud, motivoSalud };
+    return { proyecto: p, estatus, cancelado, fases, reprogramaciones, leadTime, cycleTime, antiguedad, atrasoTotal, maxAtraso, maxDesviacion, maxAnticipacion, fasesAtrasadas, proximas, salud, motivoSalud };
   }
 
   function promedio(lista) {

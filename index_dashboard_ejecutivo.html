@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.12/dist/html2canvas-pro.min.js"></script>
 
     
 <style>
@@ -54,8 +55,6 @@
 .pmo-risk-row{display:grid;grid-template-columns:minmax(0,1.5fr) 90px 100px 110px;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid #f1f5f9}
 .pmo-risk-row:last-child{border-bottom:0}
 .pmo-mini-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.pmo-mini-bar>span{display:block;height:100%;border-radius:999px}
-@media(max-width:760px){.pmo-risk-row{grid-template-columns:1fr 76px}.pmo-risk-hide-mobile{display:none}}
-
 /* PMO Control 3.0 - Command Center visible */
 .pmo-command-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:18px;margin-top:22px}
 .pmo-command-main{background:linear-gradient(135deg,#0f172a,#172554 55%,#1d4ed8);border-radius:24px;padding:24px;color:white;position:relative;overflow:hidden;box-shadow:0 18px 35px rgba(30,64,175,.18)}
@@ -84,7 +83,6 @@
         <section class="pmo-exec-hero">
             <div>
                 <h2 class="pmo-exec-title">Resumen Ejecutivo del Portafolio <br class="hidden sm:block"></h2>
-                <p class="pmo-exec-subtitle">Consulta el estado general, los indicadores clave y los requerimientos que necesitan atención.</p>
             </div>
         </section>
 
@@ -101,35 +99,89 @@
                 <div class="pmo-command-tile"><span>Críticos</span><strong id="pmo-command-criticos">0</strong><small class="text-xs text-rose-500 font-bold">Requieren intervención</small></div>
                 <div class="pmo-command-tile"><span>Próximos 7 días</span><strong id="pmo-command-proximos">0</strong><small class="text-xs text-amber-600 font-bold">Compromisos por vencer</small></div>
                 <div class="pmo-command-tile"><span>Cumplimiento</span><strong id="pmo-command-cumplimiento">—</strong><small class="text-xs text-violet-600 font-bold">Fases cerradas en tiempo</small></div>
-                <div class="pmo-command-tile"><span>Lead time</span><strong id="pmo-command-lead">—</strong><small class="text-xs text-blue-600 font-bold">Ingreso PMO a producción</small></div>
+                <div class="pmo-command-tile"><span>Lead time</span><strong id="pmo-command-lead">—</strong><small class="text-xs text-blue-600 font-bold">Ingreso a producción</small></div>
             </div>
         </section>
 
-        <!-- Indicadores ejecutivos -->
-        <section id="contenedor-contadores" class="pmo-summary-grid"></section>
-
         <!-- Dashboard Ejecutivo -->
         <section id="dashboard-ejecutivo" class="space-y-6">
-            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
                 <div>
                     <h2 class="text-2xl font-black text-slate-900 mt-1">Dashboard Ejecutivo</h2>
-                    <p class="text-sm text-slate-500 mt-1">Resumen de cumplimiento, tiempos y distribución de requerimientos.</p>
+                    <p id="dashboard-sistema-subtitulo" class="text-sm text-slate-500 mt-1">Resumen de cumplimiento, tiempos y distribución de requerimientos · Todos los sistemas.</p>
                 </div>
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <div class="text-xs text-slate-400 font-bold bg-white border border-slate-100 rounded-xl px-4 py-2 shadow-xs flex items-center">
-                        Actualizado automáticamente con la matriz vigente
-                    </div>
-                    <button onclick="generarReporteGAPSemanal()"
-                        class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer">
-                        <i data-lucide="file-text" class="w-4 h-4"></i>
-                        Generar Reporte GAP Semanal
-                    </button>
+                <div class="w-full sm:w-72 lg:mt-4">
+                    <label for="filtro-sistema-dashboard" class="block text-[10px] font-black uppercase tracking-wide text-slate-400 mb-1.5">Sistema</label>
+                    <select id="filtro-sistema-dashboard" onchange="filtrarDashboardPorSistema()" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400">
+                        <option value="">Todos los sistemas</option>
+                    </select>
                 </div>
             </div>
 
-            <div id="kpis-ejecutivos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+            <div id="kpis-ejecutivos" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <!-- Cierre de Sprint -->
+            <section id="cierre-sprint-panel" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+                <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                            <i data-lucide="calendar-check-2" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-black text-slate-900">Cierre de Sprint</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Sprint abierto = información viva · Sprint cerrado = fotografía histórica.</p>
+                        </div>
+                    </div>
+                    <div id="cierre-sprint-contexto" class="text-[10px] font-black uppercase tracking-wide text-slate-400">Selecciona un sistema</div>
+                </div>
+
+                <div id="cierre-sprint-contenido" class="mt-6">
+                    <div class="rounded-2xl border border-slate-100 bg-slate-50 p-5 text-sm text-slate-500">
+                        Selecciona un sistema en el filtro del Dashboard para consultar su Sprint vigente y sus cierres históricos.
+                    </div>
+                </div>
+            </section>
+
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-sm font-black text-slate-800">Visor de Adendums</h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Resumen de requerimientos base y sus adendums asociados</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 lg:min-w-[620px]">
+                        <div class="rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+                            <p class="text-[10px] font-black uppercase tracking-wide text-slate-400">Requerimientos base</p>
+                            <p id="adendum-rqm-base" class="text-2xl font-black text-slate-900 mt-1">0</p>
+                        </div>
+                        <button id="card-rqm-con-adendum" type="button" onclick="abrirVisorAdendums()" class="rounded-xl bg-violet-50 border border-violet-100 px-4 py-3 text-left hover:bg-violet-100 transition disabled:opacity-60 disabled:cursor-default">
+                            <div class="flex items-center justify-between gap-3">
+                                <div><p class="text-[10px] font-black uppercase tracking-wide text-violet-600">Con adendum</p><p id="adendum-rqm-con-adendum" class="text-2xl font-black text-violet-800 mt-1">0</p></div>
+                                <i data-lucide="list-tree" class="w-5 h-5 text-violet-500"></i>
+                            </div>
+                            <p class="text-[10px] text-violet-600 mt-1">Clic para ver cuáles</p>
+                        </button>
+                        <div class="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
+                            <p class="text-[10px] font-black uppercase tracking-wide text-blue-600">Adendums totales</p>
+                            <p id="adendum-total" class="text-2xl font-black text-blue-800 mt-1">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-4 gap-5 items-stretch">
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-wide text-slate-400">Urgentes</p>
+                            <h3 id="resumen-urgentes-total" class="text-3xl font-black text-slate-900 mt-2">0</h3>
+                            <p id="resumen-urgentes-detalle" class="text-xs text-slate-500 mt-1">0 liberados · 0 activos</p>
+                        </div>
+                        <div class="bg-orange-50 text-orange-700 w-11 h-11 rounded-2xl flex items-center justify-center">
+                            <i data-lucide="flame" class="w-5 h-5"></i>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-5">
                         <div><h3 class="text-sm font-black text-slate-800">Salud del Portafolio</h3><p class="text-xs text-slate-400 mt-0.5">Semáforo calculado por cumplimiento</p></div>
@@ -137,9 +189,10 @@
                     </div>
                     <div id="salud-portafolio" class="space-y-4"></div>
                 </div>
+
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 xl:col-span-2">
                     <div class="flex items-center justify-between mb-4">
-                        <div><h3 class="text-sm font-black text-slate-800">Requerimientos que requieren atención</h3><p class="text-xs text-slate-400 mt-0.5">Incluye casos críticos y compromisos próximos a vencer, sin duplicados.</p></div>
+                        <div><h3 class="text-sm font-black text-slate-800">Requerimientos que requieren atención</h3><p class="text-xs text-slate-400 mt-0.5">Incluye casos críticos y compromisos próximos a vencer.</p></div>
                         <i data-lucide="siren" class="w-5 h-5 text-amber-500"></i>
                     </div>
                     <div id="atencion-ejecutiva"></div>
@@ -155,50 +208,112 @@
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-sm font-black text-slate-800">Requerimientos por Estatus</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Distribución general del portafolio</p>
-                        </div>
+                        <div><h3 class="text-sm font-black text-slate-800">Requerimientos por Estatus</h3><p class="text-xs text-slate-400 mt-0.5">Distribución general del portafolio</p></div>
                         <i data-lucide="pie-chart" class="w-5 h-5 text-blue-500"></i>
                     </div>
                     <div class="h-72"><canvas id="chart-estatus"></canvas></div>
                 </div>
-
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-sm font-black text-slate-800">Requerimientos por Sistema</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Carga por aplicativo o plataforma</p>
-                        </div>
+                        <div><h3 class="text-sm font-black text-slate-800">Requerimientos por Sistema</h3><p class="text-xs text-slate-400 mt-0.5">Carga por aplicativo.</p></div>
                         <i data-lucide="monitor" class="w-5 h-5 text-cyan-500"></i>
                     </div>
                     <div class="h-72"><canvas id="chart-sistemas"></canvas></div>
                 </div>
-
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-sm font-black text-slate-800">Requerimientos por Sprint</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Volumen comprometido por sprint</p>
-                        </div>
+                        <div><h3 class="text-sm font-black text-slate-800">Carga por Sprint</h3><p class="text-xs text-slate-400 mt-0.5">Propios del Sprint y arrastres recibidos</p></div>
                         <i data-lucide="calendar-days" class="w-5 h-5 text-violet-500"></i>
                     </div>
                     <div class="h-72"><canvas id="chart-sprints"></canvas></div>
                 </div>
-
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-sm font-black text-slate-800">Liberaciones por Mes</h3>
-                            <p class="text-xs text-slate-400 mt-0.5">Tendencia de salida a producción</p>
-                        </div>
+                        <div><h3 class="text-sm font-black text-slate-800">Urgentes por Sprint</h3><p class="text-xs text-slate-400 mt-0.5">Requerimientos incorporados fuera de planeación por Sprint actual</p></div>
+                        <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center"><i data-lucide="flame" class="w-5 h-5"></i></div>
+                    </div>
+                    <div class="h-72"><canvas id="chart-urgentes-sprint"></canvas></div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <div><h3 class="text-sm font-black text-slate-800">Ingresos por Mes</h3><p class="text-xs text-slate-400 mt-0.5">Requerimientos incorporados a PMO según fecha de ingreso · Haz clic en un mes para ver los requerimientos</p></div>
+                        <i data-lucide="inbox" class="w-5 h-5 text-blue-500"></i>
+                    </div>
+                    <div class="h-80"><canvas id="chart-ingresos"></canvas></div>
+                </div>
+                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <div><h3 class="text-sm font-black text-slate-800">Liberaciones por Mes</h3><p class="text-xs text-slate-400 mt-0.5">Tendencia de salida a producción · Haz clic en un mes para ver los requerimientos</p></div>
                         <i data-lucide="trending-up" class="w-5 h-5 text-emerald-500"></i>
                     </div>
-                    <div class="h-72"><canvas id="chart-liberaciones"></canvas></div>
+                    <div class="h-80"><canvas id="chart-liberaciones"></canvas></div>
                 </div>
             </div>
         </section>
     </main>
+
+
+    <div id="modal-confirmar-sprint" class="hidden fixed inset-0 z-[210] bg-slate-950/55 backdrop-blur-sm p-4 flex items-center justify-center" onclick="if(event.target===this) PMOSprintClose.cancelAction()">
+        <div class="w-full max-w-lg rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex items-start gap-4">
+                <div id="confirmar-sprint-icono" class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="calendar-check-2" class="w-6 h-6"></i>
+                </div>
+                <div class="min-w-0">
+                    <p id="confirmar-sprint-kicker" class="text-[10px] font-black uppercase tracking-wide text-blue-500">Cierre de Sprint</p>
+                    <h3 id="confirmar-sprint-titulo" class="text-xl font-black text-slate-950 mt-1">Confirmar acción</h3>
+                    <p id="confirmar-sprint-mensaje" class="mt-2 text-sm leading-6 text-slate-600"></p>
+                </div>
+            </div>
+            <div class="p-5 bg-slate-50 flex justify-end gap-3">
+                <button type="button" onclick="PMOSprintClose.cancelAction()" class="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-black">Cancelar</button>
+                <button id="confirmar-sprint-aceptar" type="button" class="px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg shadow-blue-600/20">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-cierre-sprint" class="hidden fixed inset-0 z-[130] bg-slate-950/50 backdrop-blur-sm p-4 flex items-center justify-center" onclick="if(event.target===this) cerrarModalCierreSprint()">
+        <div class="bg-white w-full max-w-6xl max-h-[90vh] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4">
+                <div>
+                    <h3 id="modal-cierre-sprint-titulo" class="font-black text-slate-900 text-xl mt-1">Cierre de Sprint</h3>
+                    <p id="modal-cierre-sprint-subtitulo" class="text-xs text-slate-500 mt-1"></p>
+                </div>
+                <button type="button" onclick="cerrarModalCierreSprint()" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="modal-cierre-sprint-body" class="p-6 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <div id="modal-detalle-dashboard" class="hidden fixed inset-0 z-[125] bg-slate-950/45 backdrop-blur-sm p-4 flex items-center justify-center" onclick="if(event.target===this) cerrarDetalleDashboard()">
+        <div class="bg-white w-full max-w-5xl max-h-[82vh] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4">
+                <div>
+                    <h3 id="detalle-dashboard-titulo" class="font-black text-slate-900 text-lg">Detalle</h3>
+                    <p id="detalle-dashboard-subtitulo" class="text-xs text-slate-500 mt-1"></p>
+                </div>
+                <button type="button" onclick="cerrarDetalleDashboard()" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="detalle-dashboard-body" class="p-6 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <div id="modal-visor-adendums" class="hidden fixed inset-0 z-[120] bg-slate-950/45 backdrop-blur-sm p-4 flex items-center justify-center" onclick="if(event.target===this) cerrarVisorAdendums()">
+        <div class="bg-white w-full max-w-3xl max-h-[82vh] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col">
+            <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-black text-slate-900 text-lg">Requerimientos con adendum</h3>
+                    <p class="text-xs text-slate-500 mt-1">Listado de RQM base y adendums asociados</p>
+                </div>
+                <button type="button" onclick="cerrarVisorAdendums()" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div id="visor-adendums-body" class="p-6 overflow-y-auto space-y-4"></div>
+        </div>
+    </div>
 
     <div id="orbita-modales-requerimientos"></div>
     <script src="js/pmo-auth.js"></script>
@@ -208,6 +323,7 @@
     <script src="js/pmo-metrics.js"></script>
     <script src="js/pmo-app.js"></script>
     <script src="js/pmo-dialogs.js"></script>
+    <script src="js/pmo-sprint-close.js"></script>
 </body>
 
 </html>

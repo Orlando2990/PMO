@@ -76,23 +76,24 @@
       <div class="absolute -top-24 -right-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl"></div>
       <div class="relative z-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
         <div>
-          <div class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/10 px-4 py-2 text-xs font-black text-blue-100 mb-4"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i>Sustituto del Excel de Control de Requerimientos</div>
           <h2 class="pmo-exec-title">Control de números de requerimiento</h2>
-          <p class="text-blue-100/80 text-sm mt-2 max-w-3xl">Registra quién solicitó el requerimiento, cuándo se asignó el folio, el sistema relacionado, el número RQM y observaciones.</p>
         </div>
         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-          <button onclick="abrirModalRQM()" class="pmo-hero-primary"><i data-lucide="plus" class="w-4 h-4"></i>Nuevo RQM</button>
+          <button onclick="abrirModalRQM()" class="pmo-hero-primary pmo-hero-primary-emphasis"><i data-lucide="plus" class="w-4 h-4"></i>Nuevo RQM</button>
         </div>
       </div>
     </section>
 
-    <section id="rqm-kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></section>
+    <section id="rqm-kpis" class="pmo-ytd-panel" aria-label="Resumen del Buzón de RQM"></section>
 
     <section class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
       <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <h3 class="text-xl font-black text-slate-900">Listado de requerimientos</h3>
-          <p class="text-sm text-slate-500">CRUD inicial para reemplazar el control manual en Excel.</p>
+          <div id="siguiente-rqm-disponible" class="mt-2 inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-bold text-blue-700">
+            <i data-lucide="info" class="w-4 h-4"></i>
+            <span>Siguiente número de requerimiento disponible: calculando...</span>
+          </div>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full xl:w-auto">
           <input id="filtro-buscar-rqm" oninput="renderRegistrosRQM()" class="border border-slate-200 rounded-xl px-4 py-2 text-sm" placeholder="Buscar proyecto, RQM o solicitante...">
@@ -218,6 +219,12 @@ function badgeEstatus(e){
   return 'bg-slate-50 text-slate-700 border-slate-100';
 }
 
+function etiquetaEstatusVisible(e){
+  const n=normalizar(e);
+  if(n==='CONVERTIDO A PMO') return 'APROBADO';
+  return e || 'REGISTRADO';
+}
+
 
 
 function valorObservacion(observaciones, etiqueta){
@@ -229,7 +236,7 @@ function valorObservacion(observaciones, etiqueta){
 function comentariosConversacion(observaciones){
   const txt = String(observaciones || '');
   const bloques = [];
-  const re = /---\s*\n(COMENTARIO\s+(?:PMO|USUARIO)[^\n]*):\s*\n([\s\S]*?)(?=\n\n---\s*\n|$)/gi;
+  const re = /---\s*\n(COMENTARIO\s+(?:PMO|ADMINISTRADOR|USUARIO)[^\n]*):\s*\n([\s\S]*?)(?=\n\n---\s*\n|$)/gi;
   let m;
   while((m = re.exec(txt))){
     const contenido = String(m[2] || '').trim();
@@ -240,7 +247,7 @@ function comentariosConversacion(observaciones){
 
 function observacionOperativa(observaciones){
   return String(observaciones || '')
-    .replace(/\n*---\s*\nCOMENTARIO\s+(?:PMO|USUARIO)[^\n]*:\s*\n[\s\S]*?(?=\n\n---\s*\nCOMENTARIO\s+(?:PMO|USUARIO)|$)/gi, '')
+    .replace(/\n*---\s*\nCOMENTARIO\s+(?:PMO|ADMINISTRADOR|USUARIO)[^\n]*:\s*\n[\s\S]*?(?=\n\n---\s*\nCOMENTARIO\s+(?:PMO|ADMINISTRADOR|USUARIO)|$)/gi, '')
     .trim();
 }
 function rqmToPDFData(r){
@@ -295,7 +302,7 @@ function appendComentarioPMO(observaciones, comentario, accion){
   const bloque = `
 
 ---
-COMENTARIO PMO (${accion} - ${fecha}):
+COMENTARIO ADMINISTRADOR (${accion} - ${fecha}):
 ${texto}`;
   return (base + bloque).trim();
 }
@@ -313,7 +320,7 @@ function detalleRQMHtml(r){
   return `<div class="space-y-4 text-sm">
     <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4 flex items-start gap-3">
       <i data-lucide="messages-square" class="w-5 h-5 text-blue-600 mt-0.5"></i>
-      <div><p class="font-black text-blue-900">Comentarios entre el usuario y PMO</p><p class="text-blue-700 mt-1">Aquí se muestran únicamente las observaciones intercambiadas durante la revisión del RQM.</p></div>
+      <div><p class="font-black text-blue-900">Comentarios entre usuario y Administrador</p></div>
     </div>
     <div class="rounded-2xl bg-slate-50 border border-slate-200 p-5">
       ${comentarios ? `<pre class="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">${esc(comentarios)}</pre>` : `<div class="py-8 text-center text-slate-400"><i data-lucide="message-circle" class="w-8 h-8 mx-auto mb-3"></i><p class="font-bold">Aún no hay comentarios registrados.</p></div>`}
@@ -330,7 +337,7 @@ function abrirModalComentarioPMO(id, estatus, accion){
   if(!r) return;
   const body = `<div class="space-y-4">
     <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Requerimiento</p><p class="font-black text-slate-950 mt-1">${esc(r.numero_rqm || '—')} · ${esc(r.proyecto || '—')}</p></div>
-    <div><label class="label-rqm">Comentario para el usuario</label><textarea id="comentario-pmo-accion" class="input-rqm" style="min-height:130px;padding-top:12px" placeholder="Escribe aquí el comentario que verá el usuario normal."></textarea></div>
+    <div><label class="label-rqm">Comentario para el usuario</label><textarea id="comentario-pmo-accion" class="input-rqm" style="min-height:130px;padding-top:12px"></textarea></div>
   </div>`;
   const footer = `<button type="button" onclick="cerrarModalPMO()" class="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-black">Cancelar</button>
     <button type="button" onclick="guardarEstatusComentarioPMO('${id}','${estatus}','${accion}')" class="px-5 py-3 rounded-xl bg-blue-600 text-white font-black">Guardar</button>`;
@@ -472,8 +479,22 @@ function renderKPIs(lista){
   const conNumero=lista.filter(r=>r.numero_rqm).length;
   const sistemasUnicos=new Set(lista.map(r=>r.sistema_nombre).filter(Boolean)).size;
   const conObservaciones=lista.filter(r=>observacionOperativa(r.observaciones)).length;
-  const cards=[['TOTAL',total,'layers','bg-blue-50 text-blue-700'],['CON NÚMERO',conNumero,'hash','bg-emerald-50 text-emerald-700'],['OBSERVACIONES',conObservaciones,'message-square-text','bg-rose-50 text-rose-700'],['SISTEMAS',sistemasUnicos,'monitor','bg-slate-50 text-slate-700']];
-  document.getElementById('rqm-kpis').innerHTML=cards.map(c=>`<div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5"><div class="flex justify-between items-start"><div><p class="text-xs font-black text-slate-400 tracking-wider">${c[0]}</p><p class="text-3xl font-black text-slate-950 mt-2">${c[1]}</p></div><div class="p-3 rounded-2xl ${c[3]}"><i data-lucide="${c[2]}" class="w-5 h-5"></i></div></div></div>`).join('');
+  const cards=[['TOTAL',total],['CON NÚMERO',conNumero],['OBSERVACIONES',conObservaciones],['SISTEMAS',sistemasUnicos]];
+  document.getElementById('rqm-kpis').innerHTML=`
+    <div class="pmo-ytd-head"><h3 class="pmo-ytd-title">Resumen del Buzón de RQM</h3></div>
+    <div class="pmo-ytd-grid pmo-ytd-grid-four">
+      ${cards.map(c=>`<div class="pmo-ytd-item"><div class="pmo-ytd-value">${c[1]}</div><div class="pmo-ytd-label">${c[0]}</div></div>`).join('')}
+    </div>`;
+}
+function obtenerSiguienteNumeroRQM(){
+  const numeros=registrosRQM.map(r=>String(r.numero_rqm||'').match(/(\d+)\s*$/)).filter(Boolean).map(m=>Number(m[1])).filter(Number.isFinite);
+  const siguiente=(numeros.length ? Math.max(...numeros) : 0) + 1;
+  return `RQM 00 ${String(siguiente).padStart(2,'0')}`;
+}
+function actualizarSiguienteNumeroRQM(){
+  const nodo=document.getElementById('siguiente-rqm-disponible');
+  if(!nodo) return;
+  nodo.innerHTML=`<i data-lucide="info" class="w-4 h-4"></i><span>Siguiente número de requerimiento disponible: <strong>${esc(obtenerSiguienteNumeroRQM())}</strong></span>`;
 }
 function renderRegistrosRQM(){
   const q=normalizar(document.getElementById('filtro-buscar-rqm').value);
@@ -483,6 +504,7 @@ function renderRegistrosRQM(){
     return (!q || text.includes(q)) && (!sis || normalizar(r.sistema_nombre)===sis);
   });
   renderKPIs(lista);
+  actualizarSiguienteNumeroRQM();
   const tbody=document.getElementById('tabla-rqm-control');
   if(!lista.length){ tbody.innerHTML='<tr><td colspan="8" class="p-8 text-center text-slate-400">Sin registros.</td></tr>'; lucide.createIcons(); return; }
   tbody.innerHTML=lista.map(r=>`<tr class="hover:bg-slate-50/70 transition">
@@ -492,11 +514,11 @@ function renderRegistrosRQM(){
     <td class="p-4 text-slate-600">${fmtFecha(r.fecha_asignacion)}</td>
     <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-black">${esc(r.numero_rqm||'—')}</span></td>
     <td class="p-4 max-w-xs text-slate-500 truncate" title="${esc(observacionOperativa(r.observaciones))}">${esc(observacionOperativa(r.observaciones)||'—')}</td>
-    <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full border text-xs font-black ${badgeEstatus(r.estatus)}">${esc(r.estatus||'REGISTRADO')}</span></td>
+    <td class="p-4"><span class="inline-flex px-3 py-1 rounded-full border text-xs font-black ${badgeEstatus(r.estatus)}">${esc(etiquetaEstatusVisible(r.estatus))}</span></td>
     <td class="p-4 text-right whitespace-nowrap">
       <button onclick="verDetalleRQM('${r.id}')" class="pmo-action-btn text-slate-600" title="Ver detalle capturado"><i data-lucide="eye" class="w-4 h-4"></i></button>
       <button onclick="descargarFormatoRQM('${r.id}')" class="pmo-action-btn text-slate-700" title="Descargar formato ${formatoDescargaRQM==='pdf'?'PDF':'Word'}"><i data-lucide="download" class="w-4 h-4"></i></button>
-      <button onclick="convertirRQMProyecto('${r.id}')" class="pmo-action-btn text-emerald-600 ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'opacity-40 cursor-not-allowed' : ''}" title="Aprobar / Convertir a Proyecto PMO" ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'disabled' : ''}><i data-lucide="check-circle-2" class="w-4 h-4"></i></button>
+      <button onclick="convertirRQMProyecto('${r.id}')" class="pmo-action-btn text-emerald-600 ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'opacity-40 cursor-not-allowed' : ''}" title="Aprobar" ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? 'disabled' : ''}><i data-lucide="check-circle-2" class="w-4 h-4"></i></button>
       <button onclick="actualizarEstatusConComentario('${r.id}','REQUIERE AJUSTE','Requiere ajuste')" class="pmo-action-btn text-amber-600" title="Solicitar ajuste / comentar"><i data-lucide="message-square-warning" class="w-4 h-4"></i></button>
       <button onclick="actualizarEstatusConComentario('${r.id}','RECHAZADO','Rechazado')" class="pmo-action-btn text-rose-600" title="Rechazar"><i data-lucide="x-circle" class="w-4 h-4"></i></button>
       <button onclick="editarRegistroRQM('${r.id}')" class="pmo-action-btn text-blue-600" title="Editar"><i data-lucide="pencil" class="w-4 h-4"></i></button>
@@ -582,21 +604,20 @@ function editarRegistroRQM(id){
 function convertirRQMProyecto(id){
   const r=registrosRQM.find(x=>x.id===id); if(!r) return;
   if(normalizar(r.estatus)==='CONVERTIDO A PMO'){
-    abrirModalPMO('RQM ya convertido', r.numero_rqm || 'Solicitud', '<p class="text-slate-600">Este requerimiento ya fue convertido a Proyecto PMO.</p>');
+    abrirModalPMO('RQM ya aprobado', r.numero_rqm || 'Solicitud', '<p class="text-slate-600">Este requerimiento ya fue aprobado y agregado a la Matriz de Requerimientos.</p>');
     return;
   }
   if(!r.numero_rqm || !r.proyecto){
-    abrirModalPMO('Información incompleta', r.numero_rqm || 'Solicitud', '<p class="text-slate-600">Para convertirlo, el registro debe tener número RQM y nombre del proyecto.</p>');
+    abrirModalPMO('Información incompleta', r.numero_rqm || 'Solicitud', '<p class="text-slate-600">Para aprobarlo, el registro debe tener número RQM y nombre del proyecto.</p>');
     return;
   }
   const body = `<div class="space-y-4">
-    <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4 text-blue-900">Se creará el proyecto en la matriz principal sin fechas obligatorias para completarlo después.</div>
+    <div class="rounded-2xl bg-blue-50 border border-blue-100 p-4 text-blue-900">Se creará el proyecto en la Matriz de Proyectos.</div>
     <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black text-slate-400 uppercase">Requerimiento</p><p class="font-black text-slate-950 mt-1">${esc(r.numero_rqm)} · ${esc(r.proyecto)}</p></div>
-    <p class="text-sm text-slate-500">La aprobación actualizará el estatus sin agregar comentarios automáticos en Observaciones.</p>
   </div>`;
   const footer = `<button type="button" onclick="cerrarModalPMO()" class="px-5 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 font-black">Cancelar</button>
-    <button type="button" onclick="ejecutarConversionRQM('${id}')" class="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black">Aprobar y convertir</button>`;
-  abrirModalPMO('Aprobar / convertir a PMO', r.numero_rqm, body, footer);
+    <button type="button" onclick="ejecutarConversionRQM('${id}')" class="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black">Aprobar</button>`;
+  abrirModalPMO('Aprobar', r.numero_rqm, body, footer);
 }
 async function ejecutarConversionRQM(id){
   const r=registrosRQM.find(x=>x.id===id); if(!r) return;
@@ -623,6 +644,24 @@ async function ejecutarConversionRQM(id){
     }
     const descripcionGeneral = r.datos_formulario?.descripcion_general || valorObservacion(r.observaciones, 'Descripción') || null;
     const fechaCaptura = String(r.fecha_asignacion || r.created_at || '').slice(0,10) || null;
+
+    const esAdendum = r.tipo_registro === 'ADENDUM';
+    let padrePMOId = null;
+    if(esAdendum){
+      if(!r.requerimiento_padre_id) throw new Error('El adendum no tiene un requerimiento padre estructurado.');
+      const {data:padreSolicitud,error:errorPadreSolicitud}=await _supabase
+        .from('rqm_control_requerimientos').select('numero_rqm,tipo_registro')
+        .eq('id',r.requerimiento_padre_id).single();
+      if(errorPadreSolicitud) throw errorPadreSolicitud;
+      if((padreSolicitud.tipo_registro||'REQUERIMIENTO')!=='REQUERIMIENTO')
+        throw new Error('El padre del adendum debe ser un requerimiento base.');
+      const {data:padrePMO,error:errorPadrePMO}=await _supabase
+        .from('pmo_projects').select('id,id_req').eq('id_req',padreSolicitud.numero_rqm).maybeSingle();
+      if(errorPadrePMO) throw errorPadrePMO;
+      if(!padrePMO) throw new Error('Primero debe aprobarse el requerimiento base antes de aprobar su adendum.');
+      padrePMOId=padrePMO.id;
+    }
+
     const payload={
       id_req:r.numero_rqm,
       nombre_rqm:r.proyecto,
@@ -635,6 +674,10 @@ async function ejecutarConversionRQM(id){
       clasificacion_id:clasificacionId,
       descripcion:descripcionGeneral,
       fecha_ingreso_pmo:fechaCaptura,
+      tipo_incorporacion:'PLANEADO',
+      tipo_registro:esAdendum?'ADENDUM':'REQUERIMIENTO',
+      requerimiento_padre_id:esAdendum?padrePMOId:null,
+      numero_adendum:esAdendum?(Number(r.numero_adendum)||null):null,
       comentarios:null
     };
     const {error:errorInsert}=await _supabase.from('pmo_projects').insert([payload]);
@@ -648,14 +691,14 @@ async function ejecutarConversionRQM(id){
     await cargarRegistrosRQM();
   }catch(e){
     console.error(e);
-    alert('No se pudo convertir a Proyecto PMO: '+(e.message||e));
+    alert('No se pudo aprobar el requerimiento: '+(e.message||e));
   }
 }
 
 async function eliminarRegistroRQM(id){
   const r=registrosRQM.find(x=>x.id===id); if(!r) return;
   if(!puedeEliminarDesdeBuzon(r)){
-    await PMOAlert('Acción bloqueada', 'Este requerimiento ya fue aprobado o convertido a PMO. Para conservar la trazabilidad no puede eliminarse desde el Buzón.');
+    await PMOAlert('Acción bloqueada', 'Este requerimiento ya fue aprobado por el Administrador. Para conservar la trazabilidad no puede eliminarse desde el Buzón.');
     return;
   }
   if(!(await PMOConfirm(`Se eliminará ${r.numero_rqm || 'este registro'} del Buzón y también dejará de aparecer en la lista del usuario. Esta acción no se puede deshacer.`))) return;

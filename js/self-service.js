@@ -89,11 +89,12 @@ async function cargarRequerimientosBase(){
 }
 
 function getClaseRegistro(){ return valorCheckUnico('ss-clase-registro','REQUERIMIENTO'); }
-function actualizarTipoRegistroUI(){
+async function actualizarTipoRegistroUI(){
   const esAdendum=getClaseRegistro()==='ADENDUM';
   document.getElementById('ss-adendum-padre-wrap')?.classList.toggle('hidden',!esAdendum);
   const padre=document.getElementById('ss-adendum-padre'); if(padre) padre.required=esAdendum;
-  document.getElementById('folio-preview').textContent=esAdendum?'Adendum pendiente':'Folio pendiente';
+  if(solicitudEditandoId) return;
+  await actualizarFolioPreview();
 }
 
 function getSistemaSeleccionado(){
@@ -113,24 +114,111 @@ function formatNumeroRQM(n){
   return `RQM ${padded.slice(0,2)} ${padded.slice(2)}`;
 }
 
-async function obtenerSiguienteRQM(sistema){
-  let query = _supabase
+async function obtenerSiguienteRQM(){
+  // El consecutivo RQM es GLOBAL para todo el portafolio.
+  // Genesis, One Clic u Otro comparten la misma secuencia.
+  const { data, error } = await _supabase
     .from('rqm_control_requerimientos')
-    .select('numero_rqm,sistema_id,sistema_nombre')
+    .select('numero_rqm')
     .not('numero_rqm','is',null)
     .limit(1000);
-  if(sistema.id) query = query.eq('sistema_id', sistema.id);
-  else query = query.eq('sistema_nombre', sistema.nombre);
-  const { data, error } = await query;
   if(error) throw error;
-  const max = (data || []).reduce((acc, r) => Math.max(acc, parseNumeroRQM(r.numero_rqm)), 0);
+
+  // Para el consecutivo base ignoramos adendums (A1, A2, ...),
+  // ya que conservan el folio de su requerimiento padre.
+  const max = (data || []).reduce((acc, r) => {
+    const folio = String(r.numero_rqm || '').trim();
+    if(!/^RQM\s+\d+\s+\d+$/i.test(folio)) return acc;
+    return Math.max(acc, parseNumeroRQM(folio));
+  }, 0);
   return formatNumeroRQM(max + 1);
+}
+
+
+async function obtenerSiguienteAdendum(padreId){
+  const padre=requerimientosBase.find(r=>String(r.id)===String(padreId));
+  if(!padre) return null;
+
+  // 1) Adendums ya creados o todavía pendientes en Self Service.
+  const {data:solicitudes,error:errorSolicitudes}=await _supabase
+    .from('rqm_control_requerimientos')
+    .select('numero_rqm,numero_adendum,requerimiento_padre_id')
+    .or(`requerimiento_padre_id.eq.${padreId},numero_rqm.ilike.A% ${padre.numero_rqm}`)
+    .limit(1000);
+  if(errorSolicitudes) throw errorSolicitudes;
+
+  // 2) Adendums históricos/ya aprobados que viven en la Matriz PMO.
+  // Se consulta por la relación formal y, como respaldo para históricos,
+  // también por el folio A# RQM ## ##.
+  let matriz=[];
+  try{
+    const {data:padrePMO,error:errorPadrePMO}=await _supabase
+      .from('pmo_projects')
+      .select('id,id_req')
+      .eq('id_req',padre.numero_rqm)
+      .maybeSingle();
+    if(errorPadrePMO) throw errorPadrePMO;
+
+    if(padrePMO){
+      const {data:datosMatriz,error:errorMatriz}=await _supabase
+        .from('pmo_projects')
+        .select('id_req,numero_adendum,requerimiento_padre_id,tipo_registro')
+        .or(`requerimiento_padre_id.eq.${padrePMO.id},id_req.ilike.A% ${padre.numero_rqm}`)
+        .limit(1000);
+      if(errorMatriz) throw errorMatriz;
+      matriz=datosMatriz||[];
+    }else{
+      const {data:datosMatriz,error:errorMatriz}=await _supabase
+        .from('pmo_projects')
+        .select('id_req,numero_adendum,requerimiento_padre_id,tipo_registro')
+        .ilike('id_req',`A% ${padre.numero_rqm}`)
+        .limit(1000);
+      if(errorMatriz) throw errorMatriz;
+      matriz=datosMatriz||[];
+    }
+  }catch(e){
+    console.warn('No fue posible consultar adendums de Matriz PMO:',e?.message||e);
+  }
+
+  const obtenerNumero=(r, campoFolio)=>{
+    const directo=Number(r?.numero_adendum||0);
+    const match=String(r?.[campoFolio]||'').trim().match(/^A(\d+)\s+RQM/i);
+    return Math.max(directo,match?Number(match[1]):0);
+  };
+
+  const maxSolicitudes=(solicitudes||[]).reduce((acc,r)=>Math.max(acc,obtenerNumero(r,'numero_rqm')),0);
+  const maxMatriz=(matriz||[]).reduce((acc,r)=>Math.max(acc,obtenerNumero(r,'id_req')),0);
+  const siguiente=Math.max(maxSolicitudes,maxMatriz)+1;
+
+  return `A${siguiente} ${padre.numero_rqm}`;
+}
+
+async function actualizarFolioPreview(){
+  const preview=document.getElementById('folio-preview');
+  if(!preview || solicitudEditandoId) return;
+  try{
+    const esAdendum=getClaseRegistro()==='ADENDUM';
+    if(esAdendum){
+      const padreId=document.getElementById('ss-adendum-padre')?.value || '';
+      if(!padreId){ preview.textContent='Selecciona el requerimiento base'; return; }
+      const siguiente=await obtenerSiguienteAdendum(padreId);
+      preview.textContent=siguiente ? `Siguiente adendum disponible: ${siguiente}` : 'Selecciona el requerimiento base';
+      return;
+    }
+    const sistema=getSistemaSeleccionado();
+    if(!sistema.nombre){ preview.textContent='Selecciona el sistema'; return; }
+    const siguiente=await obtenerSiguienteRQM();
+    preview.textContent=`Siguiente número disponible: ${siguiente}`;
+  }catch(e){
+    console.error('No se pudo calcular el siguiente folio',e);
+    preview.textContent='Siguiente número disponible: —';
+  }
 }
 
 function mapEstatusUsuario(e){
   const n = normalizar(e);
-  if(n === 'CONVERTIDO A PMO') return 'APROBADA PMO';
-  if(n === 'REGISTRADO' || n === 'NUEVO' || n === 'ENVIADA') return 'EN REVISIÓN PMO';
+  if(n === 'CONVERTIDO A PMO') return 'APROBADA POR ADMINISTRADOR';
+  if(n === 'REGISTRADO' || n === 'NUEVO' || n === 'ENVIADA') return 'EN REVISIÓN DEL ADMINISTRADOR';
   if(n.includes('AJUSTE')) return 'REQUIERE AJUSTE';
   if(n === 'DESARROLLO') return 'EN DESARROLLO';
   if(n === 'QA') return 'EN QA';
@@ -151,7 +239,7 @@ function badgeClass(e){
 function comentariosConversacionSS(observaciones){
   const txt = String(observaciones || '');
   const bloques = [];
-  const re = /---\s*\n(COMENTARIO\s+(?:PMO|USUARIO)[^\n]*):\s*\n([\s\S]*?)(?=\n\n---\s*\n|$)/gi;
+  const re = /---\s*\n(COMENTARIO\s+(?:PMO|ADMINISTRADOR|USUARIO)[^\n]*):\s*\n([\s\S]*?)(?=\n\n---\s*\n|$)/gi;
   let m;
   while((m = re.exec(txt))){
     const contenido = String(m[2] || '').trim();
@@ -165,7 +253,7 @@ function extraerComentarioPMO(observaciones){
 function conservarComentariosConversacion(observaciones){
   const txt = String(observaciones || '');
   const bloques = [];
-  const re = /---\s*\n(COMENTARIO\s+(?:PMO|USUARIO)[^\n]*):\s*\n([\s\S]*?)(?=\n\n---\s*\n|$)/gi;
+  const re = /---\s*\n(COMENTARIO\s+(?:PMO|ADMINISTRADOR|USUARIO)[^\n]*):\s*\n([\s\S]*?)(?=\n\n---\s*\n|$)/gi;
   let m;
   while((m = re.exec(txt))){
     const contenido = String(m[2] || '').trim();
@@ -214,7 +302,7 @@ function solicitudToFormData(r){
     firmantes_usuarios: Array.isArray(datos.firmantes_usuarios) ? datos.firmantes_usuarios : (()=>{ try{return JSON.parse(valorObservacion(obs,'Firmantes')||'[]')}catch(e){return []} })()
   };
 }
-function buildObservacionesFromData(f, intro='Generado desde Self Service. Pendiente de revisión PMO.'){
+function buildObservacionesFromData(f, intro='Generado desde Self Service. Pendiente de revisión del Administrador.'){
   return [
     intro,
     f.tipo_requerimiento ? `Tipo de requerimiento: ${f.tipo_requerimiento}` : '',
@@ -247,7 +335,7 @@ function semaforoTexto(estatus){
   if(n.includes('RECHAZADO')) return 'Rechazada';
   if(n.includes('CANCELADO')) return 'Cancelada';
   if(n.includes('LIBERADA')) return 'Liberada';
-  if(n.includes('APROBADA')) return 'Aprobada por PMO';
+  if(n.includes('APROBADA')) return 'Aprobada por Administrador';
   if(n.includes('DESARROLLO') || n.includes('QA') || n.includes('UAT')) return 'En proceso';
   return 'En revisión';
 }
@@ -279,8 +367,8 @@ function verDetalleSolicitud(idx){
 function verComentariosPMO(idx){
   const r = misSolicitudes[idx];
   if(!r) return;
-  const comentario = extraerComentarioPMO(r.observaciones) || 'PMO aún no ha agregado comentarios para esta solicitud.';
-  abrirModalSS('Comentarios de PMO', r.numero_rqm || 'Solicitud', `<div class="comment-box whitespace-pre-wrap">${esc(comentario)}</div>`);
+  const comentario = extraerComentarioPMO(r.observaciones) || 'El Administrador aún no ha agregado comentarios para esta solicitud.';
+  abrirModalSS('Comentarios', r.numero_rqm || 'Solicitud', `<div class="comment-box whitespace-pre-wrap">${esc(comentario)}</div>`);
 }
 function abrirEditarSolicitud(idx){
   const r = misSolicitudes[idx];
@@ -305,7 +393,7 @@ function abrirEditarSolicitud(idx){
       <div class="md:col-span-3"><label class="field-label">Antecedentes</label><textarea id="edit-ss-antecedentes" rows="3" class="field-input">${esc(f.antecedentes)}</textarea></div>
       <div class="md:col-span-3"><label class="field-label">Objetivo</label><textarea id="edit-ss-objetivo" rows="3" class="field-input">${esc(f.objetivo)}</textarea></div>
       <div class="md:col-span-3"><label class="field-label">Descripción detallada / observaciones</label><textarea id="edit-ss-detalle" rows="5" class="field-input">${esc(f.descripcion_detallada)}</textarea></div>
-      <div class="md:col-span-3"><label class="field-label">Comentario para PMO *</label><textarea id="edit-ss-comentario" rows="3" class="field-input" placeholder="Ej. Ya corregí la información solicitada." required></textarea></div>
+      <div class="md:col-span-3"><label class="field-label">Comentario para el Administrador *</label><textarea id="edit-ss-comentario" rows="3" class="field-input" placeholder="Ej. Ya corregí la información solicitada." required></textarea></div>
     </div>
   </form>`;
   const footer = `<button type="button" onclick="cerrarModalSS()" class="px-5 py-3 rounded-xl border border-slate-200 bg-white font-black text-slate-700">Cancelar</button>
@@ -337,9 +425,9 @@ async function guardarEdicionSolicitudUsuario(){
     descripcion_detallada: document.getElementById('edit-ss-detalle').value.trim()
   };
   const comentario = document.getElementById('edit-ss-comentario').value.trim();
-  if(!f.sistema_id || !f.proyecto || !f.descripcion_general || !f.solicitado_por || !f.area_nombre || !comentario){ alert('Completa los campos obligatorios y el comentario para PMO.'); return; }
+  if(!f.sistema_id || !f.proyecto || !f.descripcion_general || !f.solicitado_por || !f.area_nombre || !comentario){ alert('Completa los campos obligatorios y el comentario para el Administrador.'); return; }
   const fecha = new Date().toLocaleString('es-MX');
-  const observaciones = `${buildObservacionesFromData(f, 'Solicitud corregida por usuario. Pendiente de revisión PMO.')}
+  const observaciones = `${buildObservacionesFromData(f, 'Solicitud corregida por usuario. Pendiente de revisión del Administrador.')}
 
 ---
 COMENTARIO USUARIO (${fecha}):
@@ -357,7 +445,7 @@ ${comentario}`.trim();
   if(error){ alert('No se pudo guardar la corrección: ' + error.message); return; }
   cerrarModalSS();
   await cargarMisSolicitudes();
-  alert('Tu corrección fue enviada a PMO.');
+  alert('Tu corrección fue enviada al Administrador.');
 }
 
 function activarGruposUnicos(){
@@ -367,19 +455,21 @@ function activarGruposUnicos(){
       if(!group.querySelector('input:checked')) ch.checked = true;
     }));
   });
-  document.querySelectorAll('input[name="ss-clase-registro"]').forEach(ch=>ch.addEventListener('change',actualizarTipoRegistroUI));
-  document.getElementById('ss-adendum-padre')?.addEventListener('change',e=>{
+  document.querySelectorAll('input[name="ss-clase-registro"]').forEach(ch=>ch.addEventListener('change',()=>actualizarTipoRegistroUI()));
+  document.getElementById('ss-adendum-padre')?.addEventListener('change',async e=>{
     const r=requerimientosBase.find(x=>x.id===e.target.value);
-    if(!r) return;
-    document.querySelectorAll('input[name="ss-sistema-check"]').forEach(ch=>{
-      ch.checked=(r.sistema_id && ch.value===r.sistema_id) || (!r.sistema_id && normalizar(ch.dataset.nombre)===normalizar(r.sistema_nombre));
-    });
-    document.getElementById('folio-preview').textContent=`Siguiente adendum de ${r.numero_rqm}`;
+    if(r){
+      document.querySelectorAll('input[name="ss-sistema-check"]').forEach(ch=>{
+        ch.checked=(r.sistema_id && ch.value===r.sistema_id) || (!r.sistema_id && normalizar(ch.dataset.nombre)===normalizar(r.sistema_nombre));
+      });
+    }
+    await actualizarFolioPreview();
   });
-  document.querySelectorAll('input[name="ss-sistema-check"]').forEach(ch => ch.addEventListener('change', () => {
+  document.querySelectorAll('input[name="ss-sistema-check"]').forEach(ch => ch.addEventListener('change', async () => {
     if(ch.checked) document.querySelectorAll('input[name="ss-sistema-check"]').forEach(other => { if(other !== ch) other.checked = false; });
     if(!document.querySelector('input[name="ss-sistema-check"]:checked')) ch.checked = true;
     document.getElementById('ss-sistema-otro-wrap')?.classList.toggle('hidden', !(ch.checked && ch.value === 'OTRO'));
+    if(getClaseRegistro()!=='ADENDUM') await actualizarFolioPreview();
   }));
 }
 function valoresChecks(name){ return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(x=>x.value); }
@@ -606,7 +696,8 @@ function limpiarFormulario(){
   document.querySelectorAll('input[name="ss-clase-registro"]').forEach((x,i)=>x.checked=i===0);
   const padre=document.getElementById('ss-adendum-padre'); if(padre) padre.value='';
   document.getElementById('ss-adendum-padre-wrap')?.classList.add('hidden');
-  document.getElementById('folio-preview').textContent = 'Folio pendiente';
+  document.getElementById('folio-preview').textContent = 'Calculando siguiente número...';
+  setTimeout(()=>actualizarFolioPreview(),0);
   document.getElementById('ss-respuesta-pmo-wrap')?.classList.add('hidden');
   const respuestaPmo=document.getElementById('ss-respuesta-pmo'); if(respuestaPmo) respuestaPmo.value='';
   imagenesSeleccionadas = [];
@@ -665,7 +756,7 @@ async function guardarSolicitud(ev){
       let observaciones = conservarComentariosConversacion(original?.observaciones);
       const requiereRespuesta = normalizar(original?.estatus).includes('AJUSTE');
       const respuestaUsuario = document.getElementById('ss-respuesta-pmo')?.value.trim() || '';
-      if(requiereRespuesta && !respuestaUsuario) throw new Error('Escribe una respuesta para PMO indicando qué corregiste.');
+      if(requiereRespuesta && !respuestaUsuario) throw new Error('Describe la corrección realizada.');
       if(respuestaUsuario){
         const fecha = new Date().toLocaleString('es-MX');
         const bloqueUsuario = `---\nCOMENTARIO USUARIO (Respuesta - ${fecha}):\n${respuestaUsuario}`;
@@ -713,7 +804,7 @@ async function guardarSolicitud(ev){
     document.getElementById('formulario-solicitud')?.classList.add('collapsed');
     await cargarMisSolicitudes();
     scrollToSection('mis-solicitudes');
-    await PMOAlert(`${numeroRQM} fue registrado correctamente y enviado a revisión PMO.`,{title:'Requerimiento registrado'});
+    await PMOAlert(`${numeroRQM} fue registrado correctamente y enviado a revisión del Administrador.`,{title:'Requerimiento registrado'});
   }catch(e){
     console.error(e);
     await PMOAlert('No se pudo guardar la solicitud: ' + (e.message || e),{title:'No fue posible guardar',type:'error'});
@@ -744,14 +835,22 @@ function renderKPIs(){
   const revision = misSolicitudes.filter(r => ['REGISTRADO','NUEVO','ENVIADA'].includes(normalizar(r.estatus))).length;
   const aprobadas = misSolicitudes.filter(r => normalizar(r.estatus) === 'CONVERTIDO A PMO').length;
   const ajuste = misSolicitudes.filter(r => normalizar(r.estatus).includes('AJUSTE')).length;
-  const cards = [
-    ['MIS SOLICITUDES', total, 'list-checks'],
-    ['EN REVISIÓN PMO', revision, 'clock-3'],
-    ['APROBADAS PMO', aprobadas, 'badge-check'],
-    ['REQUIEREN AJUSTE', ajuste, 'triangle-alert']
+  const indicadores = [
+    ['MIS SOLICITUDES', total],
+    ['EN REVISIÓN DEL ADMINISTRADOR', revision],
+    ['APROBADAS POR ADMINISTRADOR', aprobadas],
+    ['REQUIEREN AJUSTE', ajuste]
   ];
-  document.getElementById('kpis-usuario').innerHTML = cards.map(c => `<div class="portal-card p-5"><div class="flex justify-between items-start"><div><p class="text-xs font-black text-slate-400 tracking-wider">${c[0]}</p><p class="text-3xl font-black text-slate-950 mt-2">${c[1]}</p></div><div class="p-3 rounded-2xl bg-blue-50 text-blue-600"><i data-lucide="${c[2]}" class="w-5 h-5"></i></div></div></div>`).join('');
-  lucide.createIcons();
+  const contenedor = document.getElementById('kpis-usuario');
+  if(!contenedor) return;
+  contenedor.innerHTML = `
+    <div class="pmo-ytd-head">
+      <h3 class="pmo-ytd-title">Resumen de solicitudes</h3>
+    </div>
+    <div class="pmo-ytd-grid pmo-ytd-grid-four">
+      ${indicadores.map(i => `<div class="pmo-ytd-item"><div class="pmo-ytd-value">${i[1]}</div><div class="pmo-ytd-label">${i[0]}</div></div>`).join('')}
+    </div>`;
+  if(window.lucide) lucide.createIcons();
 }
 
 function puedeEditarSolicitud(r){ const e=normalizar(r?.estatus); return ['REGISTRADO','NUEVO','ENVIADA'].includes(e) || e.includes('AJUSTE'); }
@@ -776,12 +875,12 @@ function renderMisSolicitudes(){
     <td class="p-4"><div class="flex items-center gap-2"><span class="status-light ${semaforoClass(r.estatus)}"></span><span class="text-xs font-black text-slate-500">${esc(semaforoTexto(r.estatus))}</span></div></td>
     <td class="p-4 text-right whitespace-nowrap">
       ${puedeEditarSolicitud(r) ? `<button onclick="cargarSolicitudEnFormulario(${idx})" class="icon-btn blue" title="Editar mi requerimiento"><i data-lucide="pencil" class="w-4 h-4"></i><span class="hidden xl:inline">Editar</span></button>` : `<button class="icon-btn opacity-40 cursor-not-allowed" disabled title="Solo puede editarse cuando es nuevo o requiere ajuste"><i data-lucide="lock-keyhole" class="w-4 h-4"></i></button>`}
-      ${comentariosConversacionSS(r.observaciones) ? `<button onclick="verComentariosPMO(${idx})" class="icon-btn text-amber-600 border-amber-200 bg-amber-50" title="Ver comentarios de PMO"><i data-lucide="message-square-text" class="w-4 h-4"></i><span class="hidden xl:inline">Comentarios</span></button>` : ''}
+      ${comentariosConversacionSS(r.observaciones) ? `<button onclick="verComentariosPMO(${idx})" class="icon-btn text-amber-600 border-amber-200 bg-amber-50" title="Ver comentarios del Administrador"><i data-lucide="message-square-text" class="w-4 h-4"></i><span class="hidden xl:inline">Comentarios</span></button>` : ''}
       <button data-rqm-download-button onclick="descargarSolicitud(${idx})" class="icon-btn dark" title="Descargar formato"><i data-lucide="download" class="w-4 h-4"></i><span data-rqm-download-label class="hidden xl:inline">${formatoDescargaRQM==='pdf'?'PDF':'Word'}</span></button>
       ${normalizar(r.estatus)==='CONVERTIDO A PMO' ? `<button onclick="verAvanceSolicitud(${idx})" class="icon-btn progress" title="Ver avance"><i data-lucide="route" class="w-4 h-4"></i><span class="hidden xl:inline">Avance</span></button>` : ''}
       ${puedeEliminarSolicitud(r)
         ? `<button onclick="eliminarSolicitud(${idx})" class="icon-btn text-rose-600 border-rose-200 bg-rose-50" title="Eliminar solicitud"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
-        : `<button class="icon-btn opacity-40 cursor-not-allowed" disabled title="El requerimiento ya fue aprobado por PMO y no puede eliminarse"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
+        : `<button class="icon-btn opacity-40 cursor-not-allowed" disabled title="El requerimiento ya fue aprobado por el Administrador y no puede eliminarse"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`}
     </td>
   </tr>`).join('');
   lucide.createIcons();
@@ -792,7 +891,7 @@ async function eliminarSolicitud(idx){
   const r=misSolicitudes[idx];
   if(!r) return;
   if(!puedeEliminarSolicitud(r)){
-    await PMOAlert('Acción bloqueada', 'Este requerimiento ya fue aprobado por PMO y no puede eliminarse. Puedes descargarlo y consultar su avance.');
+    await PMOAlert('Acción bloqueada', 'Este requerimiento ya fue aprobado por el Administrador y no puede eliminarse. Puedes descargarlo y consultar su avance.');
     return;
   }
   if(!(await PMOConfirm(`Se eliminará definitivamente ${r.numero_rqm || 'esta solicitud'}. Esta acción no se puede deshacer.`))) return;
@@ -835,7 +934,7 @@ async function verAvanceSolicitud(idx){
   try{
     const {data:p,error}=await _supabase.from('pmo_projects').select('*').eq('id_req',r.numero_rqm).maybeSingle();
     if(error) throw error;
-    if(!p){ document.getElementById('modal-ss-body').innerHTML='<div class="roadmap-empty">PMO ya aprobó la solicitud. El seguimiento estará disponible cuando el proyecto termine de registrarse en la Matriz.</div>'; return; }
+    if(!p){ document.getElementById('modal-ss-body').innerHTML='<div class="roadmap-empty">El Administrador ya aprobó la solicitud. El seguimiento estará disponible cuando el proyecto termine de registrarse en la Matriz.</div>'; return; }
     const fases=['BACKLOG','ANÁLISIS','DESARROLLO','QA','UAT','LIBERADO'];
     const actual=faseActualProyecto(p), pos=fases.indexOf(actual), porcentaje=Math.max(0,Math.round((pos/(fases.length-1))*100));
     const fechas={
@@ -850,11 +949,11 @@ async function verAvanceSolicitud(idx){
       <div class="roadmap-dot">${i<pos?'<i data-lucide="check" class="w-4 h-4"></i>':i+1}</div>
       <div class="roadmap-step-copy"><strong>${f}</strong><span>${i<pos?'Etapa concluida':i===pos?'Etapa actual':'Pendiente'}</span>${fechas[f]?`<small>Fecha: ${fmtFecha(fechas[f])}</small>`:''}</div>
     </div>`).join('');
-    document.getElementById('modal-ss-body').innerHTML=`<div class="roadmap-hero"><div><span class="roadmap-kicker">Seguimiento en tiempo real</span><h4>${esc(p.nombre_rqm||r.proyecto||'Requerimiento')}</h4><p>Tu solicitud ya forma parte del portafolio PMO.</p></div><div class="roadmap-percent"><strong>${porcentaje}%</strong><span>avance</span></div></div>
+    document.getElementById('modal-ss-body').innerHTML=`<div class="roadmap-hero"><div><h4>${esc(p.nombre_rqm||r.proyecto||'Requerimiento')}</h4><p>Tu solicitud ya forma parte de la Matriz de Requerimientos.</p></div><div class="roadmap-percent"><strong>${porcentaje}%</strong><span>avance</span></div></div>
       <div class="roadmap-progress"><span style="width:${porcentaje}%"></span></div>
-      <div class="roadmap-current"><div><span>Etapa actual</span><strong>${actual}</strong></div><div><span>Estatus PMO</span><strong>${esc(p.estatus||'Registrado')}</strong></div><div><span>Última actualización</span><strong>${fmtFecha((p.updated_at||p.created_at||'').slice(0,10))}</strong></div></div>
+      <div class="roadmap-current"><div><span>Etapa actual</span><strong>${actual}</strong></div><div><span>Estatus</span><strong>${esc(p.estatus||'Registrado')}</strong></div><div><span>Última actualización</span><strong>${fmtFecha((p.updated_at||p.created_at||'').slice(0,10))}</strong></div></div>
       <div class="roadmap-timeline">${steps}</div>
-      <div class="roadmap-note"><i data-lucide="info" class="w-5 h-5"></i><span>Este avance es informativo y se actualiza con la información registrada por PMO en la Matriz.</span></div>`;
+`;
     if(window.lucide) lucide.createIcons();
   }catch(e){ document.getElementById('modal-ss-body').innerHTML=`<div class="roadmap-empty">No fue posible consultar el avance: ${esc(e.message||e)}</div>`; }
 }
@@ -921,6 +1020,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   activarGruposUnicos(); configurarCamposOtro();
   await cargarCatalogos();
   await cargarRequerimientosBase();
+  await actualizarFolioPreview();
   await cargarMisSolicitudes();
   document.getElementById('mis-solicitudes')?.classList.add('collapsed');
   lucide.createIcons();

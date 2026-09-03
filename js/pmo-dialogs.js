@@ -81,3 +81,29 @@
     });
   };
 })();
+
+
+(function(){
+  let timer=null;
+  function ensureImageCopied(){
+    if(document.getElementById('pmo-image-copied')) return;
+    const wrap=document.createElement('div');
+    wrap.id='pmo-image-copied';
+    wrap.className='hidden fixed inset-0 z-[240] bg-slate-950/45 backdrop-blur-sm p-4 flex items-center justify-center';
+    wrap.innerHTML=`
+      <div class="w-full max-w-sm rounded-3xl bg-white border border-slate-200 shadow-2xl px-7 py-8 text-center" role="status" aria-live="polite">
+        <div class="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+        </div>
+        <div class="mt-5 text-xl font-black text-slate-950">Imagen copiada</div>
+      </div>`;
+    document.body.appendChild(wrap);
+  }
+  window.PMOImageCopied=function(){
+    ensureImageCopied();
+    const dialog=document.getElementById('pmo-image-copied');
+    dialog.classList.remove('hidden');
+    clearTimeout(timer);
+    timer=setTimeout(()=>dialog.classList.add('hidden'),1300);
+  };
+})();

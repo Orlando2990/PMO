@@ -10,11 +10,11 @@ function renderizarPanelRequerimientos() {
     contenedor.innerHTML = String.raw`
         <!-- Vista ejecutiva estándar -->
         ${window.PMOLayout ? window.PMOLayout.renderExecutiveHero({
-            actions:`<button type="button" onclick="abrirModalNuevo()" class="pmo-hero-primary"><i data-lucide="plus"></i>Nuevo requerimiento</button>`
+            actions:`<button type="button" onclick="abrirModalNuevo()" class="pmo-hero-primary pmo-hero-primary-emphasis"><i data-lucide="plus"></i>Nuevo requerimiento</button>`
         }) : ''}
 
         <!-- Indicadores ejecutivos -->
-        <section id="contenedor-contadores" class="pmo-summary-grid"></section>
+        <section id="contenedor-contadores" class="pmo-ytd-panel" aria-label="Resumen de la matriz"></section>
 
         <!-- Tabla Principal -->
         <section class="pmo-panel-table bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
@@ -98,7 +98,7 @@ function renderizarModalesRequerimientos() {
                     </div>
                     <div>
                         <h3 id="modal-titulo" class="font-bold text-slate-900 text-base">Registrar Nuevo Requerimiento</h3>
-                        <span id="badge-reprogramado-form" class="hidden mt-1 w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-50 text-amber-700 border border-amber-100"></span>
+                        <span id="badge-reprogramado-form" class="hidden inline-flex mt-2 w-fit items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] leading-none whitespace-nowrap font-black bg-amber-50 text-amber-700 border border-amber-100"></span>
                     </div>
                 </div>
                 <button onclick="cerrarModal()" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
@@ -123,10 +123,15 @@ function renderizarModalesRequerimientos() {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Sprint (Catálogo)</label>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Sprint de origen</label>
                         <select id="form-sprint"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Sprint actual</label>
+                        <select id="form-sprint-actual"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
                     </div>
                     <div>
@@ -140,6 +145,16 @@ function renderizarModalesRequerimientos() {
                         <select id="form-clasificacion"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
                     </div>
+                </div>
+
+                <div class="rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3">
+                    <label class="flex items-center gap-3 cursor-pointer select-none">
+                        <input type="checkbox" id="form-urgente-sprint"
+                            class="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500">
+                        <span>
+                            <span class="block text-xs font-black uppercase text-orange-700">Fuera de planeación</span>
+                        </span>
+                    </label>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -185,7 +200,7 @@ function renderizarModalesRequerimientos() {
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
                     </div>
                     <div>
-                        <label class="text-xs font-bold uppercase text-slate-400 block mb-1">Ingreso RQM a PMO</label>
+                        <label class="text-xs font-bold uppercase text-slate-400 block mb-1">Ingreso RQM</label>
                         <input type="date" id="form-fecha-ingreso"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
                     </div>
@@ -315,16 +330,11 @@ function renderizarModalesRequerimientos() {
                         class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
                 </div>
 
-                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                    <label class="flex items-start gap-3 cursor-pointer select-none">
+                <div id="bloque-ajuste-fecha-privado" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <label class="flex items-center gap-3 cursor-pointer select-none">
                         <input type="checkbox" id="form-ajuste-sin-reprogramacion"
                             class="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                        <span>
-                            <span class="block text-xs font-black uppercase text-slate-700">Ajuste administrativo sin reprogramación</span>
-                            <span class="block text-[11px] text-slate-500 mt-0.5">
-                                Permite cambiar fechas fin de Desarrollo, QA o UAT sin registrar reprogramación y sin solicitar motivo.
-                            </span>
-                        </span>
+                        <span class="block text-xs font-black uppercase text-slate-700">AJUSTE DE FECHA</span>
                     </label>
                 </div>
 
@@ -334,9 +344,6 @@ function renderizarModalesRequerimientos() {
                             <i data-lucide="calendar-clock" class="w-4 h-4"></i>
                             Motivo de reprogramación
                         </label>
-                        <p class="text-[11px] text-amber-700/80 mt-1">
-                            Captura un motivo por cada compromiso reprogramado.
-                        </p>
                     </div>
 
                     <div id="grupo-reprogramacion-desarrollo" class="hidden bg-white border border-amber-100 rounded-xl p-3 space-y-2">
@@ -344,7 +351,7 @@ function renderizarModalesRequerimientos() {
                         <select id="form-motivo-desarrollo"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
                         <input type="text" id="form-comentario-motivo-desarrollo"
-                            placeholder="Detalle opcional del motivo..."
+                            placeholder="Detalle"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
                     </div>
 
@@ -353,7 +360,7 @@ function renderizarModalesRequerimientos() {
                         <select id="form-motivo-qa"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
                         <input type="text" id="form-comentario-motivo-qa"
-                            placeholder="Detalle opcional del motivo..."
+                            placeholder="Detalle"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
                     </div>
 
@@ -362,7 +369,7 @@ function renderizarModalesRequerimientos() {
                         <select id="form-motivo-uat"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm"></select>
                         <input type="text" id="form-comentario-motivo-uat"
-                            placeholder="Detalle opcional del motivo..."
+                            placeholder="Detalle"
                             class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm">
                     </div>
                 </div>
@@ -391,7 +398,7 @@ function renderizarModalesRequerimientos() {
                     <div class="p-2 bg-slate-100 text-slate-700 rounded-lg"><i data-lucide="clock" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h3 class="font-bold text-slate-900 text-base">Auditoría Temporal de Hitos</h3>
+                        <h3 class="font-bold text-slate-900 text-base">Registro de cambios</h3>
                         <p id="historial-subtitulo"
                             class="text-xs text-slate-400 font-mono tracking-wide uppercase mt-0.5">REQ</p>
                     </div>

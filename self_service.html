@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Self Service PMO</title>
+  <title>Portal de solicitudes | PMO Control</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -110,21 +110,19 @@
   <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
     <section class="portal-hero">
       <div>
-        <h2 class="portal-title">Alta de requerimientos<br>para revisión PMO</h2>
-        <p class="portal-subtitle">Captura tu solicitud de forma sencilla. El sistema asignará automáticamente el siguiente folio/RQM disponible para el sistema seleccionado y PMO podrá darle seguimiento.</p>
+        <h2 class="portal-title">Alta de requerimientos</h2>
       </div>
     </section>
 
-    <section id="kpis-usuario" class="grid grid-cols-1 md:grid-cols-4 gap-5"></section>
+    <section id="kpis-usuario" class="pmo-ytd-panel"></section>
 
     <section id="formulario-solicitud" class="accordion-card collapsed">
       <button type="button" class="accordion-head" onclick="togglePanel('formulario-solicitud')">
         <div>
           <h2 class="accordion-title"><i data-lucide="file-plus-2" class="w-6 h-6 text-blue-600"></i>Nueva solicitud de requerimiento</h2>
-          <p class="accordion-desc">Abre este panel para capturar la información de tu requerimiento. PMO revisará la solicitud y podrá aprobarla, rechazarla o pedir ajustes.</p>
         </div>
         <div class="flex items-center gap-3">
-          <span id="folio-preview" class="badge-user">Folio pendiente</span>
+          <span id="folio-preview" class="badge-user">Calculando siguiente número...</span>
           <span class="accordion-icon"><i data-lucide="chevron-down" class="w-5 h-5"></i></span>
         </div>
       </button>
@@ -229,7 +227,6 @@
               <div class="flex items-center justify-between gap-4 mb-3">
                 <div>
                   <label class="field-label mb-1">PERSONAS QUE FIRMARÁN EL REQUERIMIENTO</label>
-                  <p class="text-sm text-slate-500">Agrega tantos firmantes como sean necesarios. La fecha se completará automáticamente con la fecha de alta.</p>
                 </div>
                 <button type="button" onclick="agregarFirmanteUsuario()" class="px-4 py-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 font-black inline-flex items-center gap-2">
                   <i data-lucide="user-plus" class="w-4 h-4"></i>Agregar firmante
@@ -241,12 +238,11 @@
         </div>
 
         <div id="ss-respuesta-pmo-wrap" class="rqm-section hidden">
-          <h3 class="rqm-section-title"><i data-lucide="message-square-reply" class="w-5 h-5 text-amber-600"></i>Respuesta para PMO</h3>
-          <p class="text-sm text-slate-500 mb-4">Describe qué corregiste o responde a la observación enviada por PMO. Al guardar, el requerimiento volverá automáticamente a revisión.</p>
-          <textarea id="ss-respuesta-pmo" rows="4" class="field-input" placeholder="Escribe aquí tu respuesta para PMO..."></textarea>
+          <h3 class="rqm-section-title"><i data-lucide="message-square-reply" class="w-5 h-5 text-amber-600"></i>Respuesta para el Administrador</h3>
+          <p class="text-sm text-slate-500 mb-4">Describe qué corregiste. Al guardar, el requerimiento volverá automáticamente a revisión.</p>
+          <textarea id="ss-respuesta-pmo" rows="4" class="field-input" placeholder="Describe la corrección realizada..."></textarea>
         </div>
 
-        
         <div class="self-form-actions">
           <button type="button" onclick="limpiarFormulario()" class="px-6 py-3 rounded-xl border border-slate-200 bg-white font-black text-slate-700">Limpiar</button>
           <button id="btn-guardar-self" type="submit" class="px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-lg inline-flex items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i>Guardar y descargar formato</button>
@@ -259,7 +255,6 @@
       <div class="accordion-head" onclick="togglePanel('mis-solicitudes')">
         <div>
           <h2 class="accordion-title"><i data-lucide="list-checks" class="w-6 h-6 text-blue-600"></i>Mis solicitudes</h2>
-          <p class="accordion-desc">Consulta tus solicitudes, revisa el semáforo de atención y descarga el formato cuando lo necesites.</p>
         </div>
         <div class="flex items-center gap-3">
           <button type="button" onclick="event.stopPropagation(); cargarMisSolicitudes();" class="px-5 py-3 rounded-xl border border-slate-200 bg-white font-black text-slate-700 inline-flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i>Actualizar</button>

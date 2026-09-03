@@ -27,6 +27,8 @@ const SUPABASE_URL = "https://cogiyoslnmtnnvnohoht.supabase.co";
         }
 
 let todosLosProyectos = [];
+        let proyectosDashboardActuales = [];
+        let registrosAdendumsDashboard = [];
         let conteoCambiosGlobal = {};
         let conteoReprogramacionesGlobal = {};
         let ajustesAdministrativosGlobal = {};
@@ -40,24 +42,55 @@ let todosLosProyectos = [];
             await cargarProyectos();
         }
 
+        const ORDEN_SPRINTS_PMO = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+        const ORDEN_ESTATUS_PMO = ['CANCELADO','BACKLOG','ANÁLISIS','DESARROLLO','QA','UAT','LIBERADO'];
+
+        function etiquetaSprintPMO(sprint) {
+            if (!sprint) return '';
+            const nombre = String(sprint.nombre || '').trim();
+            const anio = Number(sprint.anio || 0);
+            return anio ? `${nombre} ${anio}` : nombre;
+        }
+
+        function ordenarCatalogoPMO(items, tipo) {
+            const base = tipo === 'sprints' ? ORDEN_SPRINTS_PMO : ORDEN_ESTATUS_PMO;
+            const normaliza = v => String(v || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const mapa = new Map(base.map((x, i) => [normaliza(x), i + 1]));
+            return [...items].sort((a, b) => {
+                if (tipo === 'sprints') {
+                    const aa = Number(a?.anio || 0), ba = Number(b?.anio || 0);
+                    if (aa && ba && aa !== ba) return aa - ba;
+                }
+                const ao = Number(a?.orden), bo = Number(b?.orden);
+                const av = Number.isFinite(ao) && ao > 0, bv = Number.isFinite(bo) && bo > 0;
+                if (av || bv) {
+                    if (av && bv && ao !== bo) return ao - bo;
+                    if (av !== bv) return av ? -1 : 1;
+                }
+                const ai = mapa.get(normaliza(a?.nombre)) ?? 999;
+                const bi = mapa.get(normaliza(b?.nombre)) ?? 999;
+                return ai !== bi ? ai - bi : String(a?.nombre || '').localeCompare(String(b?.nombre || ''), 'es');
+            });
+        }
+
         async function cargarCatalogos() {
             try {
-                const s = await _supabase.from('cat_sprints').select('*').order('nombre');
+                const s = await _supabase.from('cat_sprints').select('*');
                 const sis = await _supabase.from('cat_sistemas').select('*').order('nombre');
                 const a = await _supabase.from('cat_areas').select('*').order('nombre');
                 const c = await _supabase.from('cat_clasificaciones').select('*').order('nombre');
                 const pri = await _supabase.from('cat_prioridades').select('*').order('orden').order('nombre');
                 const comp = await _supabase.from('cat_complejidades').select('*').order('orden').order('nombre');
-                const est = await _supabase.from('cat_estatus').select('*').order('nombre');
+                const est = await _supabase.from('cat_estatus').select('*');
                 const mot = await _supabase.from('cat_motivos_reprogramacion').select('*').order('nombre');
 
-                cats.sprints = s.data || [];
+                cats.sprints = ordenarCatalogoPMO(s.data || [], 'sprints');
                 cats.sistemas = sis.data || [];
                 cats.areas = a.data || [];
                 cats.clasificaciones = c.data || [];
                 cats.prioridades = pri.data || [];
                 cats.complejidades = comp.data || [];
-                cats.estatus = est.data || [];
+                cats.estatus = ordenarCatalogoPMO(est.data || [], 'estatus');
                 cats.motivos_reprogramacion = mot.data || [];
 
                 llenarSelectsForm();
@@ -69,8 +102,56 @@ let todosLosProyectos = [];
             } catch (err) { console.error("Error al cargar catálogos:", err.message); }
         }
 
+        function obtenerSprintActualId(p) {
+            return p?.sprint_actual_id || p?.sprint_id || null;
+        }
+
+        function obtenerSprintNombrePorId(id) {
+            if (!id) return '';
+            return etiquetaSprintPMO((cats.sprints || []).find(s => String(s.id) === String(id))) || '';
+        }
+
+        function obtenerSprintActualNombre(p) {
+            return obtenerSprintNombrePorId(obtenerSprintActualId(p)) || p?.cat_sprints?.nombre || 'Sin sprint';
+        }
+
+        function renderSprintOrigenActual(p) {
+            const origen = p?.cat_sprints ? etiquetaSprintPMO(p.cat_sprints) : 'Sin Sprint';
+            const actual = obtenerSprintActualNombre(p);
+            if (String(origen).trim().toUpperCase() === String(actual).trim().toUpperCase()) return escaparHtmlPMO(origen);
+            return `${escaparHtmlPMO(origen)} <span class="text-blue-600">→ ${escaparHtmlPMO(actual)}</span>`;
+        }
+
+        function esUrgentePMO(p) {
+            const tipo = normalizarTexto(p?.tipo_incorporacion || 'PLANEADO').replace(/[_-]+/g, ' ');
+            return tipo === 'NO PLANEADO' || tipo === 'URGENTE' || tipo === 'FUERA DE PLANEACION';
+        }
+
+        function badgeUrgentePMO(p) {
+            if (!esUrgentePMO(p)) return '';
+            return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-orange-50 text-orange-700 border border-orange-100" title="Requerimiento incorporado fuera de la planeación del Sprint">🔥 Urgente</span>`;
+        }
+
+        function actualizarIncorporacionSprintUI() {}
+        window.actualizarIncorporacionSprintUI = actualizarIncorporacionSprintUI;
+
+        function sincronizarSprintActualNuevo() {
+            const idProyecto = document.getElementById('form-id')?.value || '';
+            if (idProyecto) return;
+            const origen = document.getElementById('form-sprint');
+            const actual = document.getElementById('form-sprint-actual');
+            if (origen && actual) actual.value = origen.value || '';
+        }
+
         function llenarSelectsForm() {
             document.getElementById('form-sprint').innerHTML = optionsTemplate(cats.sprints);
+            const sprintActual = document.getElementById('form-sprint-actual');
+            if (sprintActual) sprintActual.innerHTML = optionsTemplate(cats.sprints);
+            const sprintOrigen = document.getElementById('form-sprint');
+            if (sprintOrigen && !sprintOrigen.dataset.syncActualBound) {
+                sprintOrigen.addEventListener('change', sincronizarSprintActualNuevo);
+                sprintOrigen.dataset.syncActualBound = '1';
+            }
             document.getElementById('form-sistema').innerHTML = optionsTemplate(cats.sistemas);
             document.getElementById('form-area').innerHTML = optionsTemplate(cats.areas);
             document.getElementById('form-clasificacion').innerHTML = optionsTemplate(cats.clasificaciones);
@@ -95,8 +176,28 @@ let todosLosProyectos = [];
             return Boolean(valorOriginal && valorNuevo && valorOriginal !== valorNuevo);
         }
 
+        function esReprogramacionCompromiso(valorOriginal, valorNuevo) {
+            if (!valorOriginal || !valorNuevo || valorOriginal === valorNuevo) return false;
+            const anterior = new Date(valorOriginal + 'T00:00:00');
+            const nueva = new Date(valorNuevo + 'T00:00:00');
+            return !Number.isNaN(anterior.getTime()) && !Number.isNaN(nueva.getTime()) && nueva > anterior;
+        }
+
+        function usuarioPuedeAjustarFechaSinReprogramacion() {
+            const correo = String(window.PMOAuth?.profile?.correo || window.PMOAuth?.user?.email || '').trim().toLowerCase();
+            return correo === 'p.castillo@finsus.mx';
+        }
+
+        function actualizarVisibilidadAjusteFechaPrivado() {
+            const bloque = document.getElementById('bloque-ajuste-fecha-privado');
+            const check = document.getElementById('form-ajuste-sin-reprogramacion');
+            const autorizado = usuarioPuedeAjustarFechaSinReprogramacion();
+            if (bloque) bloque.classList.toggle('hidden', !autorizado);
+            if (!autorizado && check) check.checked = false;
+        }
+
         function ajusteSinReprogramacionActivo() {
-            return Boolean(document.getElementById('form-ajuste-sin-reprogramacion')?.checked);
+            return usuarioPuedeAjustarFechaSinReprogramacion() && Boolean(document.getElementById('form-ajuste-sin-reprogramacion')?.checked);
         }
 
         function obtenerCambiosReprogramacionActuales() {
@@ -105,25 +206,25 @@ let todosLosProyectos = [];
             const definiciones = [
                 {
                     clave: 'desarrollo',
-                    fase: 'Fin Desarrollo',
-                    campoBD: 'fecha_fin_desarrollo',
-                    inputId: 'form-fecha-fin-desarrollo',
+                    fase: 'Compromiso Desarrollo',
+                    campoBD: 'fecha_desarrollo',
+                    inputId: 'form-fecha-desarrollo',
                     motivoId: 'form-motivo-desarrollo',
                     comentarioId: 'form-comentario-motivo-desarrollo'
                 },
                 {
                     clave: 'qa',
-                    fase: 'Fin QA',
-                    campoBD: 'fecha_fin_qa',
-                    inputId: 'form-fecha-fin-qa',
+                    fase: 'Compromiso QA',
+                    campoBD: 'fecha_qa',
+                    inputId: 'form-fecha-qa',
                     motivoId: 'form-motivo-qa',
                     comentarioId: 'form-comentario-motivo-qa'
                 },
                 {
                     clave: 'uat',
-                    fase: 'Fin UAT',
-                    campoBD: 'fecha_fin_uat',
-                    inputId: 'form-fecha-fin-uat',
+                    fase: 'Compromiso UAT',
+                    campoBD: 'fecha_uat',
+                    inputId: 'form-fecha-uat',
                     motivoId: 'form-motivo-uat',
                     comentarioId: 'form-comentario-motivo-uat'
                 }
@@ -138,7 +239,7 @@ let todosLosProyectos = [];
                         ...def,
                         fechaAnterior,
                         fechaNueva,
-                        cambio: esCambioReprogramacion(fechaAnterior, fechaNueva)
+                        cambio: esReprogramacionCompromiso(fechaAnterior, fechaNueva)
                     };
                 })
                 .filter(x => x.cambio);
@@ -283,17 +384,19 @@ let todosLosProyectos = [];
         }
 
         function llenarFiltroSistema() {
-            const filtro = document.getElementById('filtro-sistema');
-            if (!filtro) return;
+            const filtros = [
+                document.getElementById('filtro-sistema'),
+                document.getElementById('filtro-sistema-dashboard')
+            ].filter(Boolean);
 
-            const valorActual = filtro.value;
-            filtro.innerHTML = '<option value="">Todos los sistemas</option>';
-
-            cats.sistemas.forEach(s => {
-                filtro.innerHTML += `<option value="${s.id}" data-nombre="${normalizarTexto(s.nombre)}">${s.nombre}</option>`;
+            filtros.forEach(filtro => {
+                const valorActual = filtro.value;
+                filtro.innerHTML = '<option value="">Todos los sistemas</option>';
+                cats.sistemas.forEach(s => {
+                    filtro.innerHTML += `<option value="${s.id}" data-nombre="${normalizarTexto(s.nombre)}">${s.nombre}</option>`;
+                });
+                filtro.value = valorActual;
             });
-
-            filtro.value = valorActual;
         }
 
         function llenarFiltroSprint() {
@@ -304,7 +407,7 @@ let todosLosProyectos = [];
             filtro.innerHTML = '<option value="">Todos los sprints</option>';
 
             cats.sprints.forEach(s => {
-                filtro.innerHTML += `<option value="${s.id}" data-nombre="${normalizarTexto(s.nombre)}">${s.nombre}</option>`;
+                filtro.innerHTML += `<option value="${s.id}" data-nombre="${normalizarTexto(etiquetaSprintPMO(s))}">${etiquetaSprintPMO(s)}</option>`;
             });
 
             filtro.value = valorActual;
@@ -312,7 +415,7 @@ let todosLosProyectos = [];
 
         const optionsTemplate = (arr) => {
             let html = '<option value="">-- Seleccionar --</option>';
-            html += arr.map(x => `<option value="${x.id}">${x.nombre}</option>`).join('');
+            html += arr.map(x => `<option value="${x.id}">${arr === cats.sprints ? etiquetaSprintPMO(x) : x.nombre}</option>`).join('');
             return html;
         };
 
@@ -326,7 +429,7 @@ let todosLosProyectos = [];
                     tipo: 'sprints',
                     tabla: 'cat_sprints',
                     inputId: 'add-sprint-name',
-                    placeholder: 'Nuevo Sprint',
+                    placeholder: 'Año (Ej: 2027)',
                     icono: 'calendar-days',
                     color: 'blue',
                     items: cats.sprints
@@ -419,7 +522,7 @@ let todosLosProyectos = [];
                     ? cat.items.map(item => `
                 <li class="flex justify-between items-center gap-3 px-3 py-2.5 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition">
                     <span class="text-xs font-bold text-slate-700 truncate">
-                        ${item.nombre}
+                        ${cat.tipo === 'sprints' ? etiquetaSprintPMO(item) : item.nombre}
                     </span>
 
                     <button
@@ -456,18 +559,19 @@ let todosLosProyectos = [];
 
                 <div class="flex gap-2 mb-4">
                     <input
-                        type="text"
+                        type="${cat.tipo === 'sprints' ? 'number' : 'text'}"
                         id="${cat.inputId}"
+                        ${cat.tipo === 'sprints' ? 'min="2026" max="2100" step="1"' : ''}
                         placeholder="${cat.placeholder}"
                         class="min-w-0 flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-100"
                     >
 
                     <button
-                        onclick="crearCatalogo('${cat.tipo}')"
+                        onclick="${cat.tipo === 'sprints' ? 'crearSprintsAnio()' : `crearCatalogo('${cat.tipo}')`}"
                         class="${colores.button} text-white px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5"
                     >
                         <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                        Añadir
+                        ${cat.tipo === 'sprints' ? 'Generar año' : 'Añadir'}
                     </button>
                 </div>
 
@@ -487,6 +591,30 @@ let todosLosProyectos = [];
 
             lucide.createIcons();
         }
+
+        async function crearSprintsAnio() {
+            const input = document.getElementById('add-sprint-name');
+            const anio = Number(input?.value || 0);
+            if (!Number.isInteger(anio) || anio < 2026 || anio > 2100) {
+                alert('Captura un año válido, por ejemplo 2027.');
+                return;
+            }
+            const existentes = new Set((cats.sprints || []).filter(s => Number(s.anio) === anio).map(s => normalizarTexto(s.nombre)));
+            const nuevos = ORDEN_SPRINTS_PMO
+                .filter(nombre => !existentes.has(normalizarTexto(nombre)))
+                .map((nombre, i) => ({ nombre, anio, orden: i + 1 }));
+            if (!nuevos.length) {
+                alert(`Los 12 Sprints de ${anio} ya existen.`);
+                return;
+            }
+            try {
+                const { error } = await _supabase.from('cat_sprints').insert(nuevos);
+                if (error) throw error;
+                input.value = '';
+                await cargarTodo();
+            } catch (e) { alert('Error al generar los Sprints del año: ' + e.message); }
+        }
+        window.crearSprintsAnio = crearSprintsAnio;
 
         async function crearCatalogo(tipo) {
             const inpId = tipo === 'sprints' ? 'add-sprint-name' : (tipo === 'sistemas' ? 'add-sistema-name' : (tipo === 'areas' ? 'add-area-name' : (tipo === 'clasificaciones' ? 'add-clasif-name' : 'add-estatus-name')));
@@ -517,11 +645,24 @@ let todosLosProyectos = [];
             try {
                 const { data: proyectos, error: errProyectos } = await _supabase
                     .from('pmo_projects')
-                    .select('*, cat_sprints(nombre), cat_sistemas(nombre), cat_areas(nombre), cat_clasificaciones(nombre)')
+                    .select('*, cat_sprints:sprint_id(nombre,anio), sprint_actual:cat_sprints!pmo_projects_sprint_actual_id_fkey(nombre,anio), cat_sistemas(nombre), cat_areas(nombre), cat_clasificaciones(nombre)')
                     .order('created_at', { ascending: false });
 
                 if (errProyectos) throw errProyectos;
                 todosLosProyectos = proyectos || [];
+
+                // Visor de adendums: la relación padre-hijo vive en el buzón de RQM.
+                // Si la consulta falla, el resto del Dashboard continúa funcionando.
+                try {
+                    const { data: registrosAdendum, error: errAdendum } = await _supabase
+                        .from('rqm_control_requerimientos')
+                        .select('id,numero_rqm,proyecto,tipo_registro,requerimiento_padre_id,numero_adendum,estatus,created_at');
+                    if (errAdendum) throw errAdendum;
+                    registrosAdendumsDashboard = registrosAdendum || [];
+                } catch (e) {
+                    console.warn('No fue posible cargar el visor de adendums:', e?.message || e);
+                    registrosAdendumsDashboard = [];
+                }
 
                 const { data: historial } = await _supabase
                     .from('pmo_date_history')
@@ -536,15 +677,18 @@ let todosLosProyectos = [];
                         const fase = h.fase || '';
                         const razonNormalizada = normalizarTexto(h.razon || '');
                         const esAjusteAdministrativo = razonNormalizada.includes('AJUSTE ADMINISTRATIVO');
-                        const esCambioFin =
+                        const esReprogramacionCompromisoActual =
+                            ['Compromiso Desarrollo', 'Compromiso QA', 'Compromiso UAT'].includes(fase) &&
+                            esReprogramacionCompromiso(h.fecha_anterior, h.fecha_nueva);
+                        const esReprogramacionLegacy =
                             ['Fin Desarrollo', 'Fin QA', 'Fin UAT'].includes(fase) &&
-                            h.fecha_anterior &&
-                            h.fecha_nueva &&
-                            h.fecha_anterior !== h.fecha_nueva;
+                            h.fecha_anterior && h.fecha_nueva && h.fecha_anterior !== h.fecha_nueva &&
+                            !razonNormalizada.includes('ACTUALIZACION DE FECHA');
+                        const esReprogramacion = esReprogramacionCompromisoActual || esReprogramacionLegacy;
 
-                        // Los ajustes administrativos se usan solo como marca técnica para excluir
-                        // reprogramación/desviación, pero NO deben contar ni mostrarse como cambios.
-                        if (esCambioFin && esAjusteAdministrativo) {
+                        // Los ajustes administrativos no generan historial, pero se mantiene esta
+                        // salvaguarda por compatibilidad con registros históricos anteriores.
+                        if (esAjusteAdministrativo) {
                             if (!ajustesAdministrativos[h.project_id]) ajustesAdministrativos[h.project_id] = {};
                             ajustesAdministrativos[h.project_id][fase] = true;
                             return;
@@ -552,7 +696,7 @@ let todosLosProyectos = [];
 
                         conteoCambios[h.project_id] = (conteoCambios[h.project_id] || 0) + 1;
 
-                        if (esCambioFin) {
+                        if (esReprogramacion) {
                             conteoReprogramaciones[h.project_id] = (conteoReprogramaciones[h.project_id] || 0) + 1;
                         }
                     });
@@ -564,7 +708,11 @@ let todosLosProyectos = [];
 
                 renderizarTabla(todosLosProyectos, conteoCambiosGlobal);
                 renderizarContadoresDinamicos(todosLosProyectos);
-                renderizarDashboardEjecutivo(todosLosProyectos);
+                if (document.getElementById('filtro-sistema-dashboard')) {
+                    filtrarDashboardPorSistema();
+                } else {
+                    renderizarDashboardEjecutivo(todosLosProyectos);
+                }
             } catch (error) { console.error("Error:", error.message); }
         }
 
@@ -697,10 +845,11 @@ let todosLosProyectos = [];
                             </button>
                         </td>
                         <td class="p-4 align-top min-w-[140px]">
-                            <div class="font-bold text-xs text-slate-900">${p.cat_sprints?.nombre || 'Sin Sprint'}</div>
+                            <div class="font-bold text-xs text-slate-900">${renderSprintOrigenActual(p)}</div>
                             <div class="text-[11px] text-slate-400 font-black mt-1">${p.cat_sistemas?.nombre || '—'}</div>
                             <div class="mt-2">${badgePrioridad}</div>
                             <div class="text-[11px] text-slate-400 mt-1 font-medium">${p.cat_clasificaciones?.nombre || 'Sin Clasificación'}</div>
+                            <div class="mt-2">${badgeUrgentePMO(p)}</div>
                         </td>
                         <td class="p-4 align-top">${renderizarTimelinePMO(p)}</td>
                         <td class="p-4 align-top">${renderizarDesviacionPMO(p)}</td>
@@ -735,17 +884,14 @@ let todosLosProyectos = [];
                 { key: 'ATRASADOS', label: 'ATRASADOS', icono: 'triangle-alert', bg: 'bg-rose-50', color: 'text-rose-600', valor: proyectos.filter(p => Number(p.dias_desviacion || p.dias_atraso || 0) > 0).length }
             ];
 
-            contenedor.innerHTML = grupos.map(g => `
-                <div class="pmo-summary-card">
-                    <div>
-                        <p class="pmo-summary-label">${g.label}</p>
-                        <h2 class="pmo-summary-value">${g.valor}</h2>
-                    </div>
-                    <div class="pmo-summary-icon ${g.bg} ${g.color}">
-                        <i data-lucide="${g.icono}" class="w-6 h-6"></i>
-                    </div>
+            contenedor.innerHTML = `
+                <div class="pmo-ytd-head">
+                    <h3 class="pmo-ytd-title">Resumen de la Matriz</h3>
                 </div>
-            `).join('');
+                <div class="pmo-ytd-grid pmo-ytd-grid-six">
+                    ${grupos.map(g => `<div class="pmo-ytd-item"><div class="pmo-ytd-value">${g.valor}</div><div class="pmo-ytd-label">${g.label}</div></div>`).join('')}
+                </div>
+            `;
 
             lucide.createIcons();
         }
@@ -937,10 +1083,34 @@ let todosLosProyectos = [];
             const id = document.getElementById('form-id').value;
             const reprogramacionesDetectadas = obtenerCambiosReprogramacionActuales();
 
+            if (reprogramacionesDetectadas.length && !ajusteSinReprogramacionActivo()) {
+                const sinMotivo = reprogramacionesDetectadas.find(c => !document.getElementById(c.motivoId)?.value);
+                if (sinMotivo) {
+                    btnGuardar.disabled = false;
+                    btnGuardar.innerText = 'Guardar Cambios';
+                    if (window.PMOAlert) {
+                        await PMOAlert(`Selecciona un motivo para la reprogramación de ${sinMotivo.clave.toUpperCase()}.`, {
+                            title: 'Motivo requerido',
+                            type: 'warning'
+                        });
+                    } else {
+                        alert(`Selecciona un motivo para la reprogramación de ${sinMotivo.clave.toUpperCase()}.`);
+                    }
+                    document.getElementById(sinMotivo.motivoId)?.focus();
+                    return;
+                }
+            }
+
+            const tipoIncorporacion = document.getElementById('form-urgente-sprint')?.checked ? 'NO_PLANEADO' : 'PLANEADO';
+
             const reqData = {
                 id_req: document.getElementById('form-id-req').value.trim(),
                 nombre_rqm: document.getElementById('form-nombre-rqm').value.trim(),
                 sprint_id: document.getElementById('form-sprint').value || null,
+                sprint_actual_id: document.getElementById('form-sprint-actual')?.value || document.getElementById('form-sprint').value || null,
+                tipo_incorporacion: tipoIncorporacion,
+                motivo_incorporacion: null,
+                detalle_incorporacion: null,
                 sistema_id: document.getElementById('form-sistema').value || null,
                 clasificacion_id: document.getElementById('form-clasificacion').value || null,
                 area_id: document.getElementById('form-area').value || null,
@@ -977,12 +1147,15 @@ let todosLosProyectos = [];
                     if (proyectoSeleccionadoOriginal) {
                         const registrarLog = async (fase, ant, nva, motivoId = null, comentarioMotivo = null, motivoTexto = null, esAjusteAdministrativo = false) => {
                             if (esCambioReprogramacion(ant || null, nva || null)) {
+                                const esCompromisoReprogramado = fase.startsWith('Compromiso ') && esReprogramacionCompromiso(ant || null, nva || null);
                                 const motivoNombre = motivoTexto || nombreMotivoPorId(motivoId);
                                 const razonTexto = esAjusteAdministrativo
                                     ? 'Ajuste administrativo - No afecta reprogramación ni desviación'
-                                    : (motivoNombre
-                                        ? `${motivoNombre}${comentarioMotivo ? ' - ' + comentarioMotivo : ''}`
-                                        : (comentarioMotivo || 'Reprogramación de fecha fin'));
+                                    : (esCompromisoReprogramado
+                                        ? (motivoNombre
+                                            ? `${motivoNombre}${comentarioMotivo ? ' - ' + comentarioMotivo : ''}`
+                                            : (comentarioMotivo || 'Reprogramación de compromiso'))
+                                        : 'Actualización de fecha');
 
                                 const payload = {
                                     project_id: id,
@@ -1032,17 +1205,17 @@ let todosLosProyectos = [];
                             const motivoQA = obtenerMotivoReprogramacion('qa');
                             const motivoUAT = obtenerMotivoReprogramacion('uat');
 
-                            await registrarLog('Compromiso Desarrollo', proyectoSeleccionadoOriginal.fecha_desarrollo, reqData.fecha_desarrollo);
+                            await registrarLog('Compromiso Desarrollo', proyectoSeleccionadoOriginal.fecha_desarrollo, reqData.fecha_desarrollo, motivoDev.motivoId, motivoDev.comentario, motivoDev.motivoTexto, false);
                             await registrarLog('Inicio Desarrollo', proyectoSeleccionadoOriginal.fecha_inicio_desarrollo, reqData.fecha_inicio_desarrollo);
-                            await registrarLog('Fin Desarrollo', proyectoSeleccionadoOriginal.fecha_fin_desarrollo, reqData.fecha_fin_desarrollo, motivoDev.motivoId, motivoDev.comentario, motivoDev.motivoTexto, false);
+                            await registrarLog('Fin Desarrollo', proyectoSeleccionadoOriginal.fecha_fin_desarrollo, reqData.fecha_fin_desarrollo);
 
-                            await registrarLog('Compromiso QA', proyectoSeleccionadoOriginal.fecha_qa, reqData.fecha_qa);
+                            await registrarLog('Compromiso QA', proyectoSeleccionadoOriginal.fecha_qa, reqData.fecha_qa, motivoQA.motivoId, motivoQA.comentario, motivoQA.motivoTexto, false);
                             await registrarLog('Inicio QA', proyectoSeleccionadoOriginal.fecha_inicio_qa, reqData.fecha_inicio_qa);
-                            await registrarLog('Fin QA', proyectoSeleccionadoOriginal.fecha_fin_qa, reqData.fecha_fin_qa, motivoQA.motivoId, motivoQA.comentario, motivoQA.motivoTexto, false);
+                            await registrarLog('Fin QA', proyectoSeleccionadoOriginal.fecha_fin_qa, reqData.fecha_fin_qa);
 
-                            await registrarLog('Compromiso UAT', proyectoSeleccionadoOriginal.fecha_uat, reqData.fecha_uat);
+                            await registrarLog('Compromiso UAT', proyectoSeleccionadoOriginal.fecha_uat, reqData.fecha_uat, motivoUAT.motivoId, motivoUAT.comentario, motivoUAT.motivoTexto, false);
                             await registrarLog('Inicio UAT', proyectoSeleccionadoOriginal.fecha_inicio_uat, reqData.fecha_inicio_uat);
-                            await registrarLog('Fin UAT', proyectoSeleccionadoOriginal.fecha_fin_uat, reqData.fecha_fin_uat, motivoUAT.motivoId, motivoUAT.comentario, motivoUAT.motivoTexto, false);
+                            await registrarLog('Fin UAT', proyectoSeleccionadoOriginal.fecha_fin_uat, reqData.fecha_fin_uat);
 
                             await registrarLog('Liberación Producción', proyectoSeleccionadoOriginal.fecha_liberacion_prod, reqData.fecha_liberacion_prod);
                         }
@@ -1057,7 +1230,13 @@ let todosLosProyectos = [];
                     if (error) throw error;
 
                     console.log("Actualizado correctamente:", data);
-                    alert("Requerimiento actualizado correctamente.");
+                    if (window.PMOAlert) {
+                        await PMOAlert('El requerimiento se actualizó correctamente.', {
+                            title: 'Cambios guardados'
+                        });
+                    } else {
+                        alert('Requerimiento actualizado correctamente.');
+                    }
                 } else {
                     const { data, error } = await _supabase
                         .from('pmo_projects')
@@ -1067,16 +1246,36 @@ let todosLosProyectos = [];
                     if (error) throw error;
 
                     console.log("Guardado correctamente:", data);
-                    alert("Requerimiento guardado correctamente.");
+                    if (window.PMOAlert) {
+                        await PMOAlert('El requerimiento se guardó correctamente.', {
+                            title: 'Requerimiento guardado'
+                        });
+                    } else {
+                        alert('Requerimiento guardado correctamente.');
+                    }
                 }
 
                 cerrarModal();
                 await cargarTodo();
 
+                // Cuando la edición se realiza desde Seguimiento Ejecutivo, cargarTodo()
+                // actualiza los datos en memoria pero la vista ya montada necesita volver
+                // a renderizarse para reflejar al instante fechas, desviación, atraso y semáforo.
+                if (document.getElementById('seguimiento-lista')) {
+                    renderizarSeguimientoEjecutivo();
+                }
+
             } catch (error) {
                 console.error("Error completo al guardar:", error);
                 const msg = error?.message || '';
-                alert("No se pudo guardar: " + msg);
+                if (window.PMOAlert) {
+                    await PMOAlert('No se pudo guardar' + (msg ? ': ' + msg : '.'), {
+                        title: 'No fue posible guardar',
+                        type: 'error'
+                    });
+                } else {
+                    alert('No se pudo guardar: ' + msg);
+                }
             } finally {
                 btnGuardar.disabled = false;
                 btnGuardar.innerText = 'Guardar Cambios';
@@ -1310,6 +1509,14 @@ let todosLosProyectos = [];
                 if (error) throw error;
 
                 await cargarTodo();
+
+                // Si el historial se elimina desde Seguimiento Ejecutivo, cargarTodo()
+                // recalcula el conteo de reprogramaciones pero la tarjeta visible debe
+                // volver a renderizarse para retirar inmediatamente el badge anterior.
+                if (document.getElementById('seguimiento-lista')) {
+                    renderizarSeguimientoEjecutivo();
+                }
+
                 await verHistorial(projectId, nombre, codigo);
             } catch (e) {
                 console.error('Error al borrar historial:', e);
@@ -1322,8 +1529,15 @@ let todosLosProyectos = [];
         function abrirModalNuevo() {
             proyectoSeleccionadoOriginal = null;
             document.getElementById('form-id').value = '';
+            const chkUrgenteSprintNuevo = document.getElementById('form-urgente-sprint');
+            if (chkUrgenteSprintNuevo) chkUrgenteSprintNuevo.checked = false;
             document.getElementById('form-proyecto').reset();
             llenarSelectsForm();
+            sincronizarSprintActualNuevo();
+            setValueIfExists('form-tipo-incorporacion', 'PLANEADO');
+            setValueIfExists('form-motivo-incorporacion', '');
+            setValueIfExists('form-detalle-incorporacion', '');
+            actualizarIncorporacionSprintUI();
             llenarMotivosReprogramacion();
             document.getElementById('modal-titulo').innerText = 'Registrar Nuevo Requerimiento';
             limpiarMotivosReprogramacion();
@@ -1337,7 +1551,7 @@ let todosLosProyectos = [];
             if (el) el.value = value || '';
         }
 
-        function abrirModalEditar(id) {
+        async function abrirModalEditar(id) {
             const p = todosLosProyectos.find(x => x.id === id);
             if (!p) return;
 
@@ -1349,6 +1563,9 @@ let todosLosProyectos = [];
             setValueIfExists('form-id-req', p.id_req);
             setValueIfExists('form-nombre-rqm', p.nombre_rqm);
             setValueIfExists('form-sprint', p.sprint_id);
+            setValueIfExists('form-sprint-actual', obtenerSprintActualId(p));
+            const chkUrgenteSprint = document.getElementById('form-urgente-sprint');
+            if (chkUrgenteSprint) chkUrgenteSprint.checked = esUrgentePMO(p);
             setValueIfExists('form-sistema', p.sistema_id);
             setValueIfExists('form-clasificacion', p.clasificacion_id);
             setValueIfExists('form-area', p.area_id);
@@ -1358,7 +1575,27 @@ let todosLosProyectos = [];
             setValueIfExists('form-prioridad', p.prioridad || 'Baja');
             setValueIfExists('form-complejidad', p.complejidad || 'Mediana');
             setValueIfExists('form-estatus', p.estatus || 'BACKLOG');
-            setValueIfExists('form-descripcion', p.descripcion);
+            let descripcionFormulario = p.descripcion || '';
+            // Respaldo para RQM provenientes de Mis solicitudes: si un registro histórico
+            // llegó a la Matriz sin descripción, recuperamos la Descripción general original.
+            if (!descripcionFormulario && p.id_req) {
+                try {
+                    const { data: solicitudOrigen } = await _supabase
+                        .from('rqm_control_requerimientos')
+                        .select('datos_formulario,observaciones')
+                        .eq('numero_rqm', p.id_req)
+                        .maybeSingle();
+                    const datosOrigen = solicitudOrigen?.datos_formulario || {};
+                    descripcionFormulario = datosOrigen.descripcion_general || '';
+                    if (!descripcionFormulario && solicitudOrigen?.observaciones) {
+                        const m = String(solicitudOrigen.observaciones).match(/Descripción:\s*([\s\S]*?)(?=\n\n[A-ZÁÉÍÓÚÑ][^\n]{0,55}:|\n\n---|$)/i);
+                        descripcionFormulario = m ? m[1].trim() : '';
+                    }
+                } catch (e) {
+                    console.warn('No fue posible recuperar la Descripción general del Self Service:', e?.message || e);
+                }
+            }
+            setValueIfExists('form-descripcion', descripcionFormulario);
             setValueIfExists('form-fecha-ingreso', p.fecha_ingreso_pmo);
 
             setValueIfExists('form-fecha-desarrollo', p.fecha_desarrollo);
@@ -1396,7 +1633,7 @@ let todosLosProyectos = [];
         function cerrarModalHistorial() { document.getElementById('modal-historial').classList.add('hidden'); }
 
         async function eliminarProyecto(id, nombre) {
-            if (await PMOConfirm(`Se eliminará "${nombre}" únicamente de la Matriz PMO. La solicitud original y su folio permanecerán en el Buzón de RQM y en la vista del usuario para conservar la trazabilidad. Esta acción no se puede deshacer.`)) {
+            if (await PMOConfirm(`Se eliminará "${nombre}" únicamente de la Matriz de Requerimientos. La solicitud original y su folio permanecerán en el Buzón de RQM y en la vista del usuario para conservar la trazabilidad. Esta acción no se puede deshacer.`)) {
                 const { error } = await _supabase.from('pmo_projects').delete().eq('id', id);
                 if (error) {
                     await PMOAlert('No se pudo eliminar', error.message || 'Ocurrió un error al eliminar el proyecto de la Matriz.');
@@ -1464,6 +1701,96 @@ let todosLosProyectos = [];
             return String(valor ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
         }
 
+        function obtenerResumenUrgentesDashboard(proyectos) {
+            const evaluables = (proyectos || []).filter(p => !esCanceladoDashboard(p));
+            const urgentes = evaluables.filter(esUrgentePMO);
+            return {
+                total: urgentes.length,
+                activos: urgentes.filter(p => !esLiberadoDashboard(p)).length,
+                liberados: urgentes.filter(esLiberadoDashboard).length
+            };
+        }
+
+
+        function obtenerResumenAdendumsDashboard(proyectos = proyectosDashboardActuales.length || document.getElementById('filtro-sistema-dashboard')?.value ? proyectosDashboardActuales : todosLosProyectos) {
+            const registros = proyectos || [];
+            const esAdendum = p => normalizarTexto(p?.tipo_registro) === 'ADENDUM';
+            const adendums = registros.filter(esAdendum);
+            const bases = registros.filter(p => !esAdendum(p));
+            const basesPorId = new Map(bases.map(p => [String(p.id), p]));
+            const porPadre = new Map();
+
+            adendums.forEach(a => {
+                const padre = a.requerimiento_padre_id ? basesPorId.get(String(a.requerimiento_padre_id)) : null;
+                if (!padre) return;
+                const clave = String(padre.id);
+                if (!porPadre.has(clave)) porPadre.set(clave,{padre,adendums:[]});
+                porPadre.get(clave).adendums.push(a);
+            });
+
+            const grupos=[...porPadre.values()].sort((a,b)=>
+                String(a.padre.id_req||'').localeCompare(String(b.padre.id_req||''),'es',{numeric:true})
+            );
+            grupos.forEach(g=>g.adendums.sort((a,b)=>Number(a.numero_adendum||0)-Number(b.numero_adendum||0)));
+
+            return {
+                requerimientosBase:bases.length,
+                requerimientosConAdendum:grupos.length,
+                adendumsTotales:adendums.length,
+                grupos
+            };
+        }
+
+        function renderizarResumenAdendumsDashboard() {
+            const r = obtenerResumenAdendumsDashboard();
+            const set = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+            set('adendum-rqm-base', r.requerimientosBase);
+            set('adendum-rqm-con-adendum', r.requerimientosConAdendum);
+            set('adendum-total', r.adendumsTotales);
+            const btn=document.getElementById('card-rqm-con-adendum');
+            if(btn) btn.disabled = r.requerimientosConAdendum === 0;
+        }
+
+        function abrirVisorAdendums() {
+            const r = obtenerResumenAdendumsDashboard(proyectosDashboardActuales.length || document.getElementById('filtro-sistema-dashboard')?.value ? proyectosDashboardActuales : todosLosProyectos);
+            const modal = document.getElementById('modal-visor-adendums');
+            const body = document.getElementById('visor-adendums-body');
+            if (!modal || !body) return;
+
+            if (!r.grupos.length) {
+                body.innerHTML = '<div class="rounded-2xl bg-slate-50 p-6 text-sm text-slate-500 text-center">No hay requerimientos con adendums registrados.</div>';
+            } else {
+                body.innerHTML = r.grupos.map(g => {
+                    const padre = g.padre || {};
+                    return `<div class="rounded-2xl border border-slate-200 overflow-hidden">
+                        <div class="w-full text-left p-4 bg-slate-50">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <p class="text-xs font-black uppercase tracking-wide text-blue-600">${escaparHtmlPMO(padre.id_req || 'RQM base')}</p>
+                                    <p class="font-black text-slate-900 mt-1">${escaparHtmlPMO(padre.nombre_rqm || 'Requerimiento')}</p>
+                                </div>
+                                <span class="shrink-0 px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 text-xs font-black">${g.adendums.length} adendum${g.adendums.length===1?'':'s'}</span>
+                            </div>
+                        </div>
+                        <div class="divide-y divide-slate-100">
+                            ${g.adendums.map(a => `<div class="px-4 py-3 flex items-start gap-3">
+                                <div class="w-8 h-8 rounded-xl bg-violet-50 text-violet-700 flex items-center justify-center shrink-0"><i data-lucide="file-plus-2" class="w-4 h-4"></i></div>
+                                <div><p class="text-sm font-black text-slate-800">${escaparHtmlPMO(a.id_req || 'Adendum')}</p><p class="text-xs text-slate-500 mt-0.5">${escaparHtmlPMO(a.nombre_rqm || 'Sin nombre')}</p></div>
+                            </div>`).join('')}
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+            modal.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function cerrarVisorAdendums() {
+            document.getElementById('modal-visor-adendums')?.classList.add('hidden');
+        }
+        window.abrirVisorAdendums = abrirVisorAdendums;
+        window.cerrarVisorAdendums = cerrarVisorAdendums;
+
         function renderizarKpisEjecutivos(proyectos) {
             const contenedor = document.getElementById('kpis-ejecutivos');
             if (!contenedor || !window.PMOMetrics) return;
@@ -1473,15 +1800,16 @@ let todosLosProyectos = [];
                 { titulo: 'Portafolio vigente', valor: r.vigentes, detalle: `${r.cancelados} cancelado${r.cancelados === 1 ? '' : 's'} excluido${r.cancelados === 1 ? '' : 's'} de cumplimiento`, icono: 'layers', clase: 'bg-blue-50 text-blue-700' },
                 { titulo: 'Liberados', valor: r.liberados, detalle: `${r.vigentes ? Math.round((r.liberados / r.vigentes) * 100) : 0}% del portafolio vigente`, icono: 'rocket', clase: 'bg-emerald-50 text-emerald-700' },
                 { titulo: 'Cumplimiento', valor: r.cumplimiento === null ? '—' : `${r.cumplimiento}%`, detalle: `${r.fasesCumplidas}/${r.fasesMedidas} fases cerradas en tiempo`, icono: 'badge-check', clase: 'bg-violet-50 text-violet-700' },
-                { titulo: 'Lead time promedio', valor: r.leadTimePromedio === null ? '—' : `${r.leadTimePromedio} d`, detalle: 'Ingreso PMO a liberación', icono: 'timer', clase: 'bg-amber-50 text-amber-700' },
+                { titulo: 'Lead time promedio', valor: r.leadTimePromedio === null ? '—' : `${r.leadTimePromedio} d`, detalle: 'Ingreso a liberación', icono: 'timer', clase: 'bg-amber-50 text-amber-700' },
                 { titulo: 'Requerimientos atrasados', valor: r.requerimientosAtrasados, detalle: `${r.atrasos.length} fase${r.atrasos.length === 1 ? '' : 's'} abierta${r.atrasos.length === 1 ? '' : 's'} vencida${r.atrasos.length === 1 ? '' : 's'}`, icono: 'triangle-alert', clase: 'bg-rose-50 text-rose-700' },
                 { titulo: 'Próximos 7 días', valor: r.proximos7.length, detalle: 'Compromisos abiertos por vencer', icono: 'calendar-range', clase: 'bg-cyan-50 text-cyan-700' },
                 { titulo: 'Reprogramaciones', valor: r.reprogramaciones, detalle: `${r.proyectosReprogramados} requerimiento${r.proyectosReprogramados === 1 ? '' : 's'} afectado${r.proyectosReprogramados === 1 ? '' : 's'}`, icono: 'calendar-clock', clase: 'bg-orange-50 text-orange-700' },
-                { titulo: 'Estabilidad del plan', valor: r.estabilidad === null ? '—' : `${r.estabilidad}%`, detalle: 'Requerimientos sin reprogramación', icono: 'shield-check', clase: 'bg-slate-100 text-slate-700' }
+                { titulo: 'Estabilidad del plan', valor: r.estabilidad === null ? '—' : `${r.estabilidad}%`, detalle: 'Requerimientos sin reprogramación', icono: 'shield-check', clase: 'bg-slate-100 text-slate-700' },
+                { titulo: 'Arrastres actuales', valor: obtenerResumenArrastresDashboard(proyectos).activos, detalle: 'RQM activos provenientes de Sprints anteriores · Clic para ver cuáles', icono: 'arrow-right-left', clase: 'bg-indigo-50 text-indigo-700', accion: 'abrirDetalleArrastresDashboard()' }
             ];
 
             contenedor.innerHTML = kpis.map(k => `
-                <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition">
+                <div ${k.accion ? `onclick="${k.accion}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${k.accion}}"` : ''} class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition ${k.accion ? 'cursor-pointer hover:border-indigo-200' : ''}">
                     <div class="flex justify-between items-start gap-4">
                         <div><p class="text-xs font-black uppercase tracking-wide text-slate-400">${k.titulo}</p><h3 class="text-3xl font-black text-slate-900 mt-2">${k.valor}</h3><p class="text-xs text-slate-500 mt-1">${k.detalle}</p></div>
                         <div class="${k.clase} w-11 h-11 rounded-2xl flex items-center justify-center"><i data-lucide="${k.icono}" class="w-5 h-5"></i></div>
@@ -1498,7 +1826,13 @@ let todosLosProyectos = [];
             if (pulsoDetalle) pulsoDetalle.textContent = (criticos || r.proximos7.length)
                 ? 'Consulta el detalle inferior para identificar los requerimientos y el motivo de atención.'
                 : 'No hay casos críticos ni compromisos abiertos que venzan en los próximos 7 días.';
-            if (pulsoBadge) pulsoBadge.textContent = `${r.vigentes} vigentes · ${r.liberados} liberados · ${r.estabilidad ?? '—'}% estabilidad`;
+            const resumenArrastres = obtenerResumenArrastresDashboard(proyectos);
+            const resumenUrgentes = obtenerResumenUrgentesDashboard(proyectos);
+            const urgentesTotal = document.getElementById('resumen-urgentes-total');
+            const urgentesDetalle = document.getElementById('resumen-urgentes-detalle');
+            if (urgentesTotal) urgentesTotal.textContent = resumenUrgentes.total;
+            if (urgentesDetalle) urgentesDetalle.textContent = `${resumenUrgentes.liberados} liberados · ${resumenUrgentes.activos} activos`;
+            if (pulsoBadge) pulsoBadge.textContent = `${r.vigentes} vigentes · ${r.liberados} liberados · ${resumenArrastres.activos} arrastre${resumenArrastres.activos === 1 ? '' : 's'} activo${resumenArrastres.activos === 1 ? '' : 's'} · ${resumenUrgentes.total} urgente${resumenUrgentes.total === 1 ? '' : 's'} · ${r.estabilidad ?? '—'}% estabilidad`;
             const setCommand = (id, value) => { const x=document.getElementById(id); if(x) x.textContent=value; };
             setCommand('pmo-command-criticos', criticos);
             setCommand('pmo-command-proximos', r.proximos7.length);
@@ -1562,6 +1896,134 @@ let todosLosProyectos = [];
             }).join('');
         }
 
+        const etiquetasDonaEstatusDashboard = {
+            id: 'etiquetasDonaEstatusDashboard',
+            afterDatasetsDraw(chart) {
+                if (chart.config.type !== 'doughnut') return;
+                const { ctx } = chart;
+                const dataset = chart.data.datasets?.[0];
+                const meta = chart.getDatasetMeta(0);
+                if (!dataset || !meta) return;
+
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.font = '900 13px Arial, sans-serif';
+
+                meta.data.forEach((arco, indice) => {
+                    const valor = Number(dataset.data[indice] || 0);
+                    const visible = typeof chart.getDataVisibility === 'function'
+                        ? chart.getDataVisibility(indice)
+                        : !arco.hidden;
+                    if (!visible || valor <= 0) return;
+
+                    const props = arco.getProps(['x', 'y', 'startAngle', 'endAngle', 'innerRadius', 'outerRadius'], true);
+                    const angulo = (props.startAngle + props.endAngle) / 2;
+                    const radio = (props.innerRadius + props.outerRadius) / 2;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(String(valor), props.x + Math.cos(angulo) * radio, props.y + Math.sin(angulo) * radio);
+                });
+
+                const total = dataset.data.reduce((acumulado, valor, indice) => {
+                    const visible = typeof chart.getDataVisibility === 'function'
+                        ? chart.getDataVisibility(indice)
+                        : !meta.data[indice]?.hidden;
+                    return visible ? acumulado + Number(valor || 0) : acumulado;
+                }, 0);
+
+                const primerArco = meta.data.find((arco, indice) =>
+                    typeof chart.getDataVisibility === 'function' ? chart.getDataVisibility(indice) : !arco.hidden
+                );
+                const centro = primerArco
+                    ? primerArco.getProps(['x', 'y'], true)
+                    : {
+                        x: (chart.chartArea.left + chart.chartArea.right) / 2,
+                        y: (chart.chartArea.top + chart.chartArea.bottom) / 2
+                    };
+
+                ctx.fillStyle = '#0f172a';
+                ctx.font = '900 30px Arial, sans-serif';
+                ctx.fillText(String(total), centro.x, centro.y - 8);
+                ctx.fillStyle = '#64748b';
+                ctx.font = '800 10px Arial, sans-serif';
+                ctx.fillText(total === 1 ? 'REQUERIMIENTO' : 'REQUERIMIENTOS', centro.x, centro.y + 17);
+                ctx.restore();
+            }
+        };
+
+        function crearGraficaEstatusDashboard(proyectos) {
+            const canvas = document.getElementById('chart-estatus');
+            if (!canvas || typeof Chart === 'undefined') return;
+            if (chartsEjecutivos['chart-estatus']) chartsEjecutivos['chart-estatus'].destroy();
+
+            const conteo = contarPor(proyectos, p => normalizarTexto(p.estatus || 'BACKLOG'));
+            const orden = ['LIBERADO', 'UAT', 'QA', 'BACKLOG', 'CANCELADO', 'ANALISIS', 'DESARROLLO'];
+            const extras = Object.keys(conteo).filter(k => !orden.includes(k));
+            const labels = [...orden.filter(k => Number(conteo[k] || 0) > 0), ...extras.filter(k => Number(conteo[k] || 0) > 0)];
+            const data = labels.map(k => Number(conteo[k] || 0));
+
+            const paleta = {
+                LIBERADO: 'rgba(30, 58, 138, 0.90)',
+                UAT: 'rgba(37, 99, 235, 0.85)',
+                QA: 'rgba(245, 158, 11, 0.85)',
+                BACKLOG: 'rgba(249, 115, 22, 0.85)',
+                CANCELADO: 'rgba(16, 185, 129, 0.85)',
+                ANALISIS: 'rgba(139, 92, 246, 0.85)',
+                DESARROLLO: 'rgba(6, 182, 212, 0.85)'
+            };
+            const colores = labels.map(k => paleta[k] || 'rgba(100, 116, 139, 0.85)');
+
+            chartsEjecutivos['chart-estatus'] = new Chart(canvas.getContext('2d'), {
+                type: 'doughnut',
+                plugins: [etiquetasDonaEstatusDashboard],
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Requerimientos',
+                        data,
+                        backgroundColor: colores,
+                        borderColor: '#ffffff',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '62%',
+                    layout: { padding: { left: 4, right: 4, top: 2, bottom: 2 } },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'right',
+                            labels: {
+                                boxWidth: 11,
+                                boxHeight: 11,
+                                padding: 14,
+                                font: { size: 11, weight: 'bold' },
+                                generateLabels(chart) {
+                                    const ds = chart.data.datasets[0];
+                                    return chart.data.labels.map((label, i) => ({
+                                        text: `${label} ${ds.data[i]}`,
+                                        fillStyle: ds.backgroundColor[i],
+                                        strokeStyle: ds.backgroundColor[i],
+                                        lineWidth: 0,
+                                        hidden: !chart.getDataVisibility(i),
+                                        index: i
+                                    }));
+                                }
+                            },
+                            onClick(e, item, legend) {
+                                const chart = legend.chart;
+                                chart.toggleDataVisibility(item.index);
+                                chart.update();
+                            }
+                        },
+                        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw}` } }
+                    }
+                }
+            });
+        }
+
         function crearOActualizarGrafica(idCanvas, tipo, labels, data, label) {
             const canvas = document.getElementById(idCanvas);
             if (!canvas || typeof Chart === 'undefined') return;
@@ -1609,31 +2071,507 @@ let todosLosProyectos = [];
             });
         }
 
+
+        function esCanceladoDashboard(p) {
+            return normalizarTexto(p?.estatus || '') === 'CANCELADO';
+        }
+
+        function esLiberadoDashboard(p) {
+            return normalizarTexto(p?.estatus || '') === 'LIBERADO';
+        }
+
+        function obtenerResumenArrastresDashboard(proyectos) {
+            const evaluables = (proyectos || []).filter(p => !esCanceladoDashboard(p));
+            const arrastrados = evaluables.filter(p => {
+                const origen = p?.sprint_id;
+                const actual = obtenerSprintActualId(p);
+                return origen && actual && String(origen) !== String(actual);
+            });
+            return {
+                total: arrastrados.length,
+                activos: arrastrados.filter(p => !esLiberadoDashboard(p)).length
+            };
+        }
+
+        function crearOActualizarGraficaSprintsComparativa(proyectos) {
+            const canvas = document.getElementById('chart-sprints');
+            if (!canvas || typeof Chart === 'undefined') return;
+            if (chartsEjecutivos['chart-sprints']) chartsEjecutivos['chart-sprints'].destroy();
+
+            const evaluables = (proyectos || []).filter(p => !esCanceladoDashboard(p));
+            const esArrastre = p => {
+                const origen = p?.sprint_id;
+                const actual = obtenerSprintActualId(p);
+                return origen && actual && String(origen) !== String(actual);
+            };
+            const propios = contarPor(
+                evaluables.filter(p => !esArrastre(p)),
+                p => obtenerSprintActualNombre(p) || 'Sin sprint'
+            );
+            const arrastres = contarPor(
+                evaluables.filter(esArrastre),
+                p => obtenerSprintActualNombre(p) || 'Sin sprint'
+            );
+            // Orden cronológico real por periodo (año + mes).
+            // Las claves de la gráfica ya incluyen año, por ejemplo "SEPTIEMBRE 2026",
+            // por eso no debemos compararlas contra sólo s.nombre.
+            const ordenCatalogo = (cats.sprints || [])
+                .map(s => etiquetaSprintPMO(s))
+                .filter(Boolean);
+            const presentes = [...new Set([...Object.keys(propios), ...Object.keys(arrastres)])];
+            const ordenMes = new Map(ORDEN_SPRINTS_PMO.map((m, i) => [normalizarTexto(m), i + 1]));
+            const clavePeriodo = etiqueta => {
+                const texto = String(etiqueta || '').trim();
+                const matchAnio = texto.match(/\b(20\d{2})\b/);
+                const anio = matchAnio ? Number(matchAnio[1]) : 9999;
+                const nombreMes = normalizarTexto(texto.replace(/\b20\d{2}\b/g, '').trim());
+                const mes = ordenMes.get(nombreMes) || 99;
+                return [anio, mes, texto];
+            };
+            const labels = presentes.sort((a, b) => {
+                const ka = clavePeriodo(a), kb = clavePeriodo(b);
+                return ka[0] - kb[0] || ka[1] - kb[1] || ka[2].localeCompare(kb[2], 'es');
+            });
+
+            chartsEjecutivos['chart-sprints'] = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: { labels, datasets: [
+                    { label:'Propios del Sprint', data:labels.map(n=>propios[n]||0), backgroundColor:'rgba(37, 99, 235, 0.72)', borderColor:'rgba(37, 99, 235, 1)', borderWidth:1.5, borderRadius:5 },
+                    { label:'Arrastres recibidos', data:labels.map(n=>arrastres[n]||0), backgroundColor:'rgba(139, 92, 246, 0.72)', borderColor:'rgba(139, 92, 246, 1)', borderWidth:1.5, borderRadius:5 }
+                ]},
+                options: {
+                    responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+                    plugins:{
+                        legend:{display:true,position:'bottom',labels:{boxWidth:12,font:{size:11,weight:'600'}}},
+                        tooltip:{callbacks:{footer(items){
+                            if(!items?.length) return '';
+                            const propiosN=Number(items.find(i=>i.dataset.label==='Propios del Sprint')?.raw||0);
+                            const arr=Number(items.find(i=>i.dataset.label==='Arrastres recibidos')?.raw||0);
+                            return `Carga total del Sprint: ${propiosN+arr}`;
+                        }}}
+                    },
+                    scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{font:{size:11}}}}
+                }
+            });
+        }
+
+        function crearOActualizarGraficaUrgentesSprint(proyectos) {
+            const canvas = document.getElementById('chart-urgentes-sprint');
+            if (!canvas || typeof Chart === 'undefined') return;
+
+            if (chartsEjecutivos['chart-urgentes-sprint']) {
+                chartsEjecutivos['chart-urgentes-sprint'].destroy();
+            }
+
+            const evaluables = (proyectos || []).filter(p => !esCanceladoDashboard(p));
+            const urgentes = evaluables.filter(esUrgentePMO);
+
+            const conteo = contarPor(
+                urgentes,
+                p => obtenerSprintActualNombre(p) || 'Sin sprint'
+            );
+
+            const ordenCatalogo = (cats.sprints || []).map(s => s.nombre);
+            const extras = Object.keys(conteo).filter(n => !ordenCatalogo.includes(n));
+            const labels = [
+                ...ordenCatalogo.filter(n => conteo[n]),
+                ...extras
+            ];
+
+            chartsEjecutivos['chart-urgentes-sprint'] = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Urgentes',
+                        data: labels.map(n => conteo[n] || 0),
+                        backgroundColor: 'rgba(249, 115, 22, 0.72)',
+                        borderColor: 'rgba(249, 115, 22, 1)',
+                        borderWidth: 1.5,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label(ctx) {
+                                    const n = Number(ctx.raw || 0);
+                                    return `${n} requerimiento${n === 1 ? '' : 's'} urgente${n === 1 ? '' : 's'}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { precision: 0 }
+                        },
+                        x: {
+                            ticks: { font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function obtenerSerieLiberacionesOrdenada(proyectos) {
+            const conteo = {};
+            (proyectos || []).forEach(p => {
+                if (!p.fecha_liberacion_prod) return;
+                const fecha = String(p.fecha_liberacion_prod).slice(0, 10);
+                const match = fecha.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if (!match) return;
+                const clave = `${match[1]}-${match[2]}`;
+                conteo[clave] = (conteo[clave] || 0) + 1;
+            });
+            const claves = Object.keys(conteo).sort();
+            const labels = claves.map(clave => {
+                const [anio, mes] = clave.split('-').map(Number);
+                return new Date(anio, mes - 1, 1).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
+            });
+            return { labels, valores: claves.map(k => conteo[k]), claves };
+        }
+
+
+        function cerrarDetalleDashboard() {
+            document.getElementById('modal-detalle-dashboard')?.classList.add('hidden');
+        }
+
+        function abrirModalDetalleDashboard(titulo, subtitulo, contenidoHtml) {
+            const modal = document.getElementById('modal-detalle-dashboard');
+            const tituloEl = document.getElementById('detalle-dashboard-titulo');
+            const subtituloEl = document.getElementById('detalle-dashboard-subtitulo');
+            const body = document.getElementById('detalle-dashboard-body');
+            if (!modal || !body) return;
+            if (tituloEl) tituloEl.textContent = titulo || 'Detalle';
+            if (subtituloEl) subtituloEl.textContent = subtitulo || '';
+            body.innerHTML = contenidoHtml || '';
+            modal.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function obtenerArrastresActivosDashboard(proyectos) {
+            return (proyectos || []).filter(p => {
+                if (esCanceladoDashboard(p) || esLiberadoDashboard(p)) return false;
+                const origen = p?.sprint_id;
+                const actual = obtenerSprintActualId(p);
+                return origen && actual && String(origen) !== String(actual);
+            });
+        }
+
+        function abrirDetalleArrastresDashboard() {
+            const arrastres = obtenerArrastresActivosDashboard(proyectosDashboardActuales);
+            const sistemaNombre = document.getElementById('filtro-sistema-dashboard')?.selectedOptions?.[0]?.textContent || 'Todos los sistemas';
+
+            if (!arrastres.length) {
+                abrirModalDetalleDashboard(
+                    'Arrastres actuales',
+                    sistemaNombre,
+                    '<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay RQM activos provenientes de Sprints anteriores.</div>'
+                );
+                return;
+            }
+
+            const filas = arrastres
+                .sort((a,b) => String(a.id_req || '').localeCompare(String(b.id_req || ''), 'es', { numeric:true }))
+                .map(p => `
+                    <tr class="border-b border-slate-100 last:border-0">
+                        <td class="px-4 py-3 whitespace-nowrap font-black text-blue-700">${escaparHtmlPMO(p.id_req || '—')}</td>
+                        <td class="px-4 py-3 min-w-[280px] font-bold text-slate-800">${escaparHtmlPMO(p.nombre_rqm || '—')}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escaparHtmlPMO(p.cat_sprints ? etiquetaSprintPMO(p.cat_sprints) : 'Sin sprint')}</td>
+                        <td class="px-4 py-3 whitespace-nowrap font-bold text-indigo-700">${escaparHtmlPMO(obtenerSprintActualNombre(p) || 'Sin sprint')}</td>
+                        <td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-black">${escaparHtmlPMO(p.estatus || 'Backlog')}</span></td>
+                    </tr>`).join('');
+
+            abrirModalDetalleDashboard(
+                `Arrastres actuales · ${arrastres.length}`,
+                `${sistemaNombre} · Consulta informativa de arrastres activos`,
+                `<div class="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th class="text-left px-4 py-3">RQM</th>
+                                <th class="text-left px-4 py-3">Requerimiento</th>
+                                <th class="text-left px-4 py-3">Sprint origen</th>
+                                <th class="text-left px-4 py-3">Sprint actual</th>
+                                <th class="text-left px-4 py-3">Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody>${filas}</tbody>
+                    </table>
+                </div>`
+            );
+        }
+
+        function abrirDetalleLiberacionesMesDashboard(claveMes, etiquetaMes) {
+            const proyectos = (proyectosDashboardActuales || []).filter(p => {
+                if (!p.fecha_liberacion_prod) return false;
+                return String(p.fecha_liberacion_prod).slice(0,7) === String(claveMes || '');
+            }).sort((a,b) => String(a.fecha_liberacion_prod || '').localeCompare(String(b.fecha_liberacion_prod || '')));
+
+            const sistemaNombre = document.getElementById('filtro-sistema-dashboard')?.selectedOptions?.[0]?.textContent || 'Todos los sistemas';
+
+            if (!proyectos.length) {
+                abrirModalDetalleDashboard(
+                    `Liberaciones · ${etiquetaMes || claveMes}`,
+                    sistemaNombre,
+                    '<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay liberaciones registradas para este periodo.</div>'
+                );
+                return;
+            }
+
+            const filas = proyectos.map(p => `
+                <tr class="border-b border-slate-100 last:border-0">
+                    <td class="px-4 py-3 whitespace-nowrap font-black text-blue-700">${escaparHtmlPMO(p.id_req || '—')}</td>
+                    <td class="px-4 py-3 min-w-[320px] font-bold text-slate-800">${escaparHtmlPMO(p.nombre_rqm || '—')}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escaparHtmlPMO(p.cat_sistemas?.nombre || 'Sin sistema')}</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-bold text-emerald-700">${formatearFechaVista(String(p.fecha_liberacion_prod || '').slice(0,10))}</td>
+                </tr>`).join('');
+
+            abrirModalDetalleDashboard(
+                `Liberaciones · ${etiquetaMes || claveMes}`,
+                `${proyectos.length} RQM liberado${proyectos.length === 1 ? '' : 's'} · ${sistemaNombre}`,
+                `<div class="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th class="text-left px-4 py-3">RQM</th>
+                                <th class="text-left px-4 py-3">Requerimiento</th>
+                                <th class="text-left px-4 py-3">Sistema</th>
+                                <th class="text-left px-4 py-3">Liberación</th>
+                            </tr>
+                        </thead>
+                        <tbody>${filas}</tbody>
+                    </table>
+                </div>`
+            );
+        }
+
+        function abrirDetalleIngresosMesDashboard(claveMes, etiquetaMes) {
+            const proyectos = (proyectosDashboardActuales || []).filter(p => {
+                if (!p.fecha_ingreso_pmo) return false;
+                return String(p.fecha_ingreso_pmo).slice(0,7) === String(claveMes || '');
+            }).sort((a,b) => String(a.fecha_ingreso_pmo || '').localeCompare(String(b.fecha_ingreso_pmo || '')));
+
+            const sistemaNombre = document.getElementById('filtro-sistema-dashboard')?.selectedOptions?.[0]?.textContent || 'Todos los sistemas';
+
+            if (!proyectos.length) {
+                abrirModalDetalleDashboard(
+                    `Ingresos · ${etiquetaMes || claveMes}`,
+                    sistemaNombre,
+                    '<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay requerimientos ingresados para este periodo.</div>'
+                );
+                return;
+            }
+
+            const filas = proyectos.map(p => `
+                <tr class="border-b border-slate-100 last:border-0">
+                    <td class="px-4 py-3 whitespace-nowrap font-black text-blue-700">${escaparHtmlPMO(p.id_req || '—')}</td>
+                    <td class="px-4 py-3 min-w-[320px] font-bold text-slate-800">${escaparHtmlPMO(p.nombre_rqm || '—')}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escaparHtmlPMO(p.cat_sistemas?.nombre || 'Sin sistema')}</td>
+                    <td class="px-4 py-3 whitespace-nowrap font-bold text-blue-700">${formatearFechaVista(String(p.fecha_ingreso_pmo || '').slice(0,10))}</td>
+                </tr>`).join('');
+
+            abrirModalDetalleDashboard(
+                `Ingresos · ${etiquetaMes || claveMes}`,
+                `${proyectos.length} RQM ingresado${proyectos.length === 1 ? '' : 's'} · ${sistemaNombre}`,
+                `<div class="overflow-x-auto rounded-2xl border border-slate-200">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th class="text-left px-4 py-3">RQM</th>
+                                <th class="text-left px-4 py-3">Requerimiento</th>
+                                <th class="text-left px-4 py-3">Sistema</th>
+                                <th class="text-left px-4 py-3">Ingreso PMO</th>
+                            </tr>
+                        </thead>
+                        <tbody>${filas}</tbody>
+                    </table>
+                </div>`
+            );
+        }
+
+        function obtenerSerieIngresosOrdenada(proyectos) {
+            const meses = new Map();
+            (proyectos || []).forEach(p => {
+                // En PMO, fecha_ingreso_pmo corresponde a la Fecha de asignación de folio del buzón.
+                const match = String(p?.fecha_ingreso_pmo || '').match(/^(20\d{2})-(\d{2})/);
+                if (!match) return;
+                const clave = `${match[1]}-${match[2]}`;
+                meses.set(clave, (meses.get(clave) || 0) + 1);
+            });
+
+            const presentes = [...meses.keys()].sort();
+            const claves = [];
+            if (presentes.length) {
+                let [anio, mes] = presentes[0].split('-').map(Number);
+                const [anioFin, mesFin] = presentes[presentes.length - 1].split('-').map(Number);
+                while (anio < anioFin || (anio === anioFin && mes <= mesFin)) {
+                    claves.push(`${anio}-${String(mes).padStart(2, '0')}`);
+                    mes += 1;
+                    if (mes === 13) { mes = 1; anio += 1; }
+                }
+            }
+
+            const nombresMes = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+            return {
+                claves,
+                labels: claves.map(k => {
+                    const [anio, mes] = k.split('-');
+                    return `${nombresMes[Number(mes) - 1] || mes} ${anio}`;
+                }),
+                valores: claves.map(k => meses.get(k) || 0)
+            };
+        }
+
+        function crearGraficaIngresosDashboard(proyectos) {
+            const canvas = document.getElementById('chart-ingresos');
+            if (!canvas || typeof Chart === 'undefined') return;
+            if (chartsEjecutivos['chart-ingresos']) chartsEjecutivos['chart-ingresos'].destroy();
+
+            const serie = obtenerSerieIngresosOrdenada(proyectos);
+            chartsEjecutivos['chart-ingresos'] = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: serie.labels,
+                    datasets: [{
+                        label: 'Ingresos',
+                        data: serie.valores,
+                        backgroundColor: 'rgba(37, 99, 235, 0.72)',
+                        borderColor: 'rgba(37, 99, 235, 1)',
+                        borderWidth: 1.5,
+                        borderRadius: 6,
+                        maxBarThickness: 48
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'nearest', intersect: true },
+                    onHover: (event, elementos) => {
+                        event.native.target.style.cursor = elementos.length ? 'pointer' : 'default';
+                    },
+                    onClick: (event, elementos) => {
+                        if (!elementos?.length) return;
+                        const indice = elementos[0].index;
+                        abrirDetalleIngresosMesDashboard(serie.claves[indice], serie.labels[indice]);
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.raw} requerimiento${Number(ctx.raw) === 1 ? '' : 's'}`,
+                                afterLabel: () => 'Clic para consultar los RQM'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                        x: { ticks: { font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function crearGraficaLiberacionesDashboard(proyectos) {
+            const canvas = document.getElementById('chart-liberaciones');
+            if (!canvas || typeof Chart === 'undefined') return;
+            if (chartsEjecutivos['chart-liberaciones']) chartsEjecutivos['chart-liberaciones'].destroy();
+
+            const serie = obtenerSerieLiberacionesOrdenada(proyectos);
+            chartsEjecutivos['chart-liberaciones'] = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: serie.labels,
+                    datasets: [{
+                        label: 'Liberados',
+                        data: serie.valores,
+                        backgroundColor: 'rgba(37, 99, 235, 0.18)',
+                        borderColor: 'rgba(37, 99, 235, 1)',
+                        borderWidth: 2,
+                        tension: 0.35,
+                        fill: true,
+                        pointRadius: 4,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'nearest', intersect: true },
+                    onHover: (event, elementos) => {
+                        event.native.target.style.cursor = elementos.length ? 'pointer' : 'default';
+                    },
+                    onClick: (event, elementos) => {
+                        if (!elementos?.length) return;
+                        const indice = elementos[0].index;
+                        abrirDetalleLiberacionesMesDashboard(serie.claves[indice], serie.labels[indice]);
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: () => 'Clic para consultar los RQM'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } },
+                        x: { ticks: { font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        window.cerrarDetalleDashboard = cerrarDetalleDashboard;
+        window.abrirDetalleArrastresDashboard = abrirDetalleArrastresDashboard;
+        window.abrirDetalleIngresosMesDashboard = abrirDetalleIngresosMesDashboard;
+        window.abrirDetalleLiberacionesMesDashboard = abrirDetalleLiberacionesMesDashboard;
+
         function renderizarDashboardEjecutivo(proyectos) {
             const existeDashboard = document.getElementById('dashboard-ejecutivo') || document.getElementById('kpis-ejecutivos');
             if (!existeDashboard) return;
-            renderizarKpisEjecutivos(proyectos);
 
-            const porEstatus = contarPor(proyectos, p => (p.estatus || 'BACKLOG').toUpperCase());
-            crearOActualizarGrafica('chart-estatus', 'doughnut', Object.keys(porEstatus), Object.values(porEstatus), 'Estatus');
+            proyectosDashboardActuales = proyectos || [];
+            const filtroSistemaDashboard = document.getElementById('filtro-sistema-dashboard');
+            const sistemaNombre = filtroSistemaDashboard?.selectedOptions?.[0]?.textContent || 'Todos los sistemas';
+            const subtitulo = document.getElementById('dashboard-sistema-subtitulo');
+            if (subtitulo) {
+                subtitulo.textContent = `Resumen de cumplimiento, tiempos y distribución de requerimientos · ${sistemaNombre}.`;
+            }
 
-            const porSistema = contarPor(proyectos, p => p.cat_sistemas?.nombre || 'Sin sistema');
+            renderizarKpisEjecutivos(proyectosDashboardActuales);
+            renderizarResumenAdendumsDashboard();
+
+            crearGraficaEstatusDashboard(proyectosDashboardActuales);
+
+            const porSistema = contarPor(proyectosDashboardActuales, p => p.cat_sistemas?.nombre || 'Sin sistema');
             crearOActualizarGrafica('chart-sistemas', 'bar', Object.keys(porSistema), Object.values(porSistema), 'Requerimientos');
 
-            const porSprint = contarPor(proyectos, p => p.cat_sprints?.nombre || 'Sin sprint');
-            crearOActualizarGrafica('chart-sprints', 'bar', Object.keys(porSprint), Object.values(porSprint), 'Requerimientos');
+            crearOActualizarGraficaSprintsComparativa(proyectosDashboardActuales);
+            crearOActualizarGraficaUrgentesSprint(proyectosDashboardActuales);
 
-            const liberaciones = {};
-            proyectos.forEach(p => {
-                if (!p.fecha_liberacion_prod) return;
-                const d = new Date(p.fecha_liberacion_prod + 'T00:00:00');
-                const clave = d.toLocaleDateString('es-MX', { month: 'short', year: 'numeric' });
-                liberaciones[clave] = (liberaciones[clave] || 0) + 1;
-            });
-            crearOActualizarGrafica('chart-liberaciones', 'line', Object.keys(liberaciones), Object.values(liberaciones), 'Liberados');
+            crearGraficaIngresosDashboard(proyectosDashboardActuales);
+            crearGraficaLiberacionesDashboard(proyectosDashboardActuales);
 
             lucide.createIcons();
         }
+
+        function filtrarDashboardPorSistema() {
+            const filtro = document.getElementById('filtro-sistema-dashboard');
+            const sistemaId = filtro?.value || '';
+            const proyectos = !sistemaId
+                ? todosLosProyectos
+                : todosLosProyectos.filter(p => String(p.sistema_id || '') === String(sistemaId));
+            renderizarDashboardEjecutivo(proyectos);
+        }
+        window.filtrarDashboardPorSistema = filtrarDashboardPorSistema;
 
         function filtrarProyectos() {
             const texto = (document.getElementById('input-buscar')?.value || '').toLowerCase().trim();
@@ -1651,7 +2589,8 @@ let todosLosProyectos = [];
                     (p.responsable_sistemas || '').toLowerCase().includes(texto) ||
                     (p.asignado_a || '').toLowerCase().includes(texto) ||
                     (p.cat_sistemas?.nombre || '').toLowerCase().includes(texto) ||
-                    (p.cat_sprints?.nombre || '').toLowerCase().includes(texto) ||
+                    (p.cat_sprints ? etiquetaSprintPMO(p.cat_sprints) : '').toLowerCase().includes(texto) ||
+                    (obtenerSprintActualNombre(p) || '').toLowerCase().includes(texto) ||
                     (p.cat_clasificaciones?.nombre || '').toLowerCase().includes(texto);
 
                 const coincideEstatus =
@@ -1662,9 +2601,11 @@ let todosLosProyectos = [];
                     !sistemaSeleccionado ||
                     String(p.sistema_id || '') === String(sistemaSeleccionado);
 
+                // El filtro operativo usa Sprint actual. Así, AGOSTO incluye
+                // requerimientos propios de AGOSTO + arrastres recibidos de meses anteriores.
                 const coincideSprint =
                     !sprintSeleccionado ||
-                    String(p.sprint_id || '') === String(sprintSeleccionado);
+                    String(obtenerSprintActualId(p) || '') === String(sprintSeleccionado);
 
                 return coincideTexto && coincideEstatus && coincideSistema && coincideSprint;
             });
@@ -1683,7 +2624,9 @@ let todosLosProyectos = [];
             const datos = todosLosProyectos.map(p => ({
                 "ID REQ": p.id_req || '',
                 "Nombre RQM": p.nombre_rqm || '',
-                "Sprint": p.cat_sprints?.nombre || '',
+                "Sprint de origen": p.cat_sprints?.nombre || '',
+                "Sprint actual": obtenerSprintActualNombre(p) || '',
+                "Urgente / Fuera de planeación": esUrgentePMO(p) ? 'Sí' : 'No',
                 "Sistema": p.cat_sistemas?.nombre || '',
                 "Prioridad": p.prioridad || '',
                 "Clasificación": p.cat_clasificaciones?.nombre || '',
@@ -1692,7 +2635,7 @@ let todosLosProyectos = [];
                 "Área Solicitante": p.cat_areas?.nombre || '',
                 "Solicitante": p.solicitante || '',
                 "Estatus": p.estatus || '',
-                "Ingreso RQM a PMO": p.fecha_ingreso_pmo || '',
+                "Ingreso RQM": p.fecha_ingreso_pmo || '',
                 "Compromiso Desarrollo": p.fecha_desarrollo || '',
                 "Inicio Desarrollo": p.fecha_inicio_desarrollo || '',
                 "Fin Desarrollo": p.fecha_fin_desarrollo || '',
@@ -1738,11 +2681,12 @@ let todosLosProyectos = [];
                     (p.responsable_sistemas || '').toLowerCase().includes(texto) ||
                     (p.asignado_a || '').toLowerCase().includes(texto) ||
                     (p.cat_sistemas?.nombre || '').toLowerCase().includes(texto) ||
-                    (p.cat_sprints?.nombre || '').toLowerCase().includes(texto) ||
+                    (p.cat_sprints ? etiquetaSprintPMO(p.cat_sprints) : '').toLowerCase().includes(texto) ||
+                    (obtenerSprintActualNombre(p) || '').toLowerCase().includes(texto) ||
                     (p.cat_clasificaciones?.nombre || '').toLowerCase().includes(texto);
                 const coincideEstatus = !estatusSeleccionado || estatusProyecto === estatusSeleccionado;
                 const coincideSistema = !sistemaSeleccionado || String(p.sistema_id || '') === String(sistemaSeleccionado);
-                const coincideSprint = !sprintSeleccionado || String(p.sprint_id || '') === String(sprintSeleccionado);
+                const coincideSprint = !sprintSeleccionado || String(obtenerSprintActualId(p) || '') === String(sprintSeleccionado);
                 return coincideTexto && coincideEstatus && coincideSistema && coincideSprint;
             });
         }
@@ -1810,12 +2754,12 @@ let todosLosProyectos = [];
             const filtros = [document.getElementById('filtro-estatus')?.selectedOptions?.[0]?.text || 'Todos los estatus', document.getElementById('filtro-sistema')?.selectedOptions?.[0]?.text || 'Todos los sistemas', document.getElementById('filtro-sprint')?.selectedOptions?.[0]?.text || 'Todos los sprints'].join(' · ');
             const conteoEstatus = contarPorCampo(proyectos, p => p.estatus || 'BACKLOG');
             const conteoSistema = contarPorCampo(proyectos, p => p.cat_sistemas?.nombre || 'Sin sistema');
-            const conteoSprint = contarPorCampo(proyectos, p => p.cat_sprints?.nombre || 'Sin sprint');
+            const conteoSprint = contarPorCampo(proyectos, p => obtenerSprintActualNombre(p) || 'Sin sprint');
             const liberadosSemana = proyectos.filter(p => ['LIBERADO', 'PRODUCCIÓN', 'PRODUCCION'].includes(normalizarTexto(p.estatus || ''))).slice(0, 8).map(p => `<tr><td>${p.id_req || '—'}</td><td>${p.nombre_rqm || 'Sin nombre'}</td><td>${p.cat_sistemas?.nombre || '—'}</td><td>${formatearFechaVista(p.fecha_liberacion_prod)}</td></tr>`).join('') || `<tr><td colspan="4" class="muted center">Sin requerimientos liberados en la vista actual.</td></tr>`;
             const riesgosHtml = riesgos.slice(0, 8).map(r => `<tr><td>${r.id_req}</td><td>${r.nombre}</td><td>${r.fase}</td><td><span class="pill danger">+${r.dias} día${r.dias === 1 ? '' : 's'}</span></td><td>${r.responsable}</td></tr>`).join('') || `<tr><td colspan="5" class="muted center">Sin desviaciones críticas registradas.</td></tr>`;
             const htmlReporte = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte GAP Semanal</title><style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc}.page{width:1120px;margin:0 auto;background:#fff;min-height:100vh;padding:34px}.header{background:linear-gradient(135deg,#0f172a,#1e3a8a);color:white;border-radius:24px;padding:28px 32px;display:flex;justify-content:space-between;align-items:flex-start;box-shadow:0 16px 40px rgba(15,23,42,.18)}.brand{font-size:44px;font-weight:900;letter-spacing:-1px}.subtitle{margin-top:8px;color:rgba(255,255,255,.78);font-size:13px;font-weight:700}.report-title{text-align:right}.report-title h1{margin:0;font-size:25px;line-height:1.1}.report-title p{margin:10px 0 0;color:rgba(255,255,255,.75);font-size:12px;font-weight:700}.meta{margin:18px 0;display:flex;justify-content:space-between;gap:12px;color:#64748b;font-size:12px;font-weight:700}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:20px 0}.kpi{border:1px solid #e2e8f0;border-radius:20px;padding:18px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06)}.kpi .label{color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:.7px;font-weight:900}.kpi .value{font-size:34px;font-weight:900;margin-top:8px;color:#0f172a}.kpi .detail{font-size:12px;color:#64748b;margin-top:4px;font-weight:700}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;margin-top:18px}.card{border:1px solid #e2e8f0;border-radius:22px;padding:20px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.05);break-inside:avoid}.card h2{margin:0 0 4px;font-size:16px;font-weight:900}.card .desc{margin:0 0 18px;font-size:12px;color:#64748b;font-weight:700}.bar-row{display:grid;grid-template-columns:120px 1fr 36px;gap:10px;align-items:center;margin:10px 0;font-size:12px;font-weight:800}.bar-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#334155}.bar-track{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,#2563eb,#06b6d4);border-radius:999px}.bar-value{text-align:right;color:#0f172a}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0f2a6d;color:#fff;text-align:left;padding:10px;font-size:10px;text-transform:uppercase;letter-spacing:.5px}td{padding:10px;border-bottom:1px solid #e2e8f0;color:#334155;font-weight:700}.pill{display:inline-block;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900}.danger{background:#fee2e2;color:#be123c}.muted{color:#94a3b8;font-weight:700}.center{text-align:center}.summary{background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:18px;color:#1e3a8a;font-weight:800;line-height:1.55;font-size:13px}.footer{margin-top:24px;border-top:1px solid #e2e8f0;padding-top:14px;color:#94a3b8;font-size:11px;font-weight:700;display:flex;justify-content:space-between}.actions{position:sticky;top:0;background:#f8fafc;padding:14px;display:flex;justify-content:center;gap:10px;z-index:10;border-bottom:1px solid #e2e8f0}.actions button{border:none;background:#2563eb;color:#fff;padding:10px 16px;border-radius:12px;font-weight:900;cursor:pointer}.actions button.secondary{background:#0f172a}@media print{body{background:white}.actions{display:none}.page{width:100%;padding:20px}.card,.kpi,.header{box-shadow:none}}
-</style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Guardar PDF</button><button class="secondary" onclick="descargarHTML()">Descargar HTML</button></div><div class="page"><section class="header"><div><div class="brand">finsus</div><div class="subtitle">Finanzas Transparentes · Seguimiento GAP</div></div><div class="report-title"><h1>Reporte Ejecutivo GAP<br>Semanal</h1><p>${fecha}</p></div></section><div class="meta"><div>Vista aplicada: ${filtros}</div><div>Fuente: PMO Control</div></div><section class="kpis"><div class="kpi"><div class="label">Total requerimientos</div><div class="value">${total}</div><div class="detail">Portafolio vigente</div></div><div class="kpi"><div class="label">Liberados</div><div class="value">${liberados}</div><div class="detail">${total ? Math.round((liberados/total)*100) : 0}% del total</div></div><div class="kpi"><div class="label">Cumplimiento fechas</div><div class="value">${cumplimiento}%</div><div class="detail">${fasesEnTiempo}/${fasesMedidas} fases en tiempo</div></div><div class="kpi"><div class="label">Riesgos por desviación</div><div class="value">${riesgos.length}</div><div class="detail">Fases con atraso registrado</div></div></section><div class="grid"><section class="card"><h2>Resumen Ejecutivo</h2><p class="desc">Estado general del seguimiento operativo GAP.</p><div class="summary">Se reportan <b>${total}</b> requerimientos en la vista actual, con <b>${liberados}</b> liberados, <b>${enDesarrollo}</b> en desarrollo, <b>${enQA}</b> en QA, <b>${enUAT}</b> en UAT y <b>${cancelados}</b> cancelados. El cumplimiento de fechas medido es de <b>${cumplimiento}%</b>.</div></section><section class="card"><h2>Distribución por Estatus</h2><p class="desc">Carga actual del portafolio por etapa.</p>${barrasReporte(conteoEstatus)}</section></div><div class="grid"><section class="card"><h2>Distribución por Sistema</h2><p class="desc">Carga por aplicativo o plataforma.</p>${barrasReporte(conteoSistema)}</section><section class="card"><h2>Distribución por Sprint</h2><p class="desc">Volumen registrado por sprint.</p>${barrasReporte(conteoSprint)}</section></div><section class="card" style="margin-top:18px;"><h2>Requerimientos Liberados</h2><p class="desc">Últimos requerimientos liberados dentro de la vista actual.</p><table><thead><tr><th>ID Req</th><th>Proyecto</th><th>Sistema</th><th>Fecha Liberación</th></tr></thead><tbody>${liberadosSemana}</tbody></table></section><section class="card" style="margin-top:18px;"><h2>Riesgos y Desviaciones</h2><p class="desc">Fases con atraso respecto a la fecha compromiso.</p><table><thead><tr><th>ID Req</th><th>Proyecto</th><th>Fase</th><th>Desviación</th><th>Responsable</th></tr></thead><tbody>${riesgosHtml}</tbody></table></section><div class="footer"><span>PMO Control · Reporte generado automáticamente</span><span>GAP / PMO / QA / Desarrollo</span></div></div><script>function descargarHTML(){const contenido=document.documentElement.outerHTML;const blob=new Blob([contenido],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');const fechaArchivo=new Date().toISOString().slice(0,10);a.href=url;a.download='Reporte_GAP_Semanal_'+fechaArchivo+'.html';a.click();URL.revokeObjectURL(url);}</` + `script></body></html>`;
+</style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Guardar PDF</button><button class="secondary" onclick="descargarHTML()">Descargar HTML</button></div><div class="page"><section class="header"><div><div class="brand">finsus</div><div class="subtitle">Finanzas Transparentes · Seguimiento GAP</div></div><div class="report-title"><h1>Reporte Ejecutivo GAP<br>Semanal</h1><p>${fecha}</p></div></section><div class="meta"><div>Vista aplicada: ${filtros}</div><div>Fuente: PMO Control</div></div><section class="kpis"><div class="kpi"><div class="label">Total requerimientos</div><div class="value">${total}</div><div class="detail">Portafolio vigente</div></div><div class="kpi"><div class="label">Liberados</div><div class="value">${liberados}</div><div class="detail">${total ? Math.round((liberados/total)*100) : 0}% del total</div></div><div class="kpi"><div class="label">Cumplimiento fechas</div><div class="value">${cumplimiento}%</div><div class="detail">${fasesEnTiempo}/${fasesMedidas} fases en tiempo</div></div><div class="kpi"><div class="label">Riesgos por desviación</div><div class="value">${riesgos.length}</div><div class="detail">Fases con atraso registrado</div></div></section><div class="grid"><section class="card"><h2>Resumen Ejecutivo</h2><p class="desc">Estado general del seguimiento operativo GAP.</p><div class="summary">Se reportan <b>${total}</b> requerimientos en la vista actual, con <b>${liberados}</b> liberados, <b>${enDesarrollo}</b> en desarrollo, <b>${enQA}</b> en QA, <b>${enUAT}</b> en UAT y <b>${cancelados}</b> cancelados. El cumplimiento de fechas medido es de <b>${cumplimiento}%</b>.</div></section><section class="card"><h2>Distribución por Estatus</h2><p class="desc">Carga actual del portafolio por etapa.</p>${barrasReporte(conteoEstatus)}</section></div><div class="grid"><section class="card"><h2>Distribución por Sistema</h2><p class="desc">Carga por aplicativo o plataforma.</p>${barrasReporte(conteoSistema)}</section><section class="card"><h2>Distribución por Sprint</h2><p class="desc">Volumen registrado por sprint.</p>${barrasReporte(conteoSprint)}</section></div><section class="card" style="margin-top:18px;"><h2>Requerimientos Liberados</h2><p class="desc">Últimos requerimientos liberados dentro de la vista actual.</p><table><thead><tr><th>ID Req</th><th>Proyecto</th><th>Sistema</th><th>Fecha Liberación</th></tr></thead><tbody>${liberadosSemana}</tbody></table></section><section class="card" style="margin-top:18px;"><h2>Riesgos y Desviaciones</h2><p class="desc">Fases con atraso respecto a la fecha compromiso.</p><table><thead><tr><th>ID Req</th><th>Proyecto</th><th>Fase</th><th>Desviación</th><th>Responsable</th></tr></thead><tbody>${riesgosHtml}</tbody></table></section><div class="footer"><span>PMO Control · Reporte generado automáticamente</span><span>GAP / Administración / QA / Desarrollo</span></div></div><script>function descargarHTML(){const contenido=document.documentElement.outerHTML;const blob=new Blob([contenido],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');const fechaArchivo=new Date().toISOString().slice(0,10);a.href=url;a.download='Reporte_GAP_Semanal_'+fechaArchivo+'.html';a.click();URL.revokeObjectURL(url);}</` + `script></body></html>`;
             const ventana = window.open('', '_blank');
             if (!ventana) { alert('El navegador bloqueó la ventana emergente. Permite pop-ups para generar el reporte.'); return; }
             ventana.document.open();
@@ -1892,6 +2836,46 @@ let todosLosProyectos = [];
             if (!lista.length) return 0;
             const total = lista.reduce((acc, p) => acc + calcularAvanceEstatusSeguimiento(p?.estatus || 'BACKLOG'), 0);
             return Math.round(total / lista.length);
+        }
+
+        function obtenerProyeccionTerminacionSeguimiento(proyectos = []) {
+            const meses = {
+                ENERO: 0, FEBRERO: 1, MARZO: 2, ABRIL: 3, MAYO: 4, JUNIO: 5,
+                JULIO: 6, AGOSTO: 7, SEPTIEMBRE: 8, SETIEMBRE: 8, OCTUBRE: 9,
+                NOVIEMBRE: 10, DICIEMBRE: 11
+            };
+            const pendientes = proyectosConsideradosAvanceSeguimiento(proyectos)
+                .filter(p => estatusOperativoSeguimiento(p?.estatus || '') !== 'LIBERADO');
+
+            if (!pendientes.length) {
+                return { valor: 'COMPLETO', detalle: 'Portafolio liberado' };
+            }
+
+            let ultimo = null;
+            let sinPlaneacion = 0;
+            pendientes.forEach(p => {
+                const nombre = String(obtenerSprintActualNombre(p) || '').trim();
+                const normalizado = normalizarTexto(nombre);
+                const mesEncontrado = Object.keys(meses).find(m => normalizado.includes(m));
+                if (!mesEncontrado) {
+                    sinPlaneacion += 1;
+                    return;
+                }
+                const coincidenciaAnio = normalizado.match(/\b(20\d{2})\b/);
+                const anio = coincidenciaAnio ? Number(coincidenciaAnio[1]) : new Date().getFullYear();
+                const orden = anio * 12 + meses[mesEncontrado];
+                if (!ultimo || orden > ultimo.orden) {
+                    ultimo = { orden, valor: mesEncontrado === 'SETIEMBRE' ? 'SEPTIEMBRE' : mesEncontrado };
+                }
+            });
+
+            if (!ultimo) {
+                return { valor: 'POR DEFINIR', detalle: `${pendientes.length} RQM sin planeación` };
+            }
+            const detalle = sinPlaneacion > 0
+                ? `${sinPlaneacion} RQM sin planeación`
+                : 'Terminación estimada';
+            return { valor: ultimo.valor, detalle };
         }
 
         function actualizarAvanceGeneralSeguimiento(proyectos = []) {
@@ -2163,33 +3147,30 @@ let todosLosProyectos = [];
         }
 
         function obtenerProyectosDonaSeguimiento(proyectosFiltrados) {
-            return obtenerVistaPortafolioSeleccionada() === 'sprint'
-                ? proyectosFiltrados
-                : (todosLosProyectos || []);
+            if (obtenerVistaPortafolioSeleccionada() === 'sprint') {
+                return proyectosFiltrados;
+            }
+
+            // En "Portafolio general" la dona conserva la vista global respecto al Sprint,
+            // pero debe respetar los filtros maestros de Estatus y Sistema del encabezado.
+            const estatus = document.getElementById('seguimiento-filtro-estatus')?.value || '';
+            const sistema = document.getElementById('seguimiento-filtro-sistema')?.value || '';
+
+            return (todosLosProyectos || []).filter(p => {
+                const okEstatus = !estatus || normalizarTexto(p.estatus || 'BACKLOG') === estatus;
+                const okSistema = !sistema || String(p.sistema_id || '') === String(sistema);
+                return okEstatus && okSistema;
+            });
         }
 
         function actualizarTextosVistaPortafolio(proyectosDona) {
             const vista = obtenerVistaPortafolioSeleccionada();
             const titulo = document.getElementById('titulo-distribucion-portafolio');
-            const subtitulo = document.getElementById('subtitulo-distribucion-portafolio');
-            const badge = document.getElementById('badge-vista-portafolio');
-            const total = Array.isArray(proyectosDona) ? proyectosDona.length : 0;
-
             if (vista === 'sprint') {
                 const sprint = obtenerNombreSprintSeleccionado();
                 if (titulo) titulo.textContent = `Distribución del Sprint - ${sprint}`;
-                if (subtitulo) subtitulo.textContent = `${total} requerimiento${total === 1 ? '' : 's'} del sprint seleccionado`;
-                if (badge) {
-                    badge.textContent = 'Vista sprint';
-                    badge.className = 'inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-blue-700';
-                }
-            } else {
-                if (titulo) titulo.textContent = 'Distribución general del portafolio';
-                if (subtitulo) subtitulo.textContent = `${total} requerimiento${total === 1 ? '' : 's'} registrados en total`;
-                if (badge) {
-                    badge.textContent = 'Vista general';
-                    badge.className = 'inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700';
-                }
+            } else if (titulo) {
+                titulo.textContent = 'Distribución general del portafolio';
             }
         }
 
@@ -2271,19 +3252,34 @@ let todosLosProyectos = [];
             const metrica = window.PMOMetrics
                 ? PMOMetrics.metricasProyecto(p, contextoMetricasPMO())
                 : null;
+
             const salud = metrica?.salud || 'VERDE';
             const color = salud === 'ROJO' ? 'red' : salud === 'AMARILLO' ? 'yellow' : salud === 'NEUTRO' ? 'neutral' : 'green';
-            const badgeClase = salud === 'ROJO' ? 'bg-rose-50 text-rose-700 border-rose-200' : salud === 'AMARILLO' ? 'bg-amber-50 text-amber-700 border-amber-200' : salud === 'NEUTRO' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            const badgeClase = salud === 'ROJO'
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : salud === 'AMARILLO'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : salud === 'NEUTRO'
+                        ? 'bg-slate-100 text-slate-600 border-slate-200'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200';
             const icono = salud === 'ROJO' ? '🔴' : salud === 'AMARILLO' ? '🟡' : salud === 'NEUTRO' ? '⚪' : '🟢';
+
             const atraso = metrica?.maxAtraso || 0;
             const desviacion = metrica?.maxDesviacion || 0;
-            const faseAtrasada = metrica?.fasesAtrasadas?.sort((a,b)=>b.atraso-a.atraso)?.[0];
-            const proxima = metrica?.proximas?.sort((a,b)=>a.proximoVencimiento-b.proximoVencimiento)?.[0];
-            const estadoTemporal = metrica?.cancelado ? 'Cancelado' : atraso > 0 ? `${atraso} d de atraso` : proxima ? (proxima.proximoVencimiento === 0 ? 'Vence hoy' : `Vence en ${proxima.proximoVencimiento} d`) : metrica?.estatus === 'LIBERADO' ? 'Finalizado' : 'En tiempo';
-            const estadoTemporalClase = atraso > 0 ? 'text-rose-600' : proxima ? 'text-amber-600' : 'text-emerald-600';
-            const desviacionTexto = metrica?.estatus === 'LIBERADO' || metrica?.fases?.some(f=>f.fin)
-                ? (desviacion > 0 ? `+${desviacion} d` : 'En tiempo') : 'Pendiente';
-            const faseAtencion = faseAtrasada?.nombre || proxima?.nombre || (metrica?.estatus || 'BACKLOG');
+            const anticipacion = metrica?.maxAnticipacion || 0;
+            const tieneFaseCerrada = Boolean(metrica?.fases?.some(f => f.fin));
+            const desviacionTexto = !tieneFaseCerrada
+                ? '—'
+                : desviacion > 0
+                    ? `+${desviacion} d`
+                    : anticipacion > 0
+                        ? `${anticipacion} d antes`
+                        : '0 d';
+            const atrasoTexto = atraso > 0 ? `${atraso} d` : '—';
+            const estadoActual = metrica?.motivoSalud || 'En tiempo';
+
+            const nombreSeguroJs = String(p.nombre_rqm || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const codigoSeguroJs = String(p.id_req || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
             return `
                 <article class="pmo-follow-card">
@@ -2293,28 +3289,34 @@ let todosLosProyectos = [];
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="text-[11px] font-black bg-slate-950 text-white px-3 py-1.5 rounded-full">${p.id_req || 'SIN ID'}</span>
-                                    <span class="text-[11px] font-black px-3 py-1.5 rounded-full border ${badgeClase}">${icono} ${metrica?.motivoSalud || 'Sin riesgos actuales'}</span>
+                                    <span class="text-[11px] font-black px-3 py-1.5 rounded-full border ${badgeClase}">${icono} ${escaparHtmlPMO(estadoActual)}</span>
                                 </div>
-                                <h4 class="text-lg font-black text-slate-950 mt-3">${escaparHtmlPMO(p.nombre_rqm || 'Sin nombre')}</h4>
-                                <p class="text-xs text-slate-500 mt-1">${escaparHtmlPMO(p.cat_sistemas?.nombre || 'Sin sistema')} · ${escaparHtmlPMO(p.cat_sprints?.nombre || 'Sin sprint')}</p>
+                                <button type="button" onclick="abrirModalEditar('${p.id}')" class="block text-left mt-3 cursor-pointer group/seguimiento-rqm" title="Abrir y modificar requerimiento">
+                                    <h4 class="text-lg font-black text-slate-950 group-hover/seguimiento-rqm:text-blue-700 transition-colors">${escaparHtmlPMO(p.nombre_rqm || 'Sin nombre')}</h4>
+                                </button>
+                                <p class="text-xs text-slate-500 mt-1">${escaparHtmlPMO(p.cat_sistemas?.nombre || 'Sin sistema')} · ${renderSprintOrigenActual(p)}</p>
                                 <div class="flex gap-2 flex-wrap mt-3 text-[10px] font-black uppercase tracking-wide">
                                     <span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">${escaparHtmlPMO(p.estatus || 'BACKLOG')}</span>
-                                    <span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full">Fase actual: ${faseAtencion}</span>
-                                    ${metrica?.reprogramaciones ? `<span class="bg-violet-50 text-violet-700 px-2.5 py-1 rounded-full">${metrica.reprogramaciones} reprogramación${metrica.reprogramaciones===1?'':'es'}</span>` : ''}
+                                    ${badgeUrgentePMO(p)}
+                                    ${metrica?.reprogramaciones ? `
+                                        <button type="button"
+                                            onclick="verHistorial('${p.id}', '${nombreSeguroJs}', '${codigoSeguroJs}')"
+                                            title="Ver registro de cambios"
+                                            class="bg-violet-50 text-violet-700 hover:bg-violet-100 px-2.5 py-1 rounded-full cursor-pointer transition">
+                                            ${metrica.reprogramaciones} reprogramación${metrica.reprogramaciones===1?'':'es'}
+                                        </button>` : ''}
                                 </div>
                             </div>
                             <div class="flex gap-2 flex-wrap xl:justify-end">
                                 <div class="pmo-metric-state"><div class="label">Avance</div><div class="value text-blue-700">${avance}%</div></div>
-                                <div class="pmo-metric-state"><div class="label">Estado temporal</div><div class="value ${estadoTemporalClase}">${estadoTemporal}</div></div>
-                                <div class="pmo-metric-state"><div class="label">Desviación</div><div class="value ${desviacion>0?'text-rose-600':'text-emerald-600'}">${desviacionTexto}</div></div>
-                                <div class="pmo-metric-state"><div class="label">Estado</div><div class="value ${salud==='ROJO'?'text-rose-600':salud==='AMARILLO'?'text-amber-600':'text-emerald-600'}">${salud==='ROJO'?'Crítico':salud==='AMARILLO'?'Atención':salud==='NEUTRO'?'Neutral':'Saludable'}</div></div>
+                                <div class="pmo-metric-state"><div class="label">Desv.</div><div class="value ${desviacion>0?'text-rose-600':'text-emerald-600'}">${desviacionTexto}</div></div>
+                                <div class="pmo-metric-state"><div class="label">Atraso</div><div class="value ${atraso>0?'text-rose-600':'text-slate-500'}">${atrasoTexto}</div></div>
                             </div>
                         </div>
                         ${renderizarLineaFases(p)}
                     </div>
                 </article>`;
         }
-
 
         function obtenerNombreSprintSeleccionado() {
             const sel = document.getElementById('seguimiento-filtro-sprint');
@@ -2527,7 +3529,7 @@ let todosLosProyectos = [];
 
             try {
                 await copiarDataUrlComoImagen(captura.dataUrl);
-                alert('Imagen copiada. Ahora puedes pegarla en Outlook con Ctrl + V.');
+                if (window.PMOImageCopied) PMOImageCopied();
             } catch (error) {
                 console.error('No fue posible copiar la imagen:', error);
                 alert('Tu navegador no permitió copiar la imagen automáticamente. Usa el botón Imagen para descargarla o prueba desde Chrome/Edge con la página en HTTPS o localhost.');
@@ -2648,15 +3650,21 @@ let todosLosProyectos = [];
             actualizarTextosReporteSeguimiento();
             const sprint = document.getElementById('seguimiento-filtro-sprint');
             const estatus = document.getElementById('seguimiento-filtro-estatus');
+            const sistema = document.getElementById('seguimiento-filtro-sistema');
 
             if (sprint) {
                 sprint.innerHTML = '<option class="text-slate-800" value="">Todos los sprints</option>' +
-                    (cats.sprints || []).map(s => `<option class="text-slate-800" value="${s.id}">${s.nombre}</option>`).join('');
+                    (cats.sprints || []).map(s => `<option class="text-slate-800" value="${s.id}">${etiquetaSprintPMO(s)}</option>`).join('');
             }
 
             if (estatus) {
                 estatus.innerHTML = '<option class="text-slate-800" value="">Todos los estatus</option>' +
                     (cats.estatus || []).map(e => `<option class="text-slate-800" value="${normalizarTexto(e.nombre)}">${e.nombre.toUpperCase()}</option>`).join('');
+            }
+
+            if (sistema) {
+                sistema.innerHTML = '<option class="text-slate-800" value="">Todos los sistemas</option>' +
+                    (cats.sistemas || []).map(s => `<option class="text-slate-800" value="${s.id}">${escaparHtmlPMO(s.nombre)}</option>`).join('');
             }
         }
 
@@ -2726,11 +3734,13 @@ let todosLosProyectos = [];
         function obtenerProyectosSeguimientoFiltrados() {
             const sprint = document.getElementById('seguimiento-filtro-sprint')?.value || '';
             const estatus = document.getElementById('seguimiento-filtro-estatus')?.value || '';
+            const sistema = document.getElementById('seguimiento-filtro-sistema')?.value || '';
 
             const filtrados = (todosLosProyectos || []).filter(p => {
-                const okSprint = !sprint || String(p.sprint_id || '') === String(sprint);
+                const okSprint = !sprint || String(obtenerSprintActualId(p) || '') === String(sprint);
                 const okEstatus = !estatus || normalizarTexto(p.estatus || 'BACKLOG') === estatus;
-                return okSprint && okEstatus;
+                const okSistema = !sistema || String(p.sistema_id || '') === String(sistema);
+                return okSprint && okEstatus && okSistema;
             });
 
             return ordenarProyectosSeguimiento(filtrados);
@@ -2767,28 +3777,35 @@ let todosLosProyectos = [];
 
             const kpis = document.getElementById('seguimiento-kpis');
             if (kpis) {
-                const items = [
-                    { t: 'Total', v: total, i: 'layers', c: 'bg-blue-50 text-blue-700' },
-                    { t: 'Liberados', v: liberados, i: 'rocket', c: 'bg-emerald-50 text-emerald-700' },
-                    { t: 'QA', v: enQa, i: 'shield-check', c: 'bg-amber-50 text-amber-700' },
-                    { t: 'UAT', v: enUat, i: 'clipboard-check', c: 'bg-orange-50 text-orange-700' },
-                    { t: 'Reprogramados', v: reprogramados, i: 'calendar-clock', c: 'bg-violet-50 text-violet-700' },
-                    { t: 'Atrasados', v: atrasados, i: 'alert-triangle', c: 'bg-rose-50 text-rose-700' }
-                ];
+                const considerados = proyectosConsideradosAvanceSeguimiento(proyectos);
+                const faltantes = Math.max(0, considerados.length - liberados);
+                const avanceTotal = calcularAvancePromedioSeguimiento(proyectos);
+                const proyeccion = obtenerProyeccionTerminacionSeguimiento(proyectos);
+                const fechaCorte = new Intl.DateTimeFormat('es-MX', { day:'2-digit', month:'long', year:'numeric' }).format(new Date());
 
-                kpis.innerHTML = items.map(x => `
-                    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">${x.t}</p>
-                                <h3 class="text-3xl font-black text-slate-900 mt-2">${x.v}</h3>
-                            </div>
-                            <div class="${x.c} w-11 h-11 rounded-2xl flex items-center justify-center">
-                                <i data-lucide="${x.i}" class="w-5 h-5"></i>
-                            </div>
+                kpis.innerHTML = `
+                    <div class="pmo-ytd-head">
+                        <h3 class="pmo-ytd-title">Resumen YTD</h3>
+                        <div class="pmo-ytd-actions no-export">
+                            <button onclick="copiarSeccionImagen('seguimiento-kpis')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                                <i data-lucide="copy" class="w-4 h-4"></i> Copiar
+                            </button>
+                            <button onclick="exportarSeccionImagen('seguimiento-kpis', 'resumen_ytd')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                                <i data-lucide="image-down" class="w-4 h-4"></i> Imagen
+                            </button>
                         </div>
                     </div>
-                `).join('');
+                    <div class="pmo-ytd-grid">
+                        <div class="pmo-ytd-item"><div class="pmo-ytd-value">${total}</div><div class="pmo-ytd-label">Ingresos Totales</div></div>
+                        <div class="pmo-ytd-item"><div class="pmo-ytd-value">${liberados}</div><div class="pmo-ytd-label">RQM Liberados</div></div>
+                        <div class="pmo-ytd-item"><div class="pmo-ytd-value">${avanceTotal}%</div><div class="pmo-ytd-label">Avance Total</div></div>
+                        <div class="pmo-ytd-item"><div class="pmo-ytd-value">${faltantes}</div><div class="pmo-ytd-label">RQM Faltantes</div></div>
+                        <div class="pmo-ytd-item"><div class="pmo-ytd-value textual">${proyeccion.valor}</div><div class="pmo-ytd-label">Proyección de terminación</div></div>
+                    </div>
+                    <div class="pmo-ytd-footer pmo-ytd-footer-clean">
+                        <span class="pmo-ytd-cut">Corte al ${fechaCorte}</span>
+                    </div>
+                `;
             }
 
             const riesgos = document.getElementById('seguimiento-riesgos');
@@ -2965,7 +3982,7 @@ let todosLosProyectos = [];
                 responsable_sistemas: valorImport(row, 'responsable_sistemas', 'Responsable Sistemas'),
                 asignado_a: valorImport(row, 'asignado_a', 'Asignado A', 'Asignado a'),
                 estatus: valorImport(row, 'estatus', 'Estatus', 'Estado'),
-                fecha_ingreso_pmo: excelSerialADateString(valorImport(row, 'fecha_ingreso_pmo', 'Ingreso RQM a PMO', 'Fecha de ingreso RQM a PMO')),
+                fecha_ingreso_pmo: excelSerialADateString(valorImport(row, 'fecha_ingreso_pmo', 'Ingreso RQM', 'Fecha de ingreso RQM')),
                 fecha_desarrollo: excelSerialADateString(valorImport(row, 'fecha_desarrollo_compromiso', 'Compromiso Desarrollo', 'Fecha de entrega de sistemas')),
                 fecha_inicio_desarrollo: excelSerialADateString(valorImport(row, 'fecha_inicio_desarrollo', 'Inicio Desarrollo', 'Fecha de inicio de desarrollo')),
                 fecha_fin_desarrollo: excelSerialADateString(valorImport(row, 'fecha_fin_desarrollo', 'Fin Desarrollo', 'Nueva fecha compromiso')),
@@ -3181,6 +4198,8 @@ let todosLosProyectos = [];
                     id_req: r.id_req,
                     nombre_rqm: r.nombre_rqm,
                     sprint_id: r.sprint_id,
+                    sprint_actual_id: r.sprint_id,
+                    tipo_incorporacion: 'PLANEADO',
                     sistema_id: r.sistema_id,
                     sistema: r.sistema || null,
                     clasificacion_id: r.clasificacion_id,
@@ -3245,3 +4264,7 @@ let todosLosProyectos = [];
 
             lucide.createIcons();
         };
+
+
+        window.addEventListener('pmo:profile-ready', actualizarVisibilidadAjusteFechaPrivado);
+        document.addEventListener('DOMContentLoaded', () => setTimeout(actualizarVisibilidadAjusteFechaPrivado, 0));

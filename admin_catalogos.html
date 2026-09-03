@@ -20,7 +20,6 @@
             <section class="pmo-exec-hero">
                 <div>
                     <h2 class="pmo-exec-title">Administración de catálogos</h2>
-                    <p class="pmo-exec-subtitle">Configura los valores utilizados en formularios, seguimiento y reportes de PMO Control.</p>
                 </div>
             </section>
 
@@ -32,7 +31,6 @@
                         </div>
                         <div>
                             <h3 class="text-lg font-black text-slate-900">Formato de descarga de requerimientos</h3>
-                            <p class="text-sm text-slate-500 mt-1">Selecciona el formato institucional utilizado al descargar el documento completo de un RQM.</p>
                             <div id="estado-formato-rqm" class="mt-2 text-xs font-bold text-slate-500">Formato predeterminado: Word.</div>
                         </div>
                     </div>
@@ -56,21 +54,26 @@
                 </div>
             </section>
 
-            <div class="bg-blue-50/70 border border-blue-100 rounded-2xl px-5 py-4 flex items-center gap-4">
-                <div class="bg-blue-600 text-white p-2 rounded-xl"><i data-lucide="info" class="w-5 h-5"></i></div>
-                <div>
-                    <p class="text-sm font-bold text-blue-700">Información importante</p>
-                    <p class="text-xs text-blue-700/80 mt-1">Estos elementos se utilizan en todo el sistema. Antes de eliminar alguno, verifica que no esté asociado a requerimientos existentes.</p>
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+                    <div class="flex items-start gap-3">
+                        <div class="bg-emerald-50 text-emerald-600 p-2.5 rounded-xl">
+                            <i data-lucide="file-spreadsheet" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-black text-slate-900">Exportación de matriz</h3>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <button onclick="exportarExcel()" class="pmo-secondary-action pmo-secondary-action-emerald">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Exportar Matriz Excel
+                        </button>
+                    </div>
                 </div>
-            </div>
+            </section>
 
             <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
 
-            <div class="flex justify-end bg-white border border-slate-200 rounded-2xl p-4">
-                <button onclick="exportarExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-3 rounded-xl shadow-md flex items-center gap-2 transition cursor-pointer">
-                    <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Exportar Matriz Excel
-                </button>
-            </div>
         </section>
     </main>
     <script>
@@ -109,9 +112,84 @@ let todosLosProyectos = [];
             await cargarProyectos();
         }
 
+        const ORDEN_SPRINTS = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+        const ORDEN_ESTATUS = ['CANCELADO','BACKLOG','ANÁLISIS','DESARROLLO','QA','UAT','LIBERADO'];
+
+        function normalizarOrdenCatalogo(valor) {
+            return String(valor || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+
+        function ordenarCatalogoEspecial(items, tipo) {
+            const base = tipo === 'sprints' ? ORDEN_SPRINTS : ORDEN_ESTATUS;
+            const mapa = new Map(base.map((x, i) => [normalizarOrdenCatalogo(x), i + 1]));
+            return [...items].sort((a, b) => {
+                const ao = Number(a?.orden);
+                const bo = Number(b?.orden);
+                const aTieneOrden = Number.isFinite(ao) && ao > 0;
+                const bTieneOrden = Number.isFinite(bo) && bo > 0;
+                if (aTieneOrden || bTieneOrden) {
+                    if (aTieneOrden && bTieneOrden && ao !== bo) return ao - bo;
+                    if (aTieneOrden !== bTieneOrden) return aTieneOrden ? -1 : 1;
+                }
+                const ai = mapa.get(normalizarOrdenCatalogo(a?.nombre)) ?? 999;
+                const bi = mapa.get(normalizarOrdenCatalogo(b?.nombre)) ?? 999;
+                return ai !== bi ? ai - bi : String(a?.nombre || '').localeCompare(String(b?.nombre || ''), 'es');
+            });
+        }
+
+        function esCatalogoOrdenable(tipo) { return tipo === 'sprints' || tipo === 'estatus'; }
+
+        function inicializarDragCatalogos() {
+            document.querySelectorAll('[data-catalogo-ordenable="true"]').forEach(lista => {
+                let arrastrado = null;
+                lista.querySelectorAll('[data-catalogo-item]').forEach(item => {
+                    item.addEventListener('dragstart', () => {
+                        arrastrado = item;
+                        item.classList.add('opacity-50');
+                    });
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('opacity-50');
+                        arrastrado = null;
+                    });
+                    item.addEventListener('dragover', e => {
+                        e.preventDefault();
+                        if (!arrastrado || arrastrado === item) return;
+                        const rect = item.getBoundingClientRect();
+                        const despues = e.clientY > rect.top + rect.height / 2;
+                        lista.insertBefore(arrastrado, despues ? item.nextSibling : item);
+                    });
+                });
+                lista.addEventListener('drop', async e => {
+                    e.preventDefault();
+                    const tipo = lista.dataset.tipo;
+                    const tabla = tipo === 'sprints' ? 'cat_sprints' : 'cat_estatus';
+                    const ids = [...lista.querySelectorAll('[data-catalogo-item]')].map(x => x.dataset.id);
+                    await guardarOrdenCatalogo(tabla, tipo, ids);
+                });
+            });
+        }
+
+        async function guardarOrdenCatalogo(tabla, tipo, ids) {
+            try {
+                for (let i = 0; i < ids.length; i++) {
+                    const { error } = await _supabase.from(tabla).update({ orden: i + 1 }).eq('id', ids[i]);
+                    if (error) throw error;
+                }
+                const fuente = tipo === 'sprints' ? cats.sprints : cats.estatus;
+                const porId = new Map(fuente.map(x => [String(x.id), x]));
+                const ordenados = ids.map((id, i) => ({ ...porId.get(String(id)), orden: i + 1 })).filter(Boolean);
+                if (tipo === 'sprints') cats.sprints = ordenados;
+                else cats.estatus = ordenados;
+            } catch (err) {
+                console.error('No se pudo guardar el orden del catálogo:', err);
+                alert('No se pudo guardar el orden. Ejecuta primero SQL_ORDEN_CATALOGOS_SPRINT_ESTATUS.sql en Supabase.');
+                await cargarCatalogos();
+            }
+        }
+
         async function cargarCatalogos() {
             try {
-                const s = await _supabase.from('cat_sprints').select('*').order('nombre');
+                const s = await _supabase.from('cat_sprints').select('*');
                 const sis = await _supabase.from('cat_sistemas').select('*').order('nombre');
                 const a = await _supabase.from('cat_areas').select('*').order('nombre');
                 const c = await _supabase.from('cat_clasificaciones').select('*').order('nombre');
@@ -119,10 +197,10 @@ let todosLosProyectos = [];
                 const comp = await _supabase.from('cat_complejidades').select('*').order('orden').order('nombre');
                 const ai = await _supabase.from('cat_areas_impactadas').select('*').order('orden').order('nombre');
                 const dep = await _supabase.from('cat_dependencias_produccion').select('*').order('orden').order('nombre');
-                const est = await _supabase.from('cat_estatus').select('*').order('nombre');
+                const est = await _supabase.from('cat_estatus').select('*');
                 const mot = await _supabase.from('cat_motivos_reprogramacion').select('*').order('nombre');
 
-                cats.sprints = s.data || [];
+                cats.sprints = ordenarCatalogoEspecial(s.data || [], 'sprints');
                 cats.sistemas = sis.data || [];
                 cats.areas = a.data || [];
                 cats.clasificaciones = c.data || [];
@@ -130,7 +208,7 @@ let todosLosProyectos = [];
                 cats.complejidades = comp.data || [];
                 cats.areas_impactadas = ai.data || [];
                 cats.dependencias_produccion = dep.data || [];
-                cats.estatus = est.data || [];
+                cats.estatus = ordenarCatalogoEspecial(est.data || [], 'estatus');
                 cats.motivos_reprogramacion = mot.data || [];
 
                 renderizarListasAdmin();
@@ -141,7 +219,7 @@ let todosLosProyectos = [];
             try {
                 const { data, error } = await _supabase
                     .from('pmo_projects')
-                    .select('*, cat_sprints(nombre), cat_sistemas(nombre), cat_areas(nombre), cat_clasificaciones(nombre)')
+                    .select('*, cat_sprints:sprint_id(nombre), sprint_actual:cat_sprints!pmo_projects_sprint_actual_id_fkey(nombre), cat_sistemas(nombre), cat_areas(nombre), cat_clasificaciones(nombre)')
                     .order('created_at', { ascending: false });
                 if (error) throw error;
                 todosLosProyectos = data || [];
@@ -177,9 +255,10 @@ let todosLosProyectos = [];
             contenedor.innerHTML = catalogos.map(cat => {
                 const colores = colorClasses[cat.color];
                 const total = cat.items.length;
+                const ordenable = esCatalogoOrdenable(cat.tipo);
                 const lista = total > 0 ? cat.items.map(item => `
-                    <li class="flex justify-between items-center gap-3 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition">
-                        <span class="text-xs font-bold text-slate-700 truncate">${item.nombre}</span>
+                    <li ${ordenable ? `draggable="true" data-catalogo-item="true" data-id="${item.id}"` : ''} class="flex justify-between items-center gap-3 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition ${ordenable ? 'cursor-grab active:cursor-grabbing' : ''}">
+                        <div class="min-w-0 flex items-center gap-2">${ordenable ? '<i data-lucide="grip-vertical" class="w-4 h-4 text-slate-400 shrink-0"></i>' : ''}<span class="text-xs font-bold text-slate-700 truncate">${item.nombre}</span></div>
                         <button onclick="eliminarCatalogo('${cat.tabla}', '${item.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition cursor-pointer" title="Eliminar"><i data-lucide="x" class="w-4 h-4"></i></button>
                     </li>`).join('') : `<li class="p-4 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">Sin elementos registrados</li>`;
 
@@ -193,11 +272,12 @@ let todosLosProyectos = [];
                             <input type="text" id="${cat.inputId}" placeholder="${cat.placeholder}" class="min-w-0 flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-100">
                             <button onclick="crearCatalogo('${cat.tipo}')" class="${colores.button} text-white px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-4 h-4"></i>Añadir</button>
                         </div>
-                        <ul class="space-y-2 overflow-y-auto pr-2 max-h-44 flex-1 catalog-scroll">${lista}</ul>
+                        <ul ${ordenable ? `data-catalogo-ordenable="true" data-tipo="${cat.tipo}"` : ''} class="space-y-2 overflow-y-auto pr-2 max-h-44 flex-1 catalog-scroll">${lista}</ul>
                         <div class="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs font-bold text-slate-500"><div class="${colores.bg} ${colores.text} p-1.5 rounded-lg"><i data-lucide="database" class="w-3.5 h-3.5"></i></div>Total: ${total} elemento${total === 1 ? '' : 's'}</div>
                     </div>`;
             }).join('');
             lucide.createIcons();
+            inicializarDragCatalogos();
         }
 
         async function crearCatalogo(tipo) {
@@ -268,7 +348,7 @@ let todosLosProyectos = [];
                 'Área Solicitante': p.cat_areas?.nombre || '',
                 'Solicitante': p.solicitante || '',
                 'Estatus': p.estatus || '',
-                'Ingreso RQM a PMO': p.fecha_ingreso_pmo || '',
+                'Ingreso RQM': p.fecha_ingreso_pmo || '',
                 'Compromiso Desarrollo': p.fecha_desarrollo || '',
                 'Inicio Desarrollo': p.fecha_inicio_desarrollo || '',
                 'Fin Desarrollo': p.fecha_fin_desarrollo || '',

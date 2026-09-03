@@ -79,7 +79,6 @@
             </button>` : '';
 
         return `
-        <div class="pmo-mobile-backdrop" onclick="PMOLayout.closeSidebar()"></div>
         <aside class="pmo-sidebar" aria-label="Navegación principal">
             <button class="pmo-side-brand" onclick="window.location.href='${home}'" title="Ir al inicio">
                 <span class="pmo-side-logo"><i data-lucide="layers-3"></i></span>
@@ -93,7 +92,6 @@
             </div>
         </aside>
         <header class="pmo-topbar">
-            <button class="pmo-menu-toggle" onclick="PMOLayout.toggleSidebar()" aria-label="Abrir menú"><i data-lucide="menu"></i></button>
             <div class="pmo-top-title">
                 <span class="pmo-top-icon"><i data-lucide="${cfg.icon}"></i></span>
                 <div><h1>${cfg.title}</h1><p><span class="pmo-status-dot"></span>${cfg.subtitle}</p></div>
@@ -125,9 +123,8 @@
         renderHeader, mountHeader, toggleSidebar, closeSidebar, toggleAccountMenu,
         renderExecutiveHero(options={}) {
             const title=options.title || 'Seguimiento Ejecutivo del Portafolio';
-            const subtitle=options.subtitle || 'Visualiza el avance por fases, KPIs, semáforos, desviaciones y reprogramaciones.';
             const actions=options.actions !== undefined ? options.actions : '';
-            return `<section class="pmo-exec-hero"><div><h2 class="pmo-exec-title">${title}</h2><p class="pmo-exec-subtitle">${subtitle}</p></div>${actions?`<div class="pmo-exec-actions">${actions}</div>`:''}</section>`;
+            return `<section class="pmo-exec-hero"><div><h2 class="pmo-exec-title">${title}</h2></div>${actions?`<div class="pmo-exec-actions">${actions}</div>`:''}</section>`;
         }
     };
 

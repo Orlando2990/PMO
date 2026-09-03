@@ -1796,10 +1796,13 @@ let todosLosProyectos = [];
             if (!contenedor || !window.PMOMetrics) return;
             const r = PMOMetrics.resumen(proyectos, contextoMetricasPMO());
 
+            // Los cancelados no forman parte del portafolio considerado para desempeño.
+            const portafolioVigente = Math.max(0, r.total - r.cancelados);
+            const porcentajeLiberados = portafolioVigente ? Math.round((r.liberados / portafolioVigente) * 100) : 0;
+
             const kpis = [
-                { titulo: 'Portafolio vigente', valor: r.vigentes, detalle: `${r.cancelados} cancelado${r.cancelados === 1 ? '' : 's'} excluido${r.cancelados === 1 ? '' : 's'} de cumplimiento`, icono: 'layers', clase: 'bg-blue-50 text-blue-700' },
-                { titulo: 'Liberados', valor: r.liberados, detalle: `${r.vigentes ? Math.round((r.liberados / r.vigentes) * 100) : 0}% del portafolio vigente`, icono: 'rocket', clase: 'bg-emerald-50 text-emerald-700' },
-                { titulo: 'Cumplimiento', valor: r.cumplimiento === null ? '—' : `${r.cumplimiento}%`, detalle: `${r.fasesCumplidas}/${r.fasesMedidas} fases cerradas en tiempo`, icono: 'badge-check', clase: 'bg-violet-50 text-violet-700' },
+                { titulo: 'Portafolio vigente', valor: portafolioVigente, detalle: `${r.cancelados} cancelado${r.cancelados === 1 ? '' : 's'} excluido${r.cancelados === 1 ? '' : 's'} del portafolio`, icono: 'layers', clase: 'bg-blue-50 text-blue-700' },
+                { titulo: 'Liberados', valor: r.liberados, detalle: `${porcentajeLiberados}% del portafolio vigente`, icono: 'rocket', clase: 'bg-emerald-50 text-emerald-700' },
                 { titulo: 'Lead time promedio', valor: r.leadTimePromedio === null ? '—' : `${r.leadTimePromedio} d`, detalle: 'Ingreso a liberación', icono: 'timer', clase: 'bg-amber-50 text-amber-700' },
                 { titulo: 'Requerimientos atrasados', valor: r.requerimientosAtrasados, detalle: `${r.atrasos.length} fase${r.atrasos.length === 1 ? '' : 's'} abierta${r.atrasos.length === 1 ? '' : 's'} vencida${r.atrasos.length === 1 ? '' : 's'}`, icono: 'triangle-alert', clase: 'bg-rose-50 text-rose-700' },
                 { titulo: 'Próximos 7 días', valor: r.proximos7.length, detalle: 'Compromisos abiertos por vencer', icono: 'calendar-range', clase: 'bg-cyan-50 text-cyan-700' },
@@ -1812,7 +1815,10 @@ let todosLosProyectos = [];
                 <div ${k.accion ? `onclick="${k.accion}" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${k.accion}}"` : ''} class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition ${k.accion ? 'cursor-pointer hover:border-indigo-200' : ''}">
                     <div class="flex justify-between items-start gap-4">
                         <div><p class="text-xs font-black uppercase tracking-wide text-slate-400">${k.titulo}</p><h3 class="text-3xl font-black text-slate-900 mt-2">${k.valor}</h3><p class="text-xs text-slate-500 mt-1">${k.detalle}</p></div>
-                        <div class="${k.clase} w-11 h-11 rounded-2xl flex items-center justify-center"><i data-lucide="${k.icono}" class="w-5 h-5"></i></div>
+                        <div class="relative group shrink-0">
+                            <div class="${k.clase} w-11 h-11 rounded-2xl flex items-center justify-center ${k.tooltip ? 'cursor-help' : ''}"><i data-lucide="${k.icono}" class="w-5 h-5"></i></div>
+                            ${k.tooltip ? `<div class="pointer-events-none absolute z-50 right-0 top-14 w-80 rounded-xl bg-slate-900 px-4 py-3 text-xs leading-relaxed font-medium text-white shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">${k.tooltip}<span class="absolute -top-1.5 right-4 w-3 h-3 bg-slate-900 rotate-45"></span></div>` : ''}
+                        </div>
                     </div>
                 </div>`).join('');
 
@@ -1833,12 +1839,6 @@ let todosLosProyectos = [];
             if (urgentesTotal) urgentesTotal.textContent = resumenUrgentes.total;
             if (urgentesDetalle) urgentesDetalle.textContent = `${resumenUrgentes.liberados} liberados · ${resumenUrgentes.activos} activos`;
             if (pulsoBadge) pulsoBadge.textContent = `${r.vigentes} vigentes · ${r.liberados} liberados · ${resumenArrastres.activos} arrastre${resumenArrastres.activos === 1 ? '' : 's'} activo${resumenArrastres.activos === 1 ? '' : 's'} · ${resumenUrgentes.total} urgente${resumenUrgentes.total === 1 ? '' : 's'} · ${r.estabilidad ?? '—'}% estabilidad`;
-            const setCommand = (id, value) => { const x=document.getElementById(id); if(x) x.textContent=value; };
-            setCommand('pmo-command-criticos', criticos);
-            setCommand('pmo-command-proximos', r.proximos7.length);
-            setCommand('pmo-command-cumplimiento', r.cumplimiento === null ? '—' : `${r.cumplimiento}%`);
-            setCommand('pmo-command-lead', r.leadTimePromedio === null ? '—' : `${r.leadTimePromedio} d`);
-
             renderizarSaludPortafolio(r);
             renderizarAtencionEjecutiva(r);
             const setText = (id, valor) => { const el = document.getElementById(id); if (el) el.textContent = valor === null ? '—' : `${valor} días`; };
@@ -1848,7 +1848,7 @@ let todosLosProyectos = [];
         }
 
         function renderizarSaludPortafolio(r) {
-            const el = document.getElementById('salud-portafolio');
+            const el = document.getElementById('pmo-command-health');
             if (!el) return;
             const base = Math.max(1, r.vigentes);
             const filas = [
@@ -1858,9 +1858,9 @@ let todosLosProyectos = [];
             ];
             el.innerHTML = filas.map(f => `
                 <div>
-                    <div class="flex items-center justify-between mb-2"><div class="flex items-center gap-3"><span class="pmo-health-dot ${f.dot}"></span><span class="text-sm font-black text-slate-700">${f.label}</span></div><span class="text-lg font-black text-slate-900">${f.valor}</span></div>
+                    <div class="flex items-center justify-between mb-1"><div class="flex items-center gap-2"><span class="pmo-health-dot ${f.dot}"></span><span class="pmo-health-label">${f.label}</span></div><span class="pmo-health-value">${f.valor}</span></div>
                     <div class="pmo-mini-bar"><span style="width:${Math.round((f.valor/base)*100)}%;background:${f.color}"></span></div>
-                </div>`).join('') + `<div class="pt-3 border-t border-slate-100 text-xs text-slate-500"><b>${r.vigentes}</b> requerimientos vigentes evaluados automáticamente.</div>`;
+                </div>`).join('') + `<div class="pmo-health-footer pt-3 border-t border-slate-100"><b class="text-slate-800">${r.vigentes}</b> requerimientos vigentes evaluados automáticamente.</div>`;
         }
 
         function renderizarAtencionEjecutiva(r) {
@@ -2543,7 +2543,7 @@ let todosLosProyectos = [];
             const sistemaNombre = filtroSistemaDashboard?.selectedOptions?.[0]?.textContent || 'Todos los sistemas';
             const subtitulo = document.getElementById('dashboard-sistema-subtitulo');
             if (subtitulo) {
-                subtitulo.textContent = `Resumen de cumplimiento, tiempos y distribución de requerimientos · ${sistemaNombre}.`;
+                subtitulo.textContent = `Resumen de tiempos y distribución de requerimientos · ${sistemaNombre}.`;
             }
 
             renderizarKpisEjecutivos(proyectosDashboardActuales);

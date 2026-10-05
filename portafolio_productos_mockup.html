@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMO Control - Portafolio de Productos (Mockup)</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="css/pmo-layout.css">
+<style>
+.product-card{transition:.18s ease}.product-card:hover{transform:translateY(-2px);box-shadow:0 16px 35px rgba(15,23,42,.09)}
+.health-dot{width:9px;height:9px;border-radius:999px;display:inline-block}
+.metric-card{min-height:110px}
+.mockup-ribbon{background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff}
+.detail-row{display:grid;grid-template-columns:minmax(250px,2fr) 120px 145px 130px 130px;gap:14px;align-items:center}
+@media(max-width:900px){.detail-row{grid-template-columns:1fr 110px}.detail-hide{display:none}}
+</style>
+</head>
+<body class="bg-slate-50/60 text-slate-800 antialiased">
+<div id="pmo-app-header" data-pmo-module="portafolio"></div>
+
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-7">
+  <section class="mockup-ribbon rounded-2xl px-5 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 shadow-lg shadow-violet-500/10">
+    <div class="flex items-center gap-3">
+      <span class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center"><i data-lucide="flask-conical" class="w-5 h-5"></i></span>
+      <div><p class="font-black text-sm">Mockup funcional · Portafolio de Productos</p><p class="text-xs text-white/80">Datos ficticios en memoria. No guarda, consulta ni modifica información de Supabase.</p></div>
+    </div>
+    <span class="text-[10px] font-black uppercase tracking-wider bg-white/15 border border-white/20 rounded-full px-3 py-1.5">V3.2.66 DEMO</span>
+  </section>
+
+  <section class="relative overflow-hidden bg-slate-950 rounded-3xl p-7 text-white shadow-xl">
+    <div class="absolute -right-20 -top-24 w-72 h-72 rounded-full bg-blue-500/20 blur-3xl"></div>
+    <div class="relative z-10 flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
+      <div>
+        <div class="inline-flex items-center gap-2 text-xs font-black text-blue-200 bg-blue-500/10 border border-blue-400/20 px-3 py-1.5 rounded-full mb-4">
+          <i data-lucide="boxes" class="w-4 h-4"></i> Vista ejecutiva
+        </div>
+        <h1 class="text-3xl md:text-4xl font-black tracking-tight">Portafolio de Productos</h1>
+        <p class="text-slate-300 text-sm mt-2 max-w-2xl">Consulta la salud de cada producto, sus observaciones, incidencias y compromisos sin mezclarlo con el flujo de RQM.</p>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <select id="filter-system" onchange="renderAll()" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-bold outline-none min-w-48">
+          <option value="">Todos los sistemas</option>
+        </select>
+        <select id="filter-health" onchange="renderAll()" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-bold outline-none min-w-44">
+          <option value="">Todas las saludes</option><option>Saludable</option><option>Atención</option><option>Crítico</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section id="global-kpis" class="grid grid-cols-2 lg:grid-cols-5 gap-4"></section>
+
+  <section class="grid grid-cols-1 xl:grid-cols-[1.15fr_.85fr] gap-6">
+    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+      <div class="flex items-center justify-between gap-3 mb-5">
+        <div><h2 class="text-lg font-black text-slate-950">Sistemas y productos</h2><p class="text-xs text-slate-500 mt-1">Selecciona un producto para consultar su detalle ejecutivo.</p></div>
+        <div class="bg-blue-50 text-blue-700 rounded-xl p-2.5"><i data-lucide="network" class="w-5 h-5"></i></div>
+      </div>
+      <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+    <div id="executive-panel" class="bg-slate-950 rounded-3xl shadow-xl p-6 text-white min-h-[420px]"></div>
+  </section>
+
+  <section class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+    <div class="p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div><h2 class="text-lg font-black text-slate-950">Seguimientos del producto</h2><p id="follow-subtitle" class="text-xs text-slate-500 mt-1">Observaciones, incidencias, pendientes y mejoras.</p></div>
+      <div class="flex gap-2">
+        <select id="filter-type" onchange="renderFollowups()" class="border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold bg-white"><option value="">Todos los tipos</option></select>
+        <select id="filter-status" onchange="renderFollowups()" class="border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold bg-white"><option value="">Todos los estatus</option></select>
+      </div>
+    </div>
+    <div class="p-4">
+      <div class="detail-row px-4 py-2 text-[10px] uppercase tracking-wide font-black text-slate-400">
+        <span>Seguimiento</span><span>Tipo</span><span class="detail-hide">Responsable</span><span class="detail-hide">Compromiso</span><span>Estado</span>
+      </div>
+      <div id="follow-list" class="divide-y divide-slate-100"></div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div class="bg-white rounded-3xl border border-slate-100 p-6 lg:col-span-2">
+      <div class="flex items-center gap-3 mb-5"><span class="w-10 h-10 rounded-xl bg-violet-50 text-violet-700 flex items-center justify-center"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i></span><div><h3 class="font-black text-slate-950">Cómo sería parametrizable</h3><p class="text-xs text-slate-500">Concepto del futuro catálogo, todavía sin BDD.</p></div></div>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black">Sistemas</p><p class="text-[11px] text-slate-500 mt-1">Genesis, SIAFA, Jira...</p></div>
+        <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black">Productos</p><p class="text-[11px] text-slate-500 mt-1">Auto, Panel, TDC...</p></div>
+        <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black">Tipos</p><p class="text-[11px] text-slate-500 mt-1">Incidencia, observación...</p></div>
+        <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black">Estatus</p><p class="text-[11px] text-slate-500 mt-1">Pendiente, atención...</p></div>
+        <div class="rounded-2xl bg-slate-50 p-4"><p class="text-xs font-black">Prioridades</p><p class="text-[11px] text-slate-500 mt-1">Alta, media, baja...</p></div>
+      </div>
+    </div>
+    <div class="bg-blue-50 rounded-3xl border border-blue-100 p-6">
+      <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-4"><i data-lucide="link-2" class="w-5 h-5"></i></div>
+      <h3 class="font-black text-blue-950">Relación opcional con RQM</h3>
+      <p class="text-xs text-blue-800 mt-2 leading-relaxed">Un seguimiento podría vincularse en el futuro con un RQM existente sin modificar su Sprint, fechas, estatus o Roadmap.</p>
+      <div class="mt-4 rounded-xl bg-white/80 border border-blue-100 px-3 py-2 text-xs font-bold text-blue-700">Ejemplo: 🔗 RQM 00 38</div>
+    </div>
+  </section>
+</main>
+
+<script>
+const DEMO = [
+ {system:'SIAFA', product:'Carteras Compradas', owner:'Operaciones / Sistemas', follow:[
+  {title:'Registros duplicados en archivo de carga',type:'Incidencia',owner:'Sistemas',date:'09 sep 2026',status:'En atención',priority:'Alta',health:'Crítico'},
+  {title:'Validación de estructura de layout',type:'Observación',owner:'Operaciones',date:'12 sep 2026',status:'En validación',priority:'Media',health:'Atención'},
+  {title:'Conciliación de saldos',type:'Pendiente',owner:'Finanzas',date:'16 sep 2026',status:'Pendiente',priority:'Media',health:'Saludable'},
+  {title:'Automatizar comprobación de totales',type:'Mejora',owner:'Sistemas',date:'23 sep 2026',status:'En atención',priority:'Baja',health:'Saludable'},
+  {title:'Ajuste de nomenclatura de cartera',type:'Observación',owner:'Operaciones',date:'06 sep 2026',status:'Resuelto',priority:'Baja',health:'Saludable'}
+ ]},
+ {system:'SIAFA', product:'Auto', owner:'Producto / Sistemas', follow:[
+  {title:'Validar regla de antigüedad de unidad',type:'Observación',owner:'Producto',date:'10 sep 2026',status:'En atención',priority:'Alta',health:'Atención'},
+  {title:'Diferencia en cálculo de comisión',type:'Incidencia',owner:'Sistemas',date:'18 sep 2026',status:'Pendiente',priority:'Media',health:'Saludable'},
+  {title:'Prueba integral de dispersión',type:'Pendiente',owner:'Operaciones',date:'20 sep 2026',status:'En validación',priority:'Media',health:'Saludable'}
+ ]},
+ {system:'Genesis', product:'Auto', owner:'Crédito Auto', follow:[
+  {title:'Revisión de tabla de amortización CORE',type:'Observación',owner:'Producto',date:'11 sep 2026',status:'En validación',priority:'Alta',health:'Atención'},
+  {title:'Leyenda de seguro en contrato',type:'Mejora',owner:'Sistemas',date:'22 sep 2026',status:'Pendiente',priority:'Baja',health:'Saludable'},
+  {title:'Validar fecha de corte',type:'Pendiente',owner:'Operaciones',date:'14 sep 2026',status:'En atención',priority:'Media',health:'Saludable'},
+  {title:'Pruebas emisión contrato',type:'Observación',owner:'QA',date:'04 sep 2026',status:'Resuelto',priority:'Media',health:'Saludable'}
+ ]},
+ {system:'Genesis', product:'Panel', owner:'Crédito Solar', follow:[
+  {title:'Contrato y anexos Crédito Solar',type:'Observación',owner:'Producto / Legal',date:'15 sep 2026',status:'En validación',priority:'Alta',health:'Atención'},
+  {title:'Seguro de vida del crédito',type:'Pendiente',owner:'Producto',date:'21 sep 2026',status:'En atención',priority:'Media',health:'Saludable'}
+ ]},
+ {system:'Jira', product:'One Clic', owner:'Canales Digitales', follow:[
+  {title:'Intermitencia en consulta de solicitud',type:'Incidencia',owner:'Sistemas',date:'08 sep 2026',status:'En atención',priority:'Alta',health:'Crítico'},
+  {title:'Ajuste mensaje de validación',type:'Mejora',owner:'Producto',date:'19 sep 2026',status:'Pendiente',priority:'Baja',health:'Saludable'},
+  {title:'Confirmar bitácora de intentos',type:'Observación',owner:'Seguridad',date:'13 sep 2026',status:'En validación',priority:'Media',health:'Atención'}
+ ]},
+ {system:'Jira', product:'TDC', owner:'Tarjetas', follow:[
+  {title:'Validación de rechazo por score',type:'Observación',owner:'Riesgos',date:'17 sep 2026',status:'En atención',priority:'Media',health:'Saludable'},
+  {title:'Texto de confirmación de solicitud',type:'Mejora',owner:'Producto',date:'25 sep 2026',status:'Pendiente',priority:'Baja',health:'Saludable'}
+ ]},
+ {system:'Cotizador Externo', product:'Panel', owner:'Crédito Solar', follow:[
+  {title:'Actualización de seguro de vida',type:'Mejora',owner:'Producto',date:'18 sep 2026',status:'En atención',priority:'Alta',health:'Saludable'},
+  {title:'Comparar amortización contra Genesis',type:'Observación',owner:'QA',date:'13 sep 2026',status:'En validación',priority:'Media',health:'Atención'}
+ ]}
+];
+let selected = DEMO[0];
+
+function productHealth(p){
+ const open=p.follow.filter(x=>x.status!=='Resuelto');
+ if(open.some(x=>x.health==='Crítico')) return 'Crítico';
+ if(open.some(x=>x.health==='Atención')) return 'Atención';
+ return 'Saludable';
+}
+function colors(h){return h==='Crítico'?['bg-rose-50','text-rose-700','bg-rose-500']:h==='Atención'?['bg-amber-50','text-amber-700','bg-amber-500']:['bg-emerald-50','text-emerald-700','bg-emerald-500']}
+function visibleProducts(){
+ const s=document.getElementById('filter-system')?.value||'', h=document.getElementById('filter-health')?.value||'';
+ return DEMO.filter(p=>(!s||p.system===s)&&(!h||productHealth(p)===h));
+}
+function renderKPIs(){
+ const list=visibleProducts(), all=list.flatMap(p=>p.follow), open=all.filter(x=>x.status!=='Resuelto'), resolved=all.length-open.length;
+ const crit=list.filter(p=>productHealth(p)==='Crítico').length, attention=list.filter(p=>productHealth(p)==='Atención').length;
+ const vals=[
+  ['Productos',list.length,'boxes','text-blue-700 bg-blue-50'],
+  ['Seguimientos',all.length,'clipboard-list','text-violet-700 bg-violet-50'],
+  ['Abiertos',open.length,'circle-dot','text-amber-700 bg-amber-50'],
+  ['Resueltos',resolved,'circle-check','text-emerald-700 bg-emerald-50'],
+  ['Salud',''+crit+' críticos · '+attention+' atención','heart-pulse','text-rose-700 bg-rose-50']
+ ];
+ document.getElementById('global-kpis').innerHTML=vals.map((v,i)=>`<div class="metric-card bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex justify-between gap-3"><div><p class="text-[10px] uppercase tracking-wide font-black text-slate-400">${v[0]}</p><p class="${i===4?'text-lg mt-3':'text-3xl mt-2'} font-black text-slate-950">${v[1]}</p></div><span class="w-11 h-11 rounded-xl ${v[3]} flex items-center justify-center shrink-0"><i data-lucide="${v[2]}" class="w-5 h-5"></i></span></div>`).join('');
+}
+function renderProducts(){
+ const list=visibleProducts();
+ if(!list.includes(selected)) selected=list[0]||null;
+ document.getElementById('products-grid').innerHTML=list.length?list.map((p,i)=>{
+  const h=productHealth(p), c=colors(h), open=p.follow.filter(x=>x.status!=='Resuelto').length, resolved=p.follow.length-open;
+  return `<button onclick="selectProduct('${encodeURIComponent(p.system)}','${encodeURIComponent(p.product)}')" class="product-card text-left rounded-2xl border ${p===selected?'border-blue-300 ring-2 ring-blue-100':'border-slate-100'} p-5 bg-white">
+    <div class="flex items-start justify-between gap-3"><div><p class="text-[10px] font-black uppercase tracking-wide text-slate-400">${p.system}</p><h3 class="text-base font-black text-slate-950 mt-1">${p.product}</h3><p class="text-[11px] text-slate-500 mt-1">${p.owner}</p></div><span class="health-dot ${c[2]} mt-1.5"></span></div>
+    <div class="grid grid-cols-3 gap-2 mt-5"><div class="rounded-xl bg-slate-50 p-2 text-center"><b class="text-sm">${p.follow.length}</b><p class="text-[9px] text-slate-400 font-bold">TOTAL</p></div><div class="rounded-xl bg-slate-50 p-2 text-center"><b class="text-sm">${open}</b><p class="text-[9px] text-slate-400 font-bold">ABIERTOS</p></div><div class="rounded-xl bg-slate-50 p-2 text-center"><b class="text-sm">${resolved}</b><p class="text-[9px] text-slate-400 font-bold">RESUELTOS</p></div></div>
+    <div class="mt-4 inline-flex items-center gap-2 rounded-full ${c[0]} ${c[1]} px-3 py-1 text-[10px] font-black"><span class="health-dot ${c[2]}"></span>${h}</div>
+  </button>`
+ }).join(''):`<div class="md:col-span-2 p-8 text-center text-sm text-slate-400">No hay productos con los filtros seleccionados.</div>`;
+}
+function renderExecutive(){
+ const el=document.getElementById('executive-panel');
+ if(!selected){el.innerHTML='<div class="h-full flex items-center justify-center text-slate-400">Selecciona un producto.</div>';return}
+ const p=selected,h=productHealth(p),c=colors(h),open=p.follow.filter(x=>x.status!=='Resuelto'), resolved=p.follow.length-open.length;
+ const types={};p.follow.forEach(x=>types[x.type]=(types[x.type]||0)+1);
+ el.innerHTML=`<div class="flex items-start justify-between gap-4"><div><p class="text-xs font-black uppercase tracking-wide text-blue-300">${p.system}</p><h2 class="text-2xl font-black mt-1">${p.product}</h2><p class="text-xs text-slate-400 mt-1">${p.owner}</p></div><span class="rounded-full px-3 py-1.5 text-xs font-black ${h==='Crítico'?'bg-rose-500/20 text-rose-200':h==='Atención'?'bg-amber-500/20 text-amber-200':'bg-emerald-500/20 text-emerald-200'}">${h}</span></div>
+ <div class="grid grid-cols-3 gap-3 mt-7"><div class="rounded-2xl bg-white/5 border border-white/10 p-4"><p class="text-2xl font-black">${p.follow.length}</p><p class="text-[10px] text-slate-400 mt-1">Seguimientos</p></div><div class="rounded-2xl bg-white/5 border border-white/10 p-4"><p class="text-2xl font-black">${open.length}</p><p class="text-[10px] text-slate-400 mt-1">Abiertos</p></div><div class="rounded-2xl bg-white/5 border border-white/10 p-4"><p class="text-2xl font-black">${resolved}</p><p class="text-[10px] text-slate-400 mt-1">Resueltos</p></div></div>
+ <div class="mt-6"><p class="text-[10px] font-black uppercase tracking-wide text-slate-500 mb-3">Distribución por tipo</p><div class="space-y-2">${Object.entries(types).map(([k,v])=>`<div class="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2"><span class="text-xs font-bold text-slate-300">${k}</span><span class="text-xs font-black">${v}</span></div>`).join('')}</div></div>
+ <div class="mt-6 pt-5 border-t border-white/10"><p class="text-[10px] font-black uppercase tracking-wide text-slate-500">Lectura ejecutiva</p><p class="text-sm text-slate-300 mt-2 leading-relaxed">${h==='Crítico'?'Existe al menos un seguimiento crítico que requiere atención inmediata.':h==='Atención'?'El producto presenta compromisos que requieren seguimiento cercano.':'El producto no presenta riesgos inmediatos en este mockup.'}</p></div>`;
+}
+function renderFollowups(){
+ if(!selected){document.getElementById('follow-list').innerHTML='';return}
+ document.getElementById('follow-subtitle').textContent=`${selected.system} → ${selected.product}`;
+ const type=document.getElementById('filter-type').value,status=document.getElementById('filter-status').value;
+ const rows=selected.follow.filter(x=>(!type||x.type===type)&&(!status||x.status===status));
+ document.getElementById('follow-list').innerHTML=rows.map(x=>{
+  const c=colors(x.health); return `<div class="detail-row px-4 py-4 hover:bg-slate-50 rounded-xl"><div class="min-w-0"><p class="text-sm font-black text-slate-800">${x.title}</p><p class="text-[10px] text-slate-400 mt-1">Prioridad ${x.priority}</p></div><span class="text-xs font-bold text-slate-600">${x.type}</span><span class="detail-hide text-xs text-slate-500">${x.owner}</span><span class="detail-hide text-xs font-bold text-slate-500">${x.date}</span><span class="inline-flex items-center gap-2 text-[10px] font-black ${c[0]} ${c[1]} rounded-full px-2.5 py-1 w-fit"><span class="health-dot ${c[2]}"></span>${x.status}</span></div>`
+ }).join('')||'<div class="p-8 text-center text-sm text-slate-400">Sin seguimientos con esos filtros.</div>';
+}
+function updateFollowFilters(){
+ if(!selected)return;
+ const types=[...new Set(selected.follow.map(x=>x.type))], statuses=[...new Set(selected.follow.map(x=>x.status))];
+ document.getElementById('filter-type').innerHTML='<option value="">Todos los tipos</option>'+types.map(x=>`<option>${x}</option>`).join('');
+ document.getElementById('filter-status').innerHTML='<option value="">Todos los estatus</option>'+statuses.map(x=>`<option>${x}</option>`).join('');
+}
+function selectProduct(s,p){
+ selected=DEMO.find(x=>x.system===decodeURIComponent(s)&&x.product===decodeURIComponent(p))||selected;
+ updateFollowFilters();renderProducts();renderExecutive();renderFollowups();lucide.createIcons();
+}
+function renderAll(){renderKPIs();renderProducts();renderExecutive();updateFollowFilters();renderFollowups();lucide.createIcons()}
+document.addEventListener('DOMContentLoaded',()=>{
+ const systems=[...new Set(DEMO.map(x=>x.system))];
+ document.getElementById('filter-system').innerHTML='<option value="">Todos los sistemas</option>'+systems.map(x=>`<option>${x}</option>`).join('');
+ renderAll();
+});
+</script>
+<script src="js/pmo-auth.js"></script>
+<script src="js/pmo-layout.js"></script>
+<a href="mockup_detenciones_tiempos.html" class="fixed bottom-5 right-5 z-50 bg-slate-950 text-white rounded-2xl shadow-xl px-4 py-3 text-xs font-black">⏸ Mockup Detenciones</a></body>
+</html>

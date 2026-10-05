@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>PMO Control - Dashboard de Productos</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="css/pmo-layout.css">
+<style>
+.dp-card{background:#fff;border:1px solid #e8eef6;border-radius:24px;box-shadow:0 8px 24px rgba(15,23,42,.045)}
+.dp-kpi{transition:.16s;cursor:pointer}.dp-kpi:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(15,23,42,.08)}
+.dp-chart{height:315px}.dp-chart canvas{max-height:315px}
+.dp-modal{position:fixed;inset:0;background:rgba(15,23,42,.62);display:flex;align-items:center;justify-content:center;padding:20px;z-index:150}
+.dp-modal.hidden{display:none}
+@media(max-width:900px){.dp-chart{height:280px}}
+</style>
+</head>
+<body class="bg-slate-50/70 text-slate-800 antialiased">
+<div id="pmo-app-header" data-pmo-module="dashboard_productos"></div>
+<main class="max-w-7xl mx-auto px-6 py-8 space-y-6">
+<section class="relative overflow-hidden bg-slate-950 rounded-3xl p-7 text-white shadow-xl">
+  <div class="absolute -right-20 -top-24 w-72 h-72 rounded-full bg-blue-500/20 blur-3xl"></div>
+  <div class="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+    <div><p class="text-[10px] font-black uppercase tracking-[.18em] text-blue-300">Portafolio de Productos</p><h1 class="text-3xl font-black tracking-tight mt-1">Dashboard Ejecutivo</h1><p class="text-sm text-slate-400 mt-2">Salud operativa, compromisos y concentración de seguimientos.</p></div>
+    <div class="flex flex-wrap gap-2">
+      <select id="dp-system" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-bold min-w-48"><option value="">Todos los sistemas</option></select>
+      <select id="dp-product" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-3 text-sm font-bold min-w-48"><option value="">Todos los productos</option></select>
+    </div>
+  </div>
+</section>
+<div id="dp-error" class="hidden bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 text-sm"></div>
+<section id="dp-kpis" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4"></section>
+
+<section class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+  <article class="dp-card p-6"><div class="flex items-start justify-between mb-4"><div><h2 class="font-black text-slate-950">Seguimientos por estatus</h2><p class="text-xs text-slate-500 mt-1">Clic en una sección para ver el detalle.</p></div><span class="bg-blue-50 text-blue-600 p-2 rounded-xl"><i data-lucide="chart-pie" class="w-5 h-5"></i></span></div><div class="dp-chart"><canvas id="dp-status-chart"></canvas></div></article>
+  <article class="dp-card p-6"><div class="flex items-start justify-between mb-4"><div><h2 class="font-black text-slate-950">Seguimientos por producto</h2><p class="text-xs text-slate-500 mt-1">Productos con mayor carga operativa.</p></div><span class="bg-violet-50 text-violet-600 p-2 rounded-xl"><i data-lucide="boxes" class="w-5 h-5"></i></span></div><div class="dp-chart"><canvas id="dp-product-chart"></canvas></div></article>
+</section>
+
+<section class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+  <article class="dp-card p-6"><div class="flex items-start justify-between mb-4"><div><h2 class="font-black text-slate-950">Seguimientos por tipo</h2><p class="text-xs text-slate-500 mt-1">Distribución de incidencias, mejoras y demás tipos configurados.</p></div><span class="bg-cyan-50 text-cyan-600 p-2 rounded-xl"><i data-lucide="tags" class="w-5 h-5"></i></span></div><div class="dp-chart"><canvas id="dp-type-chart"></canvas></div></article>
+  <article class="dp-card p-6"><div class="flex items-start justify-between mb-4"><div><h2 class="font-black text-slate-950">Salud por producto</h2><p class="text-xs text-slate-500 mt-1">Saludable, atención y crítico según pendientes y compromisos.</p></div><span class="bg-emerald-50 text-emerald-600 p-2 rounded-xl"><i data-lucide="heart-pulse" class="w-5 h-5"></i></span></div><div class="dp-chart"><canvas id="dp-health-chart"></canvas></div></article>
+</section>
+
+<section class="grid grid-cols-1 xl:grid-cols-[1.15fr_.85fr] gap-5">
+ <article class="dp-card overflow-hidden"><div class="p-6 border-b border-slate-100"><h2 class="font-black text-slate-950">Compromisos que requieren atención</h2><p class="text-xs text-slate-500 mt-1">Vencidos y próximos a vencer de seguimientos abiertos.</p></div><div id="dp-attention" class="divide-y divide-slate-100"></div></article>
+ <article class="dp-card p-6"><div class="flex items-start justify-between mb-5"><div><h2 class="font-black text-slate-950">Carga por responsable</h2><p class="text-xs text-slate-500 mt-1">Seguimientos abiertos por responsable.</p></div><span class="bg-orange-50 text-orange-600 p-2 rounded-xl"><i data-lucide="users" class="w-5 h-5"></i></span></div><div id="dp-owners" class="space-y-3"></div></article>
+</section>
+</main>
+
+<div id="dp-modal" class="dp-modal hidden">
+ <div class="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[86vh] overflow-hidden">
+  <div class="p-6 border-b border-slate-100 flex items-start justify-between gap-4"><div><h3 id="dp-modal-title" class="text-xl font-black text-slate-950">Detalle</h3><p id="dp-modal-subtitle" class="text-xs text-slate-500 mt-1"></p></div><button onclick="PMOProductDashboard.closeDetail()" class="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+  <div id="dp-modal-body" class="p-6 overflow-auto max-h-[70vh]"></div>
+ </div>
+</div>
+<script src="js/pmo-auth.js"></script><script src="js/pmo-layout.js"></script><script src="js/pmo-dialogs.js"></script><script src="js/pmo-product-dashboard.js"></script>
+</body></html>

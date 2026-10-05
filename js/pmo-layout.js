@@ -4,6 +4,8 @@
         matriz: { title:'Matriz de requerimientos', subtitle:'Gestión operativa del portafolio', icon:'layers-3', active:'matriz', hideTopAccount:true },
         dashboard: { title:'Dashboard ejecutivo', subtitle:'Indicadores y salud del portafolio', icon:'layout-dashboard', active:'dashboard', hideTopAccount:true },
         seguimiento: { title:'Seguimiento ejecutivo', subtitle:'Roadmap, avances y reportes', icon:'route', active:'seguimiento', hideTopAccount:true },
+        portafolio: { title:'Portafolio de productos', subtitle:'Seguimiento ejecutivo por sistema y producto', icon:'boxes', active:'portafolio', hideTopAccount:true },
+        dashboard_productos: { title:'Dashboard de productos', subtitle:'Indicadores y salud del portafolio de productos', icon:'chart-no-axes-combined', active:'dashboard_productos', hideTopAccount:true },
         importar: { title:'Importar matriz', subtitle:'Carga masiva desde Excel', icon:'file-up', active:'importar', hideTopAccount:true },
         rqm: { title:'Buzón de RQM', subtitle:'Recepción, folios y revisión de requerimientos', icon:'clipboard-list', active:'rqm', hideTopAccount:true },
         selfservice: { title:'Portal de solicitudes', subtitle:'Alta y seguimiento de requerimientos', icon:'file-plus-2', active:'selfservice', hideTopAccount:true },
@@ -19,7 +21,9 @@
         ]},
         { label:'Análisis', items:[
             { key:'dashboard', label:'Dashboard', href:'index_dashboard_ejecutivo.html', icon:'layout-dashboard', roles:['pmo','direccion','administrador'] },
-            { key:'seguimiento', label:'Seguimiento', href:'seguimiento_ejecutivo.html', icon:'route', roles:['pmo','direccion','administrador'] }
+            { key:'seguimiento', label:'Seguimiento', href:'seguimiento_ejecutivo.html', icon:'route', roles:['pmo','direccion','administrador'] },
+            { key:'portafolio', permissionKey:'dashboard', label:'Portafolio productos', href:'portafolio_productos.html', icon:'boxes', roles:['pmo','direccion','administrador'] },
+            { key:'dashboard_productos', permissionKey:'dashboard', label:'Dashboard productos', href:'dashboard_portafolio_productos.html', icon:'chart-no-axes-combined', roles:['pmo','direccion','administrador'] }
         ]},
         { label:'Administración', items:[
             { key:'importar', label:'Importar', href:'importar_matriz.html', icon:'file-up', roles:['administrador'] },
@@ -32,6 +36,8 @@
         const page=(location.pathname.split('/').pop() || 'index.html').toLowerCase();
         if(page.includes('dashboard')) return 'dashboard';
         if(page.includes('seguimiento')) return 'seguimiento';
+        if(page.includes('dashboard_portafolio_productos')) return 'dashboard_productos';
+        if(page.includes('portafolio_productos')) return 'portafolio';
         if(page.includes('importar')) return 'importar';
         if(page.includes('solicitudes_rqm')) return 'rqm';
         if(page.includes('admin_catalogos')) return 'catalogos';
@@ -47,7 +53,7 @@
     function visibleGroups(role, active) {
         return NAV_GROUPS.map(group => ({
             ...group,
-            items: group.items.filter(item => window.PMOAuth?.canView?.(item.key))
+            items: group.items.filter(item => window.PMOAuth?.canView?.(item.permissionKey || item.key))
         })).filter(group => group.items.length).map(group => `
             <div class="pmo-side-group">
                 <p class="pmo-side-label">${group.label}</p>

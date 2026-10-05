@@ -11,6 +11,9 @@
     <link rel="stylesheet" href="css/pmo-layout.css">
 <style>
 .catalog-scroll{scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent}.catalog-scroll::-webkit-scrollbar{width:6px}.catalog-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
+.catalog-family-tab{transition:.18s ease}.catalog-family-tab.active{background:#0f172a;color:#fff;border-color:#0f172a;box-shadow:0 8px 20px rgba(15,23,42,.12)}
+.mock-catalog-card{transition:.18s ease}.mock-catalog-card:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(15,23,42,.07)}
+.mock-chip{display:inline-flex;align-items:center;gap:.4rem;border-radius:999px;padding:.38rem .7rem;font-size:.68rem;font-weight:800}
 </style>
 </head>
 <body class="bg-slate-50/50 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
@@ -72,7 +75,37 @@
                 </div>
             </section>
 
-            <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-900 mt-1">Administración por módulo</h3>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="tab-cat-rqm" onclick="mostrarFamiliaCatalogos('rqm')" class="catalog-family-tab active border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-black inline-flex items-center gap-2">
+                            <i data-lucide="clipboard-list" class="w-4 h-4"></i> Gestión de RQM
+                        </button>
+                        <button id="tab-cat-portafolio" onclick="mostrarFamiliaCatalogos('portafolio')" class="catalog-family-tab border border-slate-200 bg-white text-slate-600 rounded-xl px-4 py-2.5 text-xs font-black inline-flex items-center gap-2">
+                            <i data-lucide="boxes" class="w-4 h-4"></i> Portafolio de Productos
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <div id="familia-catalogos-rqm">
+                <div class="mb-3 flex items-center gap-2 text-xs text-slate-500">
+                    <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                    <b class="text-slate-700">Catálogos actuales.</b>
+                </div>
+                <div id="contenedor-catalogos-admin" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+            </div>
+
+            <div id="familia-catalogos-portafolio" class="hidden space-y-5">
+<div class="rounded-2xl bg-slate-950 text-white px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"><div><p class="text-sm font-black">Catálogos · Portafolio de Productos</p></div><a href="portafolio_productos.html" class="bg-blue-600 text-white rounded-xl px-4 py-2 text-xs font-black">Abrir Portafolio</a></div>
+<div id="portfolio-catalog-error" class="hidden bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-3 text-xs"></div>
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between gap-3"><div><h3 class="font-black text-violet-700">Productos / Subproductos</h3><p class="text-xs text-slate-500 mt-1">Cada producto pertenece a un Sistema existente.</p></div><button data-pmo-write onclick="PMOPortfolioCatalogs.addProduct()" class="bg-violet-600 text-white rounded-xl px-3 py-2 text-xs font-black">+ Nuevo</button></div><select id="portfolio-cat-system" onchange="PMOPortfolioCatalogs.renderProducts()" class="mt-4 w-full border rounded-xl p-2.5 text-xs font-bold"></select><div id="portfolio-cat-products" class="mt-3 space-y-2"></div></div>
+<div class="space-y-5"><div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between"><h3 class="font-black text-emerald-700">Tipos de seguimiento</h3><button data-pmo-write onclick="PMOPortfolioCatalogs.addSimple('type')" class="text-xs font-black text-emerald-700">+ Nuevo</button></div><div id="portfolio-cat-types" class="mt-3 space-y-2"></div></div><div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between"><h3 class="font-black text-amber-700">Estatus de seguimiento</h3><button data-pmo-write onclick="PMOPortfolioCatalogs.addSimple('status')" class="text-xs font-black text-amber-700">+ Nuevo</button></div><div id="portfolio-cat-statuses" class="mt-3 space-y-2"></div></div><div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"><div class="flex justify-between"><h3 class="font-black text-rose-700">Prioridades</h3><button data-pmo-write onclick="PMOPortfolioCatalogs.addSimple('priority')" class="text-xs font-black text-rose-700">+ Nuevo</button></div><div id="portfolio-cat-priorities" class="mt-3 space-y-2"></div></div></div>
+</div></div>
 
         </section>
     </main>
@@ -257,9 +290,12 @@ let todosLosProyectos = [];
                 const total = cat.items.length;
                 const ordenable = esCatalogoOrdenable(cat.tipo);
                 const lista = total > 0 ? cat.items.map(item => `
-                    <li ${ordenable ? `draggable="true" data-catalogo-item="true" data-id="${item.id}"` : ''} class="flex justify-between items-center gap-3 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition ${ordenable ? 'cursor-grab active:cursor-grabbing' : ''}">
-                        <div class="min-w-0 flex items-center gap-2">${ordenable ? '<i data-lucide="grip-vertical" class="w-4 h-4 text-slate-400 shrink-0"></i>' : ''}<span class="text-xs font-bold text-slate-700 truncate">${item.nombre}</span></div>
-                        <button onclick="eliminarCatalogo('${cat.tabla}', '${item.id}')" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition cursor-pointer" title="Eliminar"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    <li data-cat-row="${cat.tipo}-${item.id}" ${ordenable ? `draggable="true" data-catalogo-item="true" data-id="${item.id}"` : ''} class="flex justify-between items-center gap-3 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-xs hover:shadow-sm transition ${ordenable ? 'cursor-grab active:cursor-grabbing' : ''}">
+                        <div class="min-w-0 flex items-center gap-2 flex-1">${ordenable ? '<i data-lucide="grip-vertical" class="w-4 h-4 text-slate-400 shrink-0"></i>' : ''}<span class="text-xs font-bold text-slate-700 truncate">${item.nombre}</span></div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            ${cat.tipo === 'sprints' ? '' : `<button onclick="editarCatalogoInline('${cat.tipo}', '${cat.tabla}', '${item.id}')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 transition cursor-pointer" title="Modificar"><i data-lucide="pencil" class="w-4 h-4"></i></button>`}
+                            <button onclick="eliminarCatalogo('${cat.tabla}', '${item.id}')" class="w-8 h-8 flex items-center justify-center rounded-lg bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition cursor-pointer" title="Eliminar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
                     </li>`).join('') : `<li class="p-4 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">Sin elementos registrados</li>`;
 
                 return `
@@ -309,14 +345,162 @@ let todosLosProyectos = [];
             } catch (e) { alert('Error: ' + e.message); }
         }
 
+        function nombreSingularCatalogo(tabla) {
+            return ({
+                cat_sistemas:'sistema', cat_areas:'área', cat_clasificaciones:'tipo de requerimiento',
+                cat_prioridades:'prioridad', cat_complejidades:'complejidad', cat_estatus:'estatus',
+                cat_areas_impactadas:'área impactada', cat_dependencias_produccion:'dependencia',
+                cat_motivos_reprogramacion:'motivo', cat_sprints:'Sprint'
+            })[tabla] || 'elemento';
+        }
+
+        function buscarNombreCatalogo(tabla, id) {
+            const mapa = {
+                cat_sprints: cats.sprints, cat_sistemas: cats.sistemas, cat_areas: cats.areas,
+                cat_clasificaciones: cats.clasificaciones, cat_prioridades: cats.prioridades,
+                cat_complejidades: cats.complejidades, cat_areas_impactadas: cats.areas_impactadas,
+                cat_dependencias_produccion: cats.dependencias_produccion, cat_estatus: cats.estatus,
+                cat_motivos_reprogramacion: cats.motivos_reprogramacion
+            };
+            return (mapa[tabla] || []).find(x => String(x.id) === String(id))?.nombre || '';
+        }
+
+        async function editarCatalogoInline(tipo, tabla, id) {
+            const nombreActual = buscarNombreCatalogo(tabla, id);
+            const item = document.querySelector(`[data-cat-row="${tipo}-${id}"]`);
+            if (!item || item.dataset.editing === '1') return;
+            item.dataset.editing = '1';
+            const contenido = item.innerHTML;
+            const drag = item.getAttribute('draggable');
+            item.setAttribute('draggable','false');
+            item.innerHTML = `
+                <div class="flex-1 min-w-0">
+                    <input data-edit-name type="text" value="${String(nombreActual||'').replace(/&/g,'&amp;').replace(/\"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}" class="w-full border border-blue-200 rounded-lg px-2.5 py-2 text-xs font-bold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-100">
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button data-save class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-600 text-white" title="Guardar"><i data-lucide="check" class="w-4 h-4"></i></button>
+                    <button data-cancel class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-500" title="Cancelar"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>`;
+            lucide.createIcons();
+            const inp=item.querySelector('[data-edit-name]'); inp.focus(); inp.select();
+            const cancelar=()=>{item.innerHTML=contenido;item.dataset.editing='0';if(drag!==null)item.setAttribute('draggable',drag);lucide.createIcons()};
+            item.querySelector('[data-cancel]').onclick=cancelar;
+            item.querySelector('[data-save]').onclick=async()=>{
+                const nuevo=inp.value.trim(); if(!nuevo || nuevo===nombreActual){cancelar();return;}
+                try {
+                    // Los catálogos relacionales conservan su ID/UUID. Para catálogos guardados como texto,
+                    // actualizamos también los RQM existentes para que el nuevo nombre se refleje en el histórico.
+                    const campoTexto = tabla==='cat_prioridades'?'prioridad':tabla==='cat_complejidades'?'complejidad':tabla==='cat_estatus'?'estatus':null;
+                    if (campoTexto) {
+                        const { error:ep } = await _supabase.from('pmo_projects').update({[campoTexto]:nuevo}).eq(campoTexto,nombreActual);
+                        if (ep) throw ep;
+                    }
+                    const { error } = await _supabase.from(tabla).update({nombre:nuevo}).eq('id',id);
+                    if (error) {
+                        if (campoTexto) await _supabase.from('pmo_projects').update({[campoTexto]:nombreActual}).eq(campoTexto,nuevo);
+                        throw error;
+                    }
+                    await cargarCatalogos();
+                    if (typeof cargarProyectos === 'function') await cargarProyectos();
+                } catch(e) {
+                    if(window.PMOAlert) await PMOAlert(e.message,{title:'No se pudo modificar',type:'error'}); else alert('Error: '+e.message);
+                    cancelar();
+                }
+            };
+            inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();item.querySelector('[data-save]').click()}if(e.key==='Escape')cancelar()});
+        }
+
+        async function contarUsoCatalogo(tabla, id, nombre) {
+            const count = async (t,c,v) => {
+                const { count, error } = await _supabase.from(t).select('*',{count:'exact',head:true}).eq(c,v);
+                if(error) return 0; return count||0;
+            };
+            if(tabla==='cat_sistemas') {
+                const rqms=await count('pmo_projects','sistema_id',id); if(rqms) return {n:rqms,t:'requerimientos'};
+                const productos=await count('cat_portafolio_productos','sistema_id',id); if(productos) return {n:productos,t:'productos'};
+            }
+            if(tabla==='cat_areas') {const n=await count('pmo_projects','area_id',id); if(n)return {n,t:'requerimientos'};}
+            if(tabla==='cat_clasificaciones') {const n=await count('pmo_projects','clasificacion_id',id); if(n)return {n,t:'requerimientos'};}
+            if(tabla==='cat_prioridades') {const n=await count('pmo_projects','prioridad',nombre); if(n)return {n,t:'requerimientos'};}
+            if(tabla==='cat_complejidades') {const n=await count('pmo_projects','complejidad',nombre); if(n)return {n,t:'requerimientos'};}
+            if(tabla==='cat_estatus') {const n=await count('pmo_projects','estatus',nombre); if(n)return {n,t:'requerimientos'};}
+            if(tabla==='cat_motivos_reprogramacion') {const n=await count('pmo_date_history','motivo_id',id); if(n)return {n,t:'registros'};}
+            return null;
+        }
+
         async function eliminarCatalogo(tabla, id) {
-            if (await PMOConfirm('Se eliminará este elemento del catálogo. Esta acción no se puede deshacer.')) {
+            const nombre = buscarNombreCatalogo(tabla, id);
+            // Validación de uso únicamente para Sistemas y Catálogo Estatus.
+            if(tabla==='cat_sistemas' || tabla==='cat_estatus') {
+                const uso=await contarUsoCatalogo(tabla,id,nombre);
+                if(uso){
+                    const tipo=nombreSingularCatalogo(tabla);
+                    const msg=`El ${tipo} ${nombre} se encuentra asociado a ${uso.n} ${uso.t}.`;
+                    if(window.PMOAlert) return PMOAlert(msg,{title:'No se puede eliminar',type:'info'});
+                    return alert(msg);
+                }
+            }
+            if (await PMOConfirm('¿Eliminar este elemento?')) {
                 try {
                     const { error } = await _supabase.from(tabla).delete().eq('id', id);
                     if (error) throw error;
                     await cargarCatalogos();
-                } catch (e) { alert('Error: ' + e.message); }
+                } catch (e) {
+                    const msg=(e?.code==='23503')?'Este elemento se encuentra asociado a información existente.':('Error: '+e.message);
+                    if(window.PMOAlert) await PMOAlert(msg,{title:'No se puede eliminar',type:'info'}); else alert(msg);
+                }
             }
+        }
+
+
+        const MOCK_PRODUCTOS_PORTAFOLIO = {
+            'SIAFA': ['Carteras Compradas','Auto','Estandar Oil','Panel','Préstamo'],
+            'Genesis': ['Auto','Panel'],
+            'Jira': ['One Clic','Auto','Panel','TDC','Préstamo Personal','PYME'],
+            'Cotizador Externo': ['Auto','Panel']
+        };
+        const MOCK_TIPOS_SEGUIMIENTO = ['Incidencia','Observación','Pendiente','Mejora'];
+        const MOCK_ESTATUS_SEGUIMIENTO = ['Pendiente','En atención','En validación','Resuelto'];
+        const MOCK_PRIORIDADES_SEGUIMIENTO = ['Alta','Media','Baja'];
+
+        function mostrarFamiliaCatalogos(familia) {
+            const esRqm = familia === 'rqm';
+            document.getElementById('familia-catalogos-rqm')?.classList.toggle('hidden', !esRqm);
+            document.getElementById('familia-catalogos-portafolio')?.classList.toggle('hidden', esRqm);
+            document.getElementById('tab-cat-rqm')?.classList.toggle('active', esRqm);
+            document.getElementById('tab-cat-portafolio')?.classList.toggle('active', !esRqm);
+            if (!esRqm && window.PMOPortfolioCatalogs) PMOPortfolioCatalogs.load();
+            lucide.createIcons();
+        }
+
+        function mockFilaCatalogo(nombre, color='slate') {
+            return `<div class="flex items-center justify-between gap-3 border border-slate-200 rounded-xl px-3 py-2.5 bg-white">
+                <div class="flex items-center gap-2 min-w-0"><i data-lucide="grip-vertical" class="w-4 h-4 text-slate-300 shrink-0"></i><span class="text-xs font-bold text-slate-700 truncate">${nombre}</span></div>
+                <button onclick="mockAviso()" class="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 flex items-center justify-center hover:bg-slate-100" title="Acción demo"><i data-lucide="ellipsis" class="w-4 h-4"></i></button>
+            </div>`;
+        }
+
+        function renderMockProductos() {
+            const sistema = document.getElementById('mock-sistema-producto')?.value || 'SIAFA';
+            const items = MOCK_PRODUCTOS_PORTAFOLIO[sistema] || [];
+            const el = document.getElementById('mock-productos-list');
+            if (el) el.innerHTML = items.map(x => mockFilaCatalogo(x)).join('');
+            lucide.createIcons();
+        }
+
+        function renderMockCatalogosPortafolio() {
+            renderMockProductos();
+            const tipos=document.getElementById('mock-tipos'), estatus=document.getElementById('mock-estatus'), prioridades=document.getElementById('mock-prioridades');
+            if(tipos) tipos.innerHTML=MOCK_TIPOS_SEGUIMIENTO.map(x=>mockFilaCatalogo(x)).join('');
+            if(estatus) estatus.innerHTML=MOCK_ESTATUS_SEGUIMIENTO.map(x=>mockFilaCatalogo(x)).join('');
+            if(prioridades) prioridades.innerHTML=MOCK_PRIORIDADES_SEGUIMIENTO.map(x=>mockFilaCatalogo(x)).join('');
+            lucide.createIcons();
+        }
+
+        async function mockAviso() {
+            const mensaje='Esta acción es únicamente demostrativa en el mockup. No se realizará ningún cambio en la base de datos.';
+            if (typeof PMOAlert === 'function') await PMOAlert(mensaje, {title:'Mockup sin BDD', type:'info'});
+            else alert(mensaje);
         }
 
         function calcularDiasEntreFechas(inicio, fin) {
@@ -415,5 +599,6 @@ let todosLosProyectos = [];
     <script src="js/pmo-layout.js"></script>
     <script src="js/rqm-config.js"></script>
     <script src="js/pmo-dialogs.js"></script>
+    <script src="js/pmo-portfolio-catalogs.js"></script>
 </body>
 </html>

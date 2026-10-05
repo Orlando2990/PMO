@@ -33,6 +33,22 @@
     msg.textContent=message||'Esta acción no se puede deshacer.';
     accept.textContent=options.confirmText||'Sí, eliminar';
     cancel.textContent=options.cancelText||'Cancelar';
+
+    const iconBox=dialog.querySelector('.w-12.h-12.rounded-2xl');
+    const variant=options.variant||'danger';
+    if(variant==='violet'){
+      if(iconBox){
+        iconBox.className='w-12 h-12 rounded-2xl bg-violet-50 text-violet-600 grid place-items-center shrink-0';
+        iconBox.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10V3L4 6"/><path d="M7 3l3 3"/><path d="M17 14v7l-3-3"/><path d="M17 21l3-3"/></svg>';
+      }
+      accept.className='px-5 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black shadow-lg shadow-violet-600/20';
+    }else{
+      if(iconBox){
+        iconBox.className='w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 grid place-items-center shrink-0';
+        iconBox.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>';
+      }
+      accept.className='px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black shadow-lg shadow-rose-600/20';
+    }
     dialog.classList.remove('hidden');
     return new Promise(resolve=>{
       let done=false;
@@ -71,8 +87,17 @@
     document.getElementById('pmo-alert-title').textContent=options.title||'Operación completada';
     document.getElementById('pmo-alert-message').textContent=message||'';
     const icon=document.getElementById('pmo-alert-icon');
-    const error=options.type==='error';
-    icon.className=`w-12 h-12 rounded-2xl ${error?'bg-rose-50 text-rose-600':'bg-emerald-50 text-emerald-600'} grid place-items-center shrink-0`;
+    const type=options.type||'success';
+    if(type==='error'){
+      icon.className='w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 grid place-items-center shrink-0';
+      icon.innerHTML='<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"/></svg>';
+    }else if(type==='info'){
+      icon.className='w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 grid place-items-center shrink-0';
+      icon.innerHTML='<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>';
+    }else{
+      icon.className='w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 grid place-items-center shrink-0';
+      icon.innerHTML='<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    }
     dialog.classList.remove('hidden');
     return new Promise(resolve=>{
       const btn=document.getElementById('pmo-alert-accept');

@@ -56,25 +56,24 @@
 .pmo-risk-row:last-child{border-bottom:0}
 .pmo-mini-bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.pmo-mini-bar>span{display:block;height:100%;border-radius:999px}
 /* PMO Control 3.0 - Command Center visible */
-.pmo-command-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:18px;margin-top:22px}
-.pmo-command-main{background:linear-gradient(135deg,#0f172a,#172554 55%,#1d4ed8);border-radius:24px;padding:24px;color:white;position:relative;overflow:hidden;box-shadow:0 18px 35px rgba(30,64,175,.18)}
-.pmo-command-main:after{content:"";position:absolute;width:260px;height:260px;border-radius:999px;background:rgba(56,189,248,.16);right:-90px;top:-110px}
+.pmo-command-grid{display:grid;grid-template-columns:1fr;gap:18px;margin-top:22px}
+.pmo-command-main{background:linear-gradient(135deg,#0f172a,#172554 55%,#1d4ed8);border-radius:24px;padding:26px;color:white;position:relative;overflow:hidden;box-shadow:0 18px 35px rgba(30,64,175,.18)}
+.pmo-command-main:after{content:"";position:absolute;width:300px;height:300px;border-radius:999px;background:rgba(56,189,248,.16);right:-90px;top:-125px}
+.pmo-command-main-grid{position:relative;z-index:10;display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,.75fr);gap:34px;align-items:center}
 .pmo-command-title{font-size:13px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#bfdbfe}
 .pmo-command-value{font-size:42px;line-height:1;font-weight:950;margin-top:10px}
 .pmo-command-detail{font-size:13px;color:#dbeafe;margin-top:10px;max-width:620px}
-.pmo-command-side{display:grid;grid-template-columns:1fr;gap:12px;align-content:center}
-.pmo-command-tile{background:white;border:1px solid #e2e8f0;border-radius:20px;padding:18px;box-shadow:0 5px 16px rgba(15,23,42,.06)}
-.pmo-command-tile strong{font-size:27px;display:block;color:#0f172a;margin-top:7px}.pmo-command-tile span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;color:#94a3b8}
-.pmo-command-health-card{padding:20px 22px}
-.pmo-command-health-card .pmo-mini-bar{height:7px}
-.pmo-command-health-card .pmo-health-dot{width:11px;height:11px}
-.pmo-command-health-card h3{font-size:16px;line-height:1.2;font-weight:950;color:#0f172a}
-.pmo-command-health-card .pmo-health-subtitle{font-size:11px;line-height:1.3;font-weight:700;color:#64748b;margin-top:4px}
-.pmo-command-health-card .pmo-health-label{font-size:12px;line-height:1.2;font-weight:900;color:#334155;text-transform:uppercase;letter-spacing:.025em}
-.pmo-command-health-card .pmo-health-value{font-size:15px;line-height:1;font-weight:950;color:#0f172a}
-.pmo-command-health-card .pmo-health-footer{font-size:11px;line-height:1.35;font-weight:600;color:#64748b}
+.pmo-command-health-inline{border-left:1px solid rgba(255,255,255,.16);padding-left:30px}
+.pmo-command-health-inline .pmo-health-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}
+.pmo-command-health-inline h3{font-size:16px;line-height:1.2;font-weight:950;color:#fff}
+.pmo-command-health-inline .pmo-health-subtitle{font-size:11px;line-height:1.35;font-weight:700;color:#bfdbfe;margin-top:4px}
+.pmo-command-health-inline .pmo-health-label{font-size:12px;line-height:1.2;font-weight:900;color:#e2e8f0;text-transform:uppercase;letter-spacing:.025em}
+.pmo-command-health-inline .pmo-health-value{font-size:15px;line-height:1;font-weight:950;color:#fff}
+.pmo-command-health-inline .pmo-health-footer{font-size:11px;line-height:1.35;font-weight:650;color:#cbd5e1}
+.pmo-command-health-inline .pmo-mini-bar{height:7px;background:rgba(255,255,255,.16)}
+.pmo-command-health-inline .pmo-health-dot{width:11px;height:11px;box-shadow:0 0 0 4px rgba(255,255,255,.08)}
 .pmo-exec-callout{border-radius:18px;padding:16px 18px;display:flex;align-items:center;gap:13px;font-size:13px;font-weight:800}
-@media(max-width:900px){.pmo-command-grid{grid-template-columns:1fr}.pmo-command-side{grid-template-columns:1fr}}
+@media(max-width:900px){.pmo-command-main-grid{grid-template-columns:1fr;gap:24px}.pmo-command-health-inline{border-left:0;border-top:1px solid rgba(255,255,255,.16);padding-left:0;padding-top:22px}}
 
 </style>
 
@@ -96,20 +95,23 @@
 
         <section class="pmo-command-grid" aria-label="Centro de control ejecutivo">
             <div class="pmo-command-main">
-                <div class="relative z-10">
-                    <p class="pmo-command-title">Resumen ejecutivo</p>
-                    <div id="pmo-pulso-valor" class="pmo-command-value">Analizando...</div>
-                    <p id="pmo-pulso-detalle" class="pmo-command-detail">Evaluando compromisos, atrasos y estabilidad del plan.</p>
-                    <div id="pmo-pulso-badge" class="inline-flex mt-5 px-4 py-2 rounded-full bg-white/10 border border-white/15 text-xs font-black">Indicadores actualizados</div>
-                </div>
-            </div>
-            <div class="pmo-command-side">
-                <div class="pmo-command-tile pmo-command-health-card">
-                    <div class="flex items-center justify-between mb-3">
-                        <div><h3>Salud del Portafolio</h3><p class="pmo-health-subtitle">Estado actual de los requerimientos vigentes</p></div>
-                        <i data-lucide="heart-pulse" class="w-5 h-5 text-rose-500"></i>
+                <div class="pmo-command-main-grid">
+                    <div>
+                        <p class="pmo-command-title">Resumen ejecutivo</p>
+                        <div id="pmo-pulso-valor" class="pmo-command-value">Analizando...</div>
+                        <p id="pmo-pulso-detalle" class="pmo-command-detail">Evaluando compromisos, atrasos y estabilidad del plan.</p>
+                        <div id="pmo-pulso-badge" class="inline-flex mt-5 px-4 py-2 rounded-full bg-white/10 border border-white/15 text-xs font-black">Indicadores actualizados</div>
                     </div>
-                    <div id="pmo-command-health" class="space-y-2.5"></div>
+                    <div class="pmo-command-health-inline">
+                        <div class="pmo-health-head">
+                            <div>
+                                <h3>Salud del Portafolio</h3>
+                                <p class="pmo-health-subtitle">Estado actual de los requerimientos vigentes</p>
+                            </div>
+                            <i data-lucide="heart-pulse" class="w-5 h-5 text-rose-300"></i>
+                        </div>
+                        <div id="pmo-command-health" class="space-y-2.5"></div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -225,14 +227,14 @@
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <div><h3 class="text-sm font-black text-slate-800">Carga por Sprint</h3><p class="text-xs text-slate-400 mt-0.5">Propios del Sprint y arrastres recibidos</p></div>
+                        <div><h3 class="text-sm font-black text-slate-800">Carga por Sprint</h3><p class="text-xs text-slate-400 mt-0.5">Propios del Sprint y arrastres recibidos · Clic en la barra de arrastres para ver cuáles</p></div>
                         <i data-lucide="calendar-days" class="w-5 h-5 text-violet-500"></i>
                     </div>
                     <div class="h-72"><canvas id="chart-sprints"></canvas></div>
                 </div>
                 <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                     <div class="flex items-center justify-between mb-4">
-                        <div><h3 class="text-sm font-black text-slate-800">Urgentes por Sprint</h3><p class="text-xs text-slate-400 mt-0.5">Requerimientos incorporados fuera de planeación por Sprint actual</p></div>
+                        <div><h3 class="text-sm font-black text-slate-800">Urgentes por Sprint</h3><p class="text-xs text-slate-400 mt-0.5">Requerimientos incorporados fuera de planeación por Sprint actual · Clic en una barra para ver cuáles</p></div>
                         <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center"><i data-lucide="flame" class="w-5 h-5"></i></div>
                     </div>
                     <div class="h-72"><canvas id="chart-urgentes-sprint"></canvas></div>

@@ -80,8 +80,16 @@
     const maxAnticipacion = maxDesviacion === 0 && anticipaciones.length
       ? Math.max(...anticipaciones.map(f => Math.abs(f.desviacion)))
       : 0;
-    const fasesAtrasadas = fases.filter(f => f.estado === 'ABIERTA_ATRASADA');
-    const proximas = fases.filter(f => f.estado === 'PROXIMA_VENCER');
+    // Para alertas operativas evaluamos únicamente la fase vigente del requerimiento.
+    // Las fases futuras conservan sus compromisos para planeación/Roadmap, pero no generan
+    // alertas simultáneas en "Requerimientos que requieren atención".
+    const faseVigenteNombre = estatus === 'DESARROLLO' ? 'Desarrollo'
+      : estatus === 'QA' ? 'QA'
+      : estatus === 'UAT' ? 'UAT'
+      : null;
+    const faseVigente = faseVigenteNombre ? fases.find(f => f.nombre === faseVigenteNombre) : null;
+    const fasesAtrasadas = faseVigente?.estado === 'ABIERTA_ATRASADA' ? [faseVigente] : [];
+    const proximas = faseVigente?.estado === 'PROXIMA_VENCER' ? [faseVigente] : [];
 
     // Semáforo operativo: muestra únicamente la situación vigente del requerimiento.
     // Las desviaciones cerradas y las reprogramaciones permanecen como información histórica,
@@ -91,9 +99,10 @@
     if (cancelado) {
       salud = 'NEUTRO';
       motivoSalud = 'Cancelado';
-    } else if (maxAtraso > 0) {
+    } else if (fasesAtrasadas.length) {
+      const atrasoVigente = Math.max(0, ...fasesAtrasadas.map(f => f.atraso || 0));
       salud = 'ROJO';
-      motivoSalud = `Atrasado ${maxAtraso} d`;
+      motivoSalud = `Atrasado ${atrasoVigente} d`;
     } else if (proximas.length) {
       const masProxima = [...proximas].sort((a, b) => a.proximoVencimiento - b.proximoVencimiento)[0];
       salud = 'AMARILLO';

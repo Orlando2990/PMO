@@ -60,6 +60,95 @@
 </style>
 
     <link rel="stylesheet" href="css/pmo-layout.css">
+
+<style id="pmo-roadmap-v3275">
+/* V3.2.75 — Roadmap Ejecutivo. Cambios exclusivamente visuales. */
+#reporte-mapa-requerimientos{
+  position:relative;overflow:hidden;
+  border:1px solid #dbe4ef!important;
+  border-radius:28px!important;
+  background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%)!important;
+  box-shadow:0 14px 38px rgba(15,23,42,.065)!important;
+}
+#reporte-mapa-requerimientos:before{
+  content:"";position:absolute;left:0;right:0;top:0;height:6px;
+  background:linear-gradient(90deg,#0f172a 0%,#1d4ed8 50%,#06b6d4 100%);
+}
+#reporte-mapa-requerimientos>div:first-child{
+  padding-top:5px;
+}
+#reporte-mapa-requerimientos #seguimiento-rango-semana{
+  color:#64748b!important;font-weight:700!important;
+}
+#reporte-mapa-requerimientos #seguimiento-avance-general{
+  border:1px solid #bfdbfe!important;border-radius:18px!important;
+  background:linear-gradient(145deg,#eff6ff 0%,#ffffff 100%)!important;
+  box-shadow:0 8px 24px rgba(37,99,235,.08)!important;
+}
+#reporte-mapa-requerimientos #seguimiento-lista{gap:20px!important}
+#reporte-mapa-requerimientos #seguimiento-lista>article,
+#reporte-mapa-requerimientos #seguimiento-lista>.pmo-follow-card{
+  position:relative;overflow:hidden;
+  border:1px solid #dfe7f1!important;border-radius:24px!important;
+  background:#fff!important;
+  box-shadow:0 10px 28px rgba(15,23,42,.055)!important;
+  transition:transform .18s ease,box-shadow .18s ease;
+}
+#reporte-mapa-requerimientos #seguimiento-lista>article:hover,
+#reporte-mapa-requerimientos #seguimiento-lista>.pmo-follow-card:hover{
+  transform:translateY(-1px);
+  box-shadow:0 15px 34px rgba(15,23,42,.085)!important;
+}
+#reporte-mapa-requerimientos #seguimiento-lista article .overflow-x-auto{
+  margin-top:22px!important;padding-top:18px!important;
+  border-top:1px solid #edf2f7!important;
+}
+#reporte-mapa-requerimientos #seguimiento-lista article .overflow-x-auto>div{
+  border-radius:18px;
+  background:linear-gradient(180deg,#f8fafc 0%,rgba(255,255,255,.95) 80%);
+}
+#reporte-mapa-requerimientos #seguimiento-lista article .w-14.h-14{
+  border:3px solid rgba(255,255,255,.98)!important;
+  box-shadow:0 6px 16px rgba(15,23,42,.12)!important;
+}
+#reporte-mapa-requerimientos #seguimiento-lista article .w-5.h-5{
+  border:2px solid #fff!important;
+  box-shadow:0 2px 7px rgba(15,23,42,.10)!important;
+}
+#reporte-mapa-requerimientos .pmo-metric-state{
+  border-radius:16px!important;
+  border:1px solid #e2e8f0!important;
+  background:linear-gradient(180deg,#fff,#f8fafc)!important;
+  box-shadow:none!important;
+}
+#reporte-mapa-requerimientos .pmo-metric-state .label{
+  color:#94a3b8!important;letter-spacing:.11em!important;
+}
+#reporte-mapa-requerimientos h4{letter-spacing:-.015em}
+#reporte-mapa-requerimientos .roadmap-executive-footer{
+  margin-top:22px;padding-top:14px;border-top:1px solid #e8eef7;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  color:#94a3b8;font-size:10px;font-weight:800;letter-spacing:.05em;
+}
+@media(max-width:900px){
+ #reporte-mapa-requerimientos{border-radius:22px!important}
+ #reporte-mapa-requerimientos .roadmap-executive-footer{flex-direction:column;align-items:flex-start}
+}
+</style>
+
+<style id="pmo-compilado-v3276">
+.pmo-compilando #reporte-mapa-requerimientos,.pmo-compilando #reporte-avance-sprint,.pmo-compilando #reporte-distribucion-portafolio{border-color:transparent!important;box-shadow:none!important;border-radius:0!important}
+.pmo-compilando #reporte-mapa-requerimientos:before{display:none!important}
+.pmo-compilando .roadmap-executive-footer{display:none!important}
+.pmo-compilando #reporte-avance-sprint>div:first-child,.pmo-compilando #reporte-distribucion-portafolio>div:first-child{display:none!important}
+</style>
+
+<style id="pmo-v3277-refinamiento">
+#reporte-avance-sprint h3,#reporte-distribucion-portafolio h3{font-size:1.125rem!important;line-height:1.2!important}
+.pmo-copiando-grafica #reporte-avance-sprint,.pmo-copiando-grafica #reporte-distribucion-portafolio{box-shadow:none!important;border-color:transparent!important;border-radius:0!important;background:#fff!important}
+.pmo-copiando-grafica #reporte-avance-sprint>div:first-child,.pmo-copiando-grafica #reporte-distribucion-portafolio>div:first-child{display:none!important}
+.pmo-copiando-grafica #reporte-avance-sprint>div.p-6,.pmo-copiando-grafica #reporte-distribucion-portafolio>div.p-6{padding:18px!important}
+</style>
 </head>
 
 <body class="bg-slate-50/50 font-sans text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
@@ -97,134 +186,130 @@
 
         <section id="seguimiento-kpis" class="pmo-ytd-panel" aria-label="Resumen ejecutivo YTD"></section>
 
-        <section>
-            <div class="flex justify-end mb-3 no-export">
-                <button onclick="exportarGraficasJuntas()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-4 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition shadow-sm">
-                    <i data-lucide="images" class="w-4 h-4"></i> Descargar ambas gráficas
-                </button>
-            </div>
-            <div id="reporte-graficas-conjuntas" class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div id="reporte-avance-sprint" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-                <div class="flex items-start justify-between mb-4 gap-3">
-                    <div>
-                        <h3 id="titulo-avance-sprint" class="text-lg font-black text-slate-900 uppercase">Avance del Sprint</h3>
-                        <p class="text-xs text-slate-500 mt-1">Distribución de requerimientos por estatus operativo</p>
-                    </div>
-                    <div class="flex items-center gap-2 no-export">
-                        <button onclick="copiarSeccionImagen('reporte-avance-sprint')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
-                            <i data-lucide="copy" class="w-4 h-4"></i> Copiar
-                        </button>
-                        <button onclick="exportarSeccionImagen('reporte-avance-sprint', 'avance_sprint')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
-                            <i data-lucide="image-down" class="w-4 h-4"></i> Imagen
-                        </button>
-                        <div class="bg-blue-50 text-blue-700 p-2 rounded-xl">
-                            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="h-72">
-                    <canvas id="seguimiento-chart-avance"></canvas>
-                </div>
-            </div>
-
-            <div id="reporte-distribucion-portafolio" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-                <div class="flex items-start justify-between mb-4 gap-3">
-                    <div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <h3 id="titulo-distribucion-portafolio" class="text-lg font-black text-slate-900 uppercase">Distribución general del portafolio</h3>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2 no-export">
-                        <select id="seguimiento-vista-portafolio" onchange="cambiarVistaPortafolio()"
-                            class="bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-black outline-none focus:border-emerald-400">
-                            <option value="general">Portafolio general</option>
-                            <option value="sprint">Sprint seleccionado</option>
-                        </select>
-                        <button onclick="copiarSeccionImagen('reporte-distribucion-portafolio')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
-                            <i data-lucide="copy" class="w-4 h-4"></i> Copiar
-                        </button>
-                        <button onclick="exportarSeccionImagen('reporte-distribucion-portafolio', 'distribucion_portafolio')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
-                            <i data-lucide="image-down" class="w-4 h-4"></i> Imagen
-                        </button>
-                        <div class="bg-emerald-50 text-emerald-700 p-2 rounded-xl">
-                            <i data-lucide="pie-chart" class="w-5 h-5"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="h-72">
-                    <canvas id="seguimiento-chart-portafolio"></canvas>
-                </div>
-            </div>
-            </div>
-        </section>
-
         <section class="space-y-5">
             <div id="reporte-mapa-requerimientos" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-                <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
-                    <div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start mb-5">
+                    <div class="lg:pt-1">
                         <h3 class="text-lg font-black text-slate-900">Seguimiento semanal de requerimientos</h3>
                         <p id="seguimiento-rango-semana" class="text-xs text-slate-500 mt-1">Semana en curso</p>
                     </div>
-
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-3 lg:ml-auto">
+                    <div class="flex justify-center">
                         <div id="seguimiento-avance-general" class="bg-blue-50 border border-blue-100 rounded-2xl px-5 py-3 min-w-[190px] text-center shadow-xs">
                             <p class="text-[10px] font-black uppercase tracking-wider text-blue-600">Avance total</p>
                             <p id="seguimiento-avance-general-valor" class="text-3xl font-black text-blue-700 leading-none mt-1">0%</p>
                             <p id="seguimiento-avance-general-detalle" class="text-[10px] font-bold text-blue-500 mt-1">0 requerimientos visibles</p>
                         </div>
                     </div>
-
-                    <div class="flex items-center gap-2 flex-wrap no-export">
-                        <button onclick="copiarSeccionImagen('reporte-mapa-requerimientos')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
-                            <i data-lucide="copy" class="w-4 h-4"></i> Copiar
-                        </button>
-                        <button onclick="exportarSeccionImagen('reporte-mapa-requerimientos', 'seguimiento_semanal_requerimientos')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
-                            <i data-lucide="image-down" class="w-4 h-4"></i> Imagen
-                        </button>
-                        <span id="seguimiento-total-visible" class="text-xs font-black bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full">0 visibles</span>
+                    <div class="flex items-center justify-end no-export lg:pt-2">
+                        <div class="flex items-center justify-end gap-2 flex-wrap">
+                            <button onclick="exportarCompiladoSeguimiento()" class="bg-slate-900 hover:bg-slate-800 text-white border border-slate-800 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition shadow-sm" title="Descargar Roadmap y gráficas en una sola imagen">
+                                <i data-lucide="panels-top-left" class="w-4 h-4"></i> Descargar compilado
+                            </button>
+                            <button onclick="abrirOrdenRoadmapSprint()" class="bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition" title="Definir el orden de prioridad PMO del Sprint">
+                                <i data-lucide="arrow-up-down" class="w-4 h-4"></i> Ordenar Roadmap
+                            </button>
+                            <button onclick="copiarSeccionImagen('reporte-mapa-requerimientos')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                                <i data-lucide="copy" class="w-4 h-4"></i> Copiar
+                            </button>
+                            <span id="seguimiento-total-visible" class="text-xs font-black bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full">0 visibles</span>
+                        </div>
                     </div>
                 </div>
 
                 <div id="seguimiento-lista" class="space-y-4"></div>
+                <div class="roadmap-executive-footer justify-end"><span id="roadmap-corte-semanal">Seguimiento semanal</span></div>
+            </div>
+        </section>
+
+        <section>
+            <div class="hidden"></div>
+            <div id="reporte-graficas-conjuntas" class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div id="reporte-avance-sprint" class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="h-1.5 bg-gradient-to-r from-blue-700 via-blue-500 to-cyan-400"></div>
+                <div class="p-6">
+                    <div class="flex items-start justify-between mb-5 gap-3">
+                        <div>
+                            <h3 id="titulo-avance-sprint" class="text-lg font-black text-slate-950 uppercase leading-tight">Avance del Sprint</h3>
+                            <p class="text-xs font-semibold text-slate-500 mt-1.5">Distribución de requerimientos por estatus operativo</p>
+                        </div>
+                        <div class="flex items-center gap-2 no-export">
+                            <button onclick="copiarSeccionImagen('reporte-avance-sprint')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                                <i data-lucide="copy" class="w-4 h-4"></i> Copiar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="h-72 rounded-2xl bg-slate-50/70 border border-slate-100 px-3 py-2">
+                        <canvas id="seguimiento-chart-avance"></canvas>
+                    </div>
+                    
+                </div>
             </div>
 
-            <aside class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
-                    <div class="flex items-center gap-3 mb-4">
-                        <div class="bg-rose-50 text-rose-600 p-2 rounded-xl">
-                            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-                        </div>
+            <div id="reporte-distribucion-portafolio" class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="h-1.5 bg-gradient-to-r from-slate-900 via-blue-800 to-blue-500"></div>
+                <div class="p-6">
+                    <div class="flex items-start justify-between mb-5 gap-3">
                         <div>
-                            <h3 class="text-sm font-black text-slate-900">Radar de Riesgos</h3>
-                            <p class="text-xs text-slate-400">Atención operativa</p>
+                            <h3 id="titulo-distribucion-portafolio" class="text-lg font-black text-slate-950 uppercase leading-tight">Distribución general del portafolio</h3>
+                            <p class="text-xs font-semibold text-slate-500 mt-1.5">Composición actual por estatus operativo</p>
+                        </div>
+                        <div class="flex items-center gap-2 no-export">
+                            <select id="seguimiento-vista-portafolio" onchange="cambiarVistaPortafolio()"
+                                class="bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-black outline-none focus:border-emerald-400">
+                                <option value="general">Portafolio general</option>
+                                <option value="sprint">Sprint seleccionado</option>
+                            </select>
+                            <button onclick="copiarSeccionImagen('reporte-distribucion-portafolio')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-3 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition">
+                                <i data-lucide="copy" class="w-4 h-4"></i> Copiar
+                            </button>
                         </div>
                     </div>
-                    <div id="seguimiento-riesgos" class="space-y-3"></div>
+                    <div class="h-72 rounded-2xl bg-slate-50/70 border border-slate-100 px-3 py-2">
+                        <canvas id="seguimiento-chart-portafolio"></canvas>
+                    </div>
+                    
                 </div>
-
-                <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
-                    <div class="flex items-center gap-3 mb-4">
-                        <div class="bg-blue-50 text-blue-600 p-2 rounded-xl">
-                            <i data-lucide="info" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-black text-slate-900">Leyenda</h3>
-                            <p class="text-xs text-slate-400">Interpretación rápida</p>
-                        </div>
-                    </div>
-
-                    <div class="space-y-3 text-xs font-bold text-slate-600">
-                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Estatus completado</div>
-                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500"></span> Estatus actual</div>
-                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-200"></span> Estatus pendiente</div>
-                        <div class="flex items-center gap-2">🚗 Avance actual</div>
-                        <div class="flex items-center gap-2">🟡 Reprogramado</div>
-                        <div class="flex items-center gap-2">🔴 Atraso real</div>
-                    </div>
-                </div>
-            </aside>
+            </div>            </div>
+            </div>
         </section>
+
+
     </main>
+
+
+    <!-- Orden de prioridad PMO del Roadmap -->
+    <div id="modal-orden-roadmap" class="hidden fixed inset-0 z-[120] bg-slate-950/55 backdrop-blur-sm p-4">
+        <div class="min-h-full flex items-center justify-center">
+            <div class="w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
+                <div class="px-6 py-5 border-b border-slate-100 flex items-start justify-between gap-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-11 h-11 rounded-2xl bg-violet-50 text-violet-700 flex items-center justify-center shrink-0">
+                            <i data-lucide="arrow-up-down" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-wider text-violet-600">Prioridad PMO</p>
+                            <h3 id="orden-roadmap-titulo" class="text-xl font-black text-slate-950 mt-0.5">Ordenar Roadmap</h3>
+                        </div>
+                    </div>
+                    <button type="button" onclick="cerrarOrdenRoadmapSprint()" class="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center shrink-0">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="px-6 py-5">
+                    <div id="orden-roadmap-lista" class="space-y-2 max-h-[55vh] overflow-y-auto pr-1"></div>
+                </div>
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <button type="button" onclick="restablecerOrdenRoadmapSprint()" class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs font-black">
+                        Restablecer orden automático
+                    </button>
+                    <div class="flex items-center justify-end gap-2">
+                        <button type="button" onclick="cerrarOrdenRoadmapSprint()" class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-black">Cancelar</button>
+                        <button id="btn-guardar-orden-roadmap" type="button" onclick="guardarOrdenRoadmapSprint()" class="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-black shadow-lg shadow-violet-600/20">Guardar orden</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modales reutilizables de la Matriz para consultar/modificar un RQM desde Seguimiento -->
     <div id="orbita-modales-requerimientos"></div>

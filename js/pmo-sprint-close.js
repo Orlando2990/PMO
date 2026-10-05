@@ -1,4 +1,4 @@
-/* PMO Control V3.2.50 — Cierre de Sprint
+/* PMO Control V3.2.83 — Cierre de Sprint
    Implementación deliberadamente aislada para no alterar navegación, cargas ni transiciones. */
 (() => {
   const OWNER_EMAIL = 'p.castillo@finsus.mx';
@@ -13,7 +13,11 @@
     const modal=document.getElementById('modal-confirmar-sprint');
     if(!modal) return Promise.resolve(false);
     document.getElementById('confirmar-sprint-titulo').textContent=title||'Confirmar acción';
-    document.getElementById('confirmar-sprint-mensaje').textContent=message||'';
+    const mensajeEl=document.getElementById('confirmar-sprint-mensaje');
+    if(mensajeEl){
+      mensajeEl.textContent=message||'';
+      mensajeEl.classList.toggle('hidden',!message);
+    }
     document.getElementById('confirmar-sprint-kicker').textContent=kicker;
     const icon=document.getElementById('confirmar-sprint-icono');
     const btn=document.getElementById('confirmar-sprint-aceptar');
@@ -110,12 +114,13 @@
   function historyRows(){
     if(!cierresCache.length) return `<div class="rounded-xl border border-dashed border-slate-200 px-4 py-4 text-xs text-slate-400">Todavía no hay cierres históricos para este sistema.</div>`;
     return cierresCache.map(c=>`
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border border-slate-100 bg-slate-50">
-        <div><p class="text-sm font-black text-slate-900">${esc(c.sprint_nombre)} ${esc(c.anio)}</p><p class="text-[11px] text-slate-400">Cerrado ${new Date(c.cerrado_en).toLocaleString('es-MX',{dateStyle:'medium',timeStyle:'short'})}</p></div>
-        <div class="flex items-center gap-2">
-          <span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black">CERRADO</span>
-          <button type="button" onclick="PMOSprintClose.view('${c.id}')" class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-black text-slate-700 hover:bg-slate-100">Ver cierre</button>
-          ${isOwner()?`<button type="button" onclick="PMOSprintClose.reopen('${c.id}')" class="px-3 py-2 rounded-xl bg-rose-50 border border-rose-100 text-xs font-black text-rose-700 hover:bg-rose-100">Reabrir Sprint</button>`:''}
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border ${c.reabierto?'border-amber-100 bg-amber-50/50':'border-slate-100 bg-slate-50'}">
+        <div><p class="text-sm font-black text-slate-900">${esc(c.sprint_nombre)} ${esc(c.anio)}</p><p class="text-[11px] text-slate-400">${c.reabierto?'Reabierto · fotografía anterior conservada':'Cerrado '+new Date(c.cerrado_en).toLocaleString('es-MX',{dateStyle:'medium',timeStyle:'short'})}</p></div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="px-2.5 py-1 rounded-full ${c.reabierto?'bg-amber-100 text-amber-700':'bg-emerald-50 text-emerald-700'} text-[10px] font-black">${c.reabierto?'REABIERTO':'CERRADO'}</span>
+          <button type="button" onclick="PMOSprintClose.view('${c.id}')" class="px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-black text-slate-700 hover:bg-slate-100">Ver fotografía</button>
+          ${c.reabierto && isOwner()?`<button type="button" onclick="PMOSprintClose.reclose('${c.id}')" class="px-3 py-2 rounded-xl bg-blue-600 text-xs font-black text-white hover:bg-blue-700">Cerrar nuevamente</button>`:''}
+          ${!c.reabierto && isOwner()?`<button type="button" onclick="PMOSprintClose.reopen('${c.id}')" class="px-3 py-2 rounded-xl bg-rose-50 border border-rose-100 text-xs font-black text-rose-700 hover:bg-rose-100">Reabrir Sprint</button>`:''}
         </div>
       </div>`).join('');
   }
@@ -141,7 +146,7 @@
       box.innerHTML=`<div class="rounded-2xl border border-amber-100 bg-amber-50 p-5"><p class="text-sm font-black text-amber-800">Falta habilitar Cierre de Sprint en Supabase.</p><p class="text-xs text-amber-700 mt-1">Ejecuta el SQL incluido en esta versión y vuelve a cargar la página.</p></div>`;
       return;
     }
-    const existing=cierresCache.find(c=>String(c.sprint_id)===String(sprint.id));
+    const existing=cierresCache.find(c=>String(c.sprint_id)===String(sprint.id) && !c.reabierto);
     const snap=existing?.snapshot || liveSnapshot(sprint,system);
     const label=sprintLabel(sprint);
 
@@ -152,7 +157,7 @@
             <div>
               <p class="text-[10px] font-black uppercase tracking-wide ${existing?'text-emerald-600':'text-blue-500'}">${existing?'Sprint cerrado':'Sprint vigente'}</p>
               <h4 class="text-xl font-black text-slate-900 mt-1">${esc(label)}</h4>
-              <p class="text-xs text-slate-500 mt-1">${existing?'Esta fotografía ya no cambia aunque los RQM continúen evolucionando.':'Mientras permanezca abierto, los indicadores se actualizan con la información actual.'}</p>
+              ${existing?'<p class="text-xs text-slate-500 mt-1">Esta fotografía ya no cambia aunque los RQM continúen evolucionando.</p>':''}
             </div>
             <span class="inline-flex self-start items-center gap-1.5 px-3 py-1.5 rounded-full ${existing?'bg-emerald-100 text-emerald-700':'bg-blue-100 text-blue-700'} text-xs font-black">${existing?'Cerrado':'En curso'}</span>
           </div>
@@ -171,7 +176,7 @@
           </div>
         </div>
         <div class="xl:col-span-2 rounded-2xl border border-slate-200 p-5">
-          <div class="flex items-center justify-between gap-3 mb-4"><div><h4 class="text-sm font-black text-slate-900">Cierres históricos</h4><p class="text-xs text-slate-400 mt-0.5">Se actualiza conforme cierres nuevos Sprints.</p></div><i data-lucide="history" class="w-5 h-5 text-slate-400"></i></div>
+          <div class="flex items-center justify-between gap-3 mb-4"><div><h4 class="text-sm font-black text-slate-900">Cierres históricos</h4></div><i data-lucide="history" class="w-5 h-5 text-slate-400"></i></div>
           <div class="space-y-2">${historyRows()}</div>
         </div>
       </div>`;
@@ -280,15 +285,19 @@
         const destino=x.sprint_actual && x.sprint_actual!==title.replace('Cierre de Sprint · ','')
           ? `→ ${esc(x.sprint_actual)}`
           : (esLiberado?'Liberado':'Pendiente al cierre');
+        const esArrastre=Boolean(x.sprint_origen && x.sprint_actual && norm(x.sprint_origen)!==norm(x.sprint_actual));
+        const esFuera=norm(x.tipo_incorporacion)==='NO_PLANEADO' || norm(x.tipo_incorporacion)==='URGENTE';
+        const marcas=`${esArrastre?'<span title="Arrastre de Sprint anterior" class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-violet-50 text-violet-700 text-[10px] font-black"><i data-lucide="arrow-right-left" class="w-3.5 h-3.5"></i> Arrastre</span>':''}${esFuera?'<span title="Fuera de planeación" class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-50 text-orange-700 text-[10px] font-black"><i data-lucide="flame" class="w-3.5 h-3.5"></i> Fuera de planeación</span>':''}`;
         return `<div class="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-black text-blue-700">${esc(x.id_req||'RQM')}</p>
+            <div class="flex items-center gap-2 flex-wrap"><p class="text-xs font-black text-blue-700">${esc(x.id_req||'RQM')}</p>${marcas}</div>
             <p class="text-sm font-bold text-slate-800 mt-0.5">${esc(x.nombre)}</p>
             <p class="text-[11px] text-slate-400 mt-1">${esc(x.estatus)} · ${esc(x.avance)}% de avance</p>
           </div>
           <span class="text-[10px] font-black text-slate-500 bg-slate-100 rounded-lg px-2.5 py-1.5 whitespace-nowrap">${destino}</span>
         </div>`;
       }).join('');
+      if(window.lucide) lucide.createIcons();
     };
 
     renderFilters();
@@ -303,7 +312,7 @@
     const snapshot=liveSnapshot(sprint,system);
     const ok=await askSprintAction({
       title:`Cerrar ${sprintLabel(sprint)} · ${system.nombre}`,
-      message:'Se guardará la fotografía del estado actual del Sprint. Los requerimientos seguirán siendo editables normalmente y esta fotografía quedará conservada.',
+      message:'Se guardará la fotografía del estado actual del Sprint.',
       confirmText:'Cerrar Sprint',
       tone:'blue'
     });
@@ -325,21 +334,48 @@
     if(!closure) return;
     const ok=await askSprintAction({
       title:`Reabrir ${closure.sprint_nombre} ${closure.anio}`,
-      message:'La fotografía guardada se eliminará y el Sprint volverá a mostrar información viva. Esta acción no genera bitácora.',
+      message:'',
       confirmText:'Reabrir Sprint',
       tone:'rose'
     });
     if(!ok) return;
-    const {error}=await _supabase.from('pmo_sprint_cierres').delete().eq('id',id);
+    const {error}=await _supabase.from('pmo_sprint_cierres').update({
+      reabierto:true,
+      reabierto_en:new Date().toISOString(),
+      reabierto_por_email:currentEmail()||null
+    }).eq('id',id);
     if(error){ alert('No fue posible reabrir el Sprint: '+error.message); return; }
     cerrarModalCierreSprint();
+    await render();
+  }
+
+  async function reclose(id){
+    if(!isOwner()) return;
+    const closure=cierresCache.find(c=>String(c.id)===String(id));
+    if(!closure) return;
+    const system=selectedSystem();
+    const sprint=(cats?.sprints||[]).find(s=>String(s.id)===String(closure.sprint_id));
+    if(!system||!sprint) return;
+    const snapshot=liveSnapshot(sprint,system);
+    const ok=await askSprintAction({
+      title:`Cerrar nuevamente ${closure.sprint_nombre} ${closure.anio}`,
+      message:'Se actualizará la fotografía con el estado actual del Sprint reabierto.',
+      confirmText:'Cerrar nuevamente',
+      tone:'blue'
+    });
+    if(!ok) return;
+    const {error}=await _supabase.from('pmo_sprint_cierres').update({
+      snapshot, reabierto:false, cerrado_en:new Date().toISOString(), cerrado_por_email:currentEmail()||null,
+      reabierto_en:null, reabierto_por_email:null
+    }).eq('id',id);
+    if(error){ alert('No fue posible cerrar nuevamente el Sprint: '+error.message); return; }
     await render();
   }
 
   function preview(){
     const system=selectedSystem(), sprint=activeSprint();
     if(!system||!sprint) return;
-    const existing=cierresCache.find(c=>String(c.sprint_id)===String(sprint.id));
+    const existing=cierresCache.find(c=>String(c.sprint_id)===String(sprint.id) && !c.reabierto);
     const snap=existing?.snapshot || liveSnapshot(sprint,system);
     modal(snap,`Cierre de Sprint · ${sprintLabel(sprint)}`, existing?'Fotografía histórica del periodo.':'',!!existing);
   }
@@ -375,6 +411,6 @@
   window.addEventListener('load',()=>setTimeout(render,450));
   window.addEventListener('pmo:profile-ready',()=>setTimeout(render,100));
 
-  window.PMOSprintClose={render,preview,view,closeCurrent,reopen,copyClosureImage,cancelAction};
+  window.PMOSprintClose={render,preview,view,closeCurrent,reopen,reclose,copyClosureImage,cancelAction};
   window.cerrarModalCierreSprint=closeModal;
 })();

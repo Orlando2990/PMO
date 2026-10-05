@@ -1806,9 +1806,9 @@ let todosLosProyectos = [];
                 { titulo: 'Lead time promedio', valor: r.leadTimePromedio === null ? '—' : `${r.leadTimePromedio} d`, detalle: 'Ingreso a liberación', icono: 'timer', clase: 'bg-amber-50 text-amber-700' },
                 { titulo: 'Requerimientos atrasados', valor: r.requerimientosAtrasados, detalle: `${r.atrasos.length} fase${r.atrasos.length === 1 ? '' : 's'} abierta${r.atrasos.length === 1 ? '' : 's'} vencida${r.atrasos.length === 1 ? '' : 's'}`, icono: 'triangle-alert', clase: 'bg-rose-50 text-rose-700' },
                 { titulo: 'Próximos 7 días', valor: r.proximos7.length, detalle: 'Compromisos abiertos por vencer', icono: 'calendar-range', clase: 'bg-cyan-50 text-cyan-700' },
-                { titulo: 'Reprogramaciones', valor: r.reprogramaciones, detalle: `${r.proyectosReprogramados} requerimiento${r.proyectosReprogramados === 1 ? '' : 's'} afectado${r.proyectosReprogramados === 1 ? '' : 's'}`, icono: 'calendar-clock', clase: 'bg-orange-50 text-orange-700' },
+                { titulo: 'Reprogramaciones', valor: r.reprogramaciones, detalle: `${r.proyectosReprogramados} requerimiento${r.proyectosReprogramados === 1 ? '' : 's'} afectado${r.proyectosReprogramados === 1 ? '' : 's'} · Clic para ver cuáles`, icono: 'calendar-clock', clase: 'bg-orange-50 text-orange-700', accion: 'abrirDetalleReprogramacionesDashboard()' },
                 { titulo: 'Estabilidad del plan', valor: r.estabilidad === null ? '—' : `${r.estabilidad}%`, detalle: 'Requerimientos sin reprogramación', icono: 'shield-check', clase: 'bg-slate-100 text-slate-700' },
-                { titulo: 'Arrastres actuales', valor: obtenerResumenArrastresDashboard(proyectos).activos, detalle: 'RQM activos provenientes de Sprints anteriores · Clic para ver cuáles', icono: 'arrow-right-left', clase: 'bg-indigo-50 text-indigo-700', accion: 'abrirDetalleArrastresDashboard()' }
+                { titulo: 'Arrastres', valor: obtenerResumenArrastresDashboard(proyectos).total, detalle: 'RQM provenientes de Sprints anteriores · Clic para ver todos', icono: 'arrow-right-left', clase: 'bg-indigo-50 text-indigo-700', accion: 'abrirDetalleArrastresDashboard()' }
             ];
 
             contenedor.innerHTML = kpis.map(k => `
@@ -1860,7 +1860,7 @@ let todosLosProyectos = [];
                 <div>
                     <div class="flex items-center justify-between mb-1"><div class="flex items-center gap-2"><span class="pmo-health-dot ${f.dot}"></span><span class="pmo-health-label">${f.label}</span></div><span class="pmo-health-value">${f.valor}</span></div>
                     <div class="pmo-mini-bar"><span style="width:${Math.round((f.valor/base)*100)}%;background:${f.color}"></span></div>
-                </div>`).join('') + `<div class="pmo-health-footer pt-3 border-t border-slate-100"><b class="text-slate-800">${r.vigentes}</b> requerimientos vigentes evaluados automáticamente.</div>`;
+                </div>`).join('') + `<div class="pmo-health-footer pt-3 border-t border-white/15"><b class="text-white">${r.vigentes}</b> requerimientos vigentes evaluados automáticamente.</div>`;
         }
 
         function renderizarAtencionEjecutiva(r) {
@@ -2150,7 +2150,35 @@ let todosLosProyectos = [];
                             return `Carga total del Sprint: ${propiosN+arr}`;
                         }}}
                     },
-                    scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{font:{size:11}}}}
+                    scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{font:{size:11}}}},
+                    onClick(evt) {
+                        // Detectar específicamente la barra morada aunque Chart.js,
+                        // por interaction:index, entregue primero la barra azul.
+                        const chart=chartsEjecutivos['chart-sprints'];
+                        if (!chart) return;
+                        const puntos=chart.getElementsAtEventForMode(
+                            evt,
+                            'nearest',
+                            { intersect:true },
+                            true
+                        );
+                        if (!puntos?.length) return;
+                        const hit=puntos[0];
+                        if (hit.datasetIndex !== 1) return;
+                        const etiqueta=labels[hit.index];
+                        abrirDetalleArrastresSprintDashboard(etiqueta);
+                    },
+                    onHover(evt) {
+                        const chart=chartsEjecutivos['chart-sprints'];
+                        if (!chart) return;
+                        const puntos=chart.getElementsAtEventForMode(
+                            evt,
+                            'nearest',
+                            { intersect:true },
+                            true
+                        );
+                        evt.native.target.style.cursor = puntos?.some(p=>p.datasetIndex===1) ? 'pointer' : 'default';
+                    }
                 }
             });
         }
@@ -2215,7 +2243,12 @@ let todosLosProyectos = [];
                         x: {
                             ticks: { font: { size: 11 } }
                         }
-                    }
+                    },
+                    onClick(evt, elements) {
+                        if (!elements?.length) return;
+                        abrirDetalleUrgentesSprintDashboard(labels[elements[0].index]);
+                    },
+                    onHover(evt, elements) { evt.native.target.style.cursor = elements?.length ? 'pointer' : 'default'; }
                 }
             });
         }
@@ -2256,24 +2289,28 @@ let todosLosProyectos = [];
             if (window.lucide) lucide.createIcons();
         }
 
-        function obtenerArrastresActivosDashboard(proyectos) {
+        function obtenerArrastresDashboard(proyectos) {
             return (proyectos || []).filter(p => {
-                if (esCanceladoDashboard(p) || esLiberadoDashboard(p)) return false;
+                if (esCanceladoDashboard(p)) return false;
                 const origen = p?.sprint_id;
                 const actual = obtenerSprintActualId(p);
                 return origen && actual && String(origen) !== String(actual);
             });
         }
 
+        function obtenerArrastresActivosDashboard(proyectos) {
+            return obtenerArrastresDashboard(proyectos).filter(p => !esLiberadoDashboard(p));
+        }
+
         function abrirDetalleArrastresDashboard() {
-            const arrastres = obtenerArrastresActivosDashboard(proyectosDashboardActuales);
+            const arrastres = obtenerArrastresDashboard(proyectosDashboardActuales);
             const sistemaNombre = document.getElementById('filtro-sistema-dashboard')?.selectedOptions?.[0]?.textContent || 'Todos los sistemas';
 
             if (!arrastres.length) {
                 abrirModalDetalleDashboard(
-                    'Arrastres actuales',
+                    'Arrastres',
                     sistemaNombre,
-                    '<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay RQM activos provenientes de Sprints anteriores.</div>'
+                    '<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay RQM provenientes de Sprints anteriores.</div>'
                 );
                 return;
             }
@@ -2290,8 +2327,8 @@ let todosLosProyectos = [];
                     </tr>`).join('');
 
             abrirModalDetalleDashboard(
-                `Arrastres actuales · ${arrastres.length}`,
-                `${sistemaNombre} · Consulta informativa de arrastres activos`,
+                `Arrastres · ${arrastres.length}`,
+                `${sistemaNombre} · Histórico visible de requerimientos provenientes de Sprints anteriores`,
                 `<div class="overflow-x-auto rounded-2xl border border-slate-200">
                     <table class="w-full text-sm">
                         <thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
@@ -2307,6 +2344,65 @@ let todosLosProyectos = [];
                     </table>
                 </div>`
             );
+        }
+
+        function coincideSprintDashboard(p, etiqueta) {
+            return normalizarTexto(obtenerSprintActualNombre(p) || '') === normalizarTexto(etiqueta || '');
+        }
+
+        function abrirDetalleUrgentesSprintDashboard(etiquetaSprint) {
+            const items=(proyectosDashboardActuales||[]).filter(p=>!esCanceladoDashboard(p) && esUrgentePMO(p) && coincideSprintDashboard(p,etiquetaSprint));
+            const sistemaNombre=document.getElementById('filtro-sistema-dashboard')?.selectedOptions?.[0]?.textContent||'Todos los sistemas';
+            const filas=items.sort((a,b)=>String(a.id_req||'').localeCompare(String(b.id_req||''),'es',{numeric:true})).map(p=>`
+              <tr class="border-b border-slate-100 last:border-0">
+                <td class="px-4 py-3 font-black text-blue-700 whitespace-nowrap">${escaparHtmlPMO(p.id_req||'—')}</td>
+                <td class="px-4 py-3 min-w-[300px] font-bold text-slate-800">${escaparHtmlPMO(p.nombre_rqm||'—')}</td>
+                <td class="px-4 py-3 whitespace-nowrap">🔥 <span class="font-black text-orange-700">Fuera de planeación</span></td>
+                <td class="px-4 py-3 whitespace-nowrap"><span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-black">${escaparHtmlPMO(p.estatus||'Backlog')}</span></td>
+              </tr>`).join('');
+            abrirModalDetalleDashboard(`Urgentes · ${etiquetaSprint} · ${items.length}`,`${sistemaNombre} · Requerimientos incorporados fuera de planeación`,items.length?`<div class="overflow-x-auto rounded-2xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th class="text-left px-4 py-3">RQM</th><th class="text-left px-4 py-3">Requerimiento</th><th class="text-left px-4 py-3">Condición</th><th class="text-left px-4 py-3">Estatus</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay urgentes para este Sprint.</div>');
+        }
+
+        function abrirDetalleReprogramacionesDashboard() {
+            const proyectos = (proyectosDashboardActuales || []).filter(p => Number(conteoReprogramacionesGlobal?.[p.id] || 0) > 0);
+            const sistemaNombre = document.getElementById('filtro-sistema-dashboard')?.selectedOptions?.[0]?.textContent || 'Todos los sistemas';
+            const totalCambios = proyectos.reduce((acc,p)=>acc + Number(conteoReprogramacionesGlobal?.[p.id] || 0), 0);
+
+            const filas = proyectos
+                .sort((a,b)=>Number(conteoReprogramacionesGlobal?.[b.id]||0)-Number(conteoReprogramacionesGlobal?.[a.id]||0) || String(a.id_req||'').localeCompare(String(b.id_req||''),'es',{numeric:true}))
+                .map(p => {
+                    const total = Number(conteoReprogramacionesGlobal?.[p.id] || 0);
+                    return `
+                    <tr class="border-b border-slate-100 last:border-0">
+                        <td class="px-4 py-3 font-black text-blue-700 whitespace-nowrap">${escaparHtmlPMO(p.id_req||'—')}</td>
+                        <td class="px-4 py-3 min-w-[320px] font-bold text-slate-800">${escaparHtmlPMO(p.nombre_rqm||'—')}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escaparHtmlPMO(obtenerSprintActualNombre(p)||'Sin sprint')}</td>
+                        <td class="px-4 py-3 whitespace-nowrap"><span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 text-xs font-black border border-orange-100">↻ ${total} reprogramación${total===1?'':'es'}</span></td>
+                        <td class="px-4 py-3 whitespace-nowrap"><span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-black">${escaparHtmlPMO(p.estatus||'Backlog')}</span></td>
+                    </tr>`;
+                }).join('');
+
+            abrirModalDetalleDashboard(
+                `Reprogramaciones · ${totalCambios}`,
+                `${sistemaNombre} · ${proyectos.length} requerimiento${proyectos.length===1?'':'s'} afectado${proyectos.length===1?'':'s'}`,
+                proyectos.length
+                    ? `<div class="overflow-x-auto rounded-2xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th class="text-left px-4 py-3">RQM</th><th class="text-left px-4 py-3">Requerimiento</th><th class="text-left px-4 py-3">Sprint actual</th><th class="text-left px-4 py-3">Reprogramaciones</th><th class="text-left px-4 py-3">Estatus</th></tr></thead><tbody>${filas}</tbody></table></div>`
+                    : '<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay requerimientos con reprogramaciones en la vista actual.</div>'
+            );
+        }
+
+        function abrirDetalleArrastresSprintDashboard(etiquetaSprint) {
+            const items=obtenerArrastresDashboard(proyectosDashboardActuales).filter(p=>coincideSprintDashboard(p,etiquetaSprint));
+            const sistemaNombre=document.getElementById('filtro-sistema-dashboard')?.selectedOptions?.[0]?.textContent||'Todos los sistemas';
+            const filas=items.sort((a,b)=>String(a.id_req||'').localeCompare(String(b.id_req||''),'es',{numeric:true})).map(p=>`
+              <tr class="border-b border-slate-100 last:border-0">
+                <td class="px-4 py-3 font-black text-blue-700 whitespace-nowrap">${escaparHtmlPMO(p.id_req||'—')}</td>
+                <td class="px-4 py-3 min-w-[300px] font-bold text-slate-800">${escaparHtmlPMO(p.nombre_rqm||'—')}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-slate-600">${escaparHtmlPMO(p.cat_sprints?etiquetaSprintPMO(p.cat_sprints):'Sin sprint')}</td>
+                <td class="px-4 py-3 whitespace-nowrap font-black text-violet-700">⇄ ${escaparHtmlPMO(obtenerSprintActualNombre(p)||'Sin sprint')}</td>
+                <td class="px-4 py-3 whitespace-nowrap"><span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-black">${escaparHtmlPMO(p.estatus||'Backlog')}</span></td>
+              </tr>`).join('');
+            abrirModalDetalleDashboard(`Arrastres recibidos · ${etiquetaSprint} · ${items.length}`,`${sistemaNombre} · Requerimientos provenientes de Sprints anteriores`,items.length?`<div class="overflow-x-auto rounded-2xl border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500"><tr><th class="text-left px-4 py-3">RQM</th><th class="text-left px-4 py-3">Requerimiento</th><th class="text-left px-4 py-3">Sprint origen</th><th class="text-left px-4 py-3">Sprint actual</th><th class="text-left px-4 py-3">Estatus</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<div class="rounded-2xl bg-slate-50 border border-slate-100 p-8 text-center text-sm text-slate-500">No hay arrastres recibidos en este Sprint.</div>');
         }
 
         function abrirDetalleLiberacionesMesDashboard(claveMes, etiquetaMes) {
@@ -2531,6 +2627,9 @@ let todosLosProyectos = [];
 
         window.cerrarDetalleDashboard = cerrarDetalleDashboard;
         window.abrirDetalleArrastresDashboard = abrirDetalleArrastresDashboard;
+        window.abrirDetalleReprogramacionesDashboard = abrirDetalleReprogramacionesDashboard;
+        window.abrirDetalleArrastresSprintDashboard = abrirDetalleArrastresSprintDashboard;
+        window.abrirDetalleUrgentesSprintDashboard = abrirDetalleUrgentesSprintDashboard;
         window.abrirDetalleIngresosMesDashboard = abrirDetalleIngresosMesDashboard;
         window.abrirDetalleLiberacionesMesDashboard = abrirDetalleLiberacionesMesDashboard;
 
@@ -2928,22 +3027,39 @@ let todosLosProyectos = [];
 
         function fechasFaseSeguimiento(p, key) {
             const fmt = (fecha) => fecha ? formatearFechaVista(fecha).replace('.', '') : '';
-            const linea = (a, b) => {
-                const ia = fmt(a);
-                const ib = fmt(b);
-                if (ia && ib) return `${ia}<br>${ib}`;
-                return ia || ib || '';
+            const lineaInicioFinCompromiso = (inicio, fin, compromiso) => {
+                const i = fmt(inicio);
+                const f = fmt(fin);
+                const c = fmt(compromiso);
+
+                if (i && f) return `${i}<br>${f}`;
+                if (i && !f && c) return `${i}<br><span class="text-amber-600 font-black">Comp. ${c}</span>`;
+                if (!i && f) return f;
+                if (!i && !f && c) return `<span class="text-amber-600 font-black">Comp. ${c}</span>`;
+                return '';
             };
 
             switch (key) {
                 case 'DEV':
-                    return linea(p.fecha_inicio_desarrollo, p.fecha_fin_desarrollo);
+                    return lineaInicioFinCompromiso(
+                        p.fecha_inicio_desarrollo,
+                        p.fecha_fin_desarrollo,
+                        p.fecha_desarrollo
+                    );
                 case 'INST_QA':
                     return fmt(p.fecha_fin_desarrollo);
                 case 'CERT_QA':
-                    return linea(p.fecha_inicio_qa, p.fecha_fin_qa);
+                    return lineaInicioFinCompromiso(
+                        p.fecha_inicio_qa,
+                        p.fecha_fin_qa,
+                        p.fecha_qa
+                    );
                 case 'UAT':
-                    return linea(p.fecha_inicio_uat, p.fecha_fin_uat);
+                    return lineaInicioFinCompromiso(
+                        p.fecha_inicio_uat,
+                        p.fecha_fin_uat,
+                        p.fecha_uat
+                    );
                 case 'PROD':
                     return fmt(p.fecha_liberacion_prod);
                 default:
@@ -3121,22 +3237,24 @@ let todosLosProyectos = [];
                         data,
                         backgroundColor: tipo === 'doughnut' ? colores : 'rgba(30, 58, 138, 0.92)',
                         borderColor: tipo === 'doughnut' ? '#ffffff' : 'rgba(30, 58, 138, 1)',
-                        borderWidth: tipo === 'doughnut' ? 3 : 1,
-                        borderRadius: tipo === 'bar' ? 8 : 0,
-                        maxBarThickness: 70
+                        borderWidth: tipo === 'doughnut' ? 4 : 0,
+                        borderRadius: tipo === 'bar' ? 12 : 0,
+                        borderSkipped: false,
+                        maxBarThickness: 58
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: tipo === 'doughnut' ? '62%' : undefined,
+                    cutout: tipo === 'doughnut' ? '68%' : undefined,
+                    layout: { padding: tipo === 'doughnut' ? 8 : { top: 12, right: 8, bottom: 0, left: 0 } },
                     plugins: {
-                        legend: { display: tipo === 'doughnut', position: 'right', labels: { boxWidth: 12, padding: 14, font: { size: 12, weight: 'bold' } } },
+                        legend: { display: tipo === 'doughnut', position: 'right', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 18, color: '#334155', font: { size: 11, weight: 'bold' } } },
                         tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}` } }
                     },
                     scales: tipo === 'doughnut' ? {} : {
-                        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: 'rgba(148, 163, 184, 0.18)' } },
-                        x: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } }
+                        y: { beginAtZero: true, border: { display: false }, ticks: { precision: 0, color: '#94a3b8', padding: 8, font: { size: 10, weight: 'bold' } }, grid: { color: 'rgba(148, 163, 184, 0.14)', drawTicks: false } },
+                        x: { border: { display: false }, grid: { display: false }, ticks: { color: '#475569', padding: 8, font: { size: 10, weight: 'bold' } } }
                     }
                 }
             });
@@ -3175,6 +3293,9 @@ let todosLosProyectos = [];
         }
 
         function renderizarGraficasSeguimientoEjecutivo(proyectos) {
+            document.querySelectorAll('.seguimiento-corte-export').forEach(el => {
+                el.textContent = `Corte · ${obtenerRangoSemanaActual()}`;
+            });
             const gruposBase = estatusSeguimientoEjecutivo.map(g => g.label);
             const conteoAvance = Object.fromEntries(gruposBase.map(g => [g, 0]));
 
@@ -3208,8 +3329,8 @@ let todosLosProyectos = [];
             return `
                 <div class="mt-7 overflow-x-auto pb-2">
                     <div class="relative min-w-[1120px] px-2 py-2">
-                        <div class="absolute left-8 right-8 top-[38px] h-1.5 rounded-full bg-slate-200"></div>
-                        <div class="absolute left-8 top-[38px] h-1.5 rounded-full bg-emerald-500 transition-all" style="width: ${progreso}%; max-width: calc(100% - 4rem);"></div>
+                        <div class="absolute left-8 right-8 top-[38px] h-1.5 rounded-full bg-slate-200/80 shadow-inner"></div>
+                        <div class="absolute left-8 top-[38px] h-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all shadow-sm" style="width: ${progreso}%; max-width: calc(100% - 4rem);"></div>
                         <div class="grid grid-cols-11 gap-2 relative z-10">
                             ${fasesSeguimientoEjecutivo.map((fase, idx) => {
                                 const completada = idx < actual;
@@ -3289,6 +3410,7 @@ let todosLosProyectos = [];
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="text-[11px] font-black bg-slate-950 text-white px-3 py-1.5 rounded-full">${p.id_req || 'SIN ID'}</span>
+                                    ${ordenRoadmapValidoSeguimiento(p) !== null ? `<span class="text-[10px] font-black bg-violet-50 text-violet-700 border border-violet-100 px-2.5 py-1.5 rounded-full">#${ordenRoadmapValidoSeguimiento(p)}</span>` : ''}
                                     <span class="text-[11px] font-black px-3 py-1.5 rounded-full border ${badgeClase}">${icono} ${escaparHtmlPMO(estadoActual)}</span>
                                 </div>
                                 <button type="button" onclick="abrirModalEditar('${p.id}')" class="block text-left mt-3 cursor-pointer group/seguimiento-rqm" title="Abrir y modificar requerimiento">
@@ -3348,6 +3470,8 @@ let todosLosProyectos = [];
             if (tituloAvance) tituloAvance.textContent = `Avance del Sprint - ${obtenerNombreSprintSeleccionado()}`;
             const rango = document.getElementById('seguimiento-rango-semana');
             if (rango) rango.textContent = obtenerRangoSemanaActual();
+            const roadmapCorte = document.getElementById('roadmap-corte-semanal');
+            if (roadmapCorte) roadmapCorte.textContent = `Corte · ${obtenerRangoSemanaActual()}`;
         }
 
         function nombreArchivoReporte(base) {
@@ -3518,10 +3642,24 @@ let todosLosProyectos = [];
         }
 
         async function copiarSeccionImagen(idElemento) {
-            const captura = await capturarSeccionReporte(idElemento, {
-                incluirEncabezadoExport: true,
-                ocultarTituloSeccion: idElemento === 'reporte-mapa-requerimientos'
-            });
+            const esGraficaSeguimiento = ['reporte-avance-sprint', 'reporte-distribucion-portafolio'].includes(idElemento);
+            const esRoadmap = idElemento === 'reporte-mapa-requerimientos';
+
+            // La copia individual usa el mismo tratamiento visual limpio del compilado.
+            if (esGraficaSeguimiento) document.body.classList.add('pmo-copiando-grafica');
+            if (esRoadmap) document.body.classList.add('pmo-compilando');
+
+            let captura = null;
+            try {
+                captura = await capturarSeccionReporte(idElemento, {
+                    incluirEncabezadoExport: false,
+                    ocultarTituloSeccion: false
+                });
+            } finally {
+                if (esGraficaSeguimiento) document.body.classList.remove('pmo-copiando-grafica');
+                if (esRoadmap) document.body.classList.remove('pmo-compilando');
+            }
+
             if (!captura?.dataUrl) {
                 alert('No fue posible generar la imagen para copiar. Revisa tu conexión a internet y vuelve a intentarlo.');
                 return;
@@ -3532,7 +3670,7 @@ let todosLosProyectos = [];
                 if (window.PMOImageCopied) PMOImageCopied();
             } catch (error) {
                 console.error('No fue posible copiar la imagen:', error);
-                alert('Tu navegador no permitió copiar la imagen automáticamente. Usa el botón Imagen para descargarla o prueba desde Chrome/Edge con la página en HTTPS o localhost.');
+                alert('Tu navegador no permitió copiar la imagen automáticamente. Prueba desde Chrome/Edge con la página en HTTPS o localhost.');
             }
         }
 
@@ -3579,6 +3717,36 @@ let todosLosProyectos = [];
                 console.error('Error al combinar las gráficas:', error);
                 alert('No fue posible combinar las gráficas en una sola imagen.');
             }
+        }
+
+        async function exportarCompiladoSeguimiento() {
+            await asegurarLibreriasExportacion();
+            document.body.classList.add('pmo-compilando');
+            try {
+                const [roadmap, avance, portafolio] = await Promise.all([
+                    capturarSeccionReporte('reporte-mapa-requerimientos', { incluirEncabezadoExport:false, ocultarTituloSeccion:false }),
+                    capturarSeccionReporte('reporte-avance-sprint', { incluirEncabezadoExport:false }),
+                    capturarSeccionReporte('reporte-distribucion-portafolio', { incluirEncabezadoExport:false })
+                ]);
+                if (!roadmap?.dataUrl || !avance?.dataUrl || !portafolio?.dataUrl) throw new Error('Captura incompleta');
+                const [r,a,p] = await Promise.all([cargarImagenDesdeDataUrl(roadmap.dataUrl),cargarImagenDesdeDataUrl(avance.dataUrl),cargarImagenDesdeDataUrl(portafolio.dataUrl)]);
+                const W=r.width, gap=18, gw=Math.floor((W-gap)/2);
+                const ah=Math.round(a.height*gw/a.width), ph=Math.round(p.height*gw/p.width), gh=Math.max(ah,ph);
+                const vgap=8, footer=72;
+                const c=document.createElement('canvas'); c.width=W; c.height=r.height+vgap+gh+footer;
+                const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height);
+                x.drawImage(r,0,0,W,r.height);
+                x.drawImage(a,0,r.height+vgap,gw,ah);
+                x.drawImage(p,gw+gap,r.height+vgap,gw,ph);
+                x.strokeStyle='#e2e8f0'; x.lineWidth=2; x.beginPath(); x.moveTo(0,c.height-footer+8); x.lineTo(W,c.height-footer+8); x.stroke();
+                x.fillStyle='#64748b'; x.font='700 20px Arial, sans-serif'; x.textAlign='right'; x.textBaseline='middle';
+                x.fillText(`Corte · ${obtenerRangoSemanaActual()}`,W-12,c.height-25);
+                descargarDataUrl(c.toDataURL('image/png'),`${nombreArchivoReporte('compilado_seguimiento_ejecutivo')}.png`);
+            } catch(e) {
+                console.error('Error al generar compilado:',e);
+                if(window.PMOAlert) PMOAlert('No fue posible generar el compilado. Intenta nuevamente.',{type:'error'});
+                else alert('No fue posible generar el compilado. Intenta nuevamente.');
+            } finally { document.body.classList.remove('pmo-compilando'); }
         }
 
         async function exportarSeguimientoPDF() {
@@ -3643,6 +3811,7 @@ let todosLosProyectos = [];
         window.exportarSeccionImagen = exportarSeccionImagen;
         window.copiarSeccionImagen = copiarSeccionImagen;
         window.exportarGraficasJuntas = exportarGraficasJuntas;
+        window.exportarCompiladoSeguimiento = exportarCompiladoSeguimiento;
         window.exportarSeguimientoPDF = exportarSeguimientoPDF;
         window.cambiarVistaPortafolio = cambiarVistaPortafolio;
 
@@ -3713,22 +3882,234 @@ let todosLosProyectos = [];
             };
         }
 
+        function sprintSeleccionadoSeguimientoId() {
+            return String(document.getElementById('seguimiento-filtro-sprint')?.value || '');
+        }
+
+        function ordenRoadmapValidoSeguimiento(p, sprintId = sprintSeleccionadoSeguimientoId()) {
+            if (!sprintId) return null;
+            const mismoSprint = String(p?.orden_roadmap_sprint_id || '') === String(sprintId);
+            const orden = Number(p?.orden_roadmap);
+            return mismoSprint && Number.isFinite(orden) && orden > 0 ? orden : null;
+        }
+
+        function compararOrdenAutomaticoSeguimiento(a, b) {
+            const porEstatus = prioridadOrdenSeguimiento(a?.estatus) - prioridadOrdenSeguimiento(b?.estatus);
+            if (porEstatus !== 0) return porEstatus;
+
+            const porAvance = calcularAvanceEstatusSeguimiento(b?.estatus || 'BACKLOG') - calcularAvanceEstatusSeguimiento(a?.estatus || 'BACKLOG');
+            if (porAvance !== 0) return porAvance;
+
+            const porFecha = fechaCompromisoOrdenSeguimiento(a) - fechaCompromisoOrdenSeguimiento(b);
+            if (porFecha !== 0) return porFecha;
+
+            const rqmA = claveRqmOrdenSeguimiento(a);
+            const rqmB = claveRqmOrdenSeguimiento(b);
+            if (rqmA.numero !== rqmB.numero) return rqmA.numero - rqmB.numero;
+            return rqmA.texto.localeCompare(rqmB.texto, 'es', { numeric: true, sensitivity: 'base' });
+        }
+
         function ordenarProyectosSeguimiento(proyectos = []) {
+            const sprintId = sprintSeleccionadoSeguimientoId();
             return [...proyectos].sort((a, b) => {
-                const porEstatus = prioridadOrdenSeguimiento(a?.estatus) - prioridadOrdenSeguimiento(b?.estatus);
-                if (porEstatus !== 0) return porEstatus;
-
-                const porAvance = calcularAvanceEstatusSeguimiento(b?.estatus || 'BACKLOG') - calcularAvanceEstatusSeguimiento(a?.estatus || 'BACKLOG');
-                if (porAvance !== 0) return porAvance;
-
-                const porFecha = fechaCompromisoOrdenSeguimiento(a) - fechaCompromisoOrdenSeguimiento(b);
-                if (porFecha !== 0) return porFecha;
-
-                const rqmA = claveRqmOrdenSeguimiento(a);
-                const rqmB = claveRqmOrdenSeguimiento(b);
-                if (rqmA.numero !== rqmB.numero) return rqmA.numero - rqmB.numero;
-                return rqmA.texto.localeCompare(rqmB.texto, 'es', { numeric: true, sensitivity: 'base' });
+                if (sprintId) {
+                    const ordenA = ordenRoadmapValidoSeguimiento(a, sprintId);
+                    const ordenB = ordenRoadmapValidoSeguimiento(b, sprintId);
+                    if (ordenA !== null || ordenB !== null) {
+                        if (ordenA === null) return 1;
+                        if (ordenB === null) return -1;
+                        if (ordenA !== ordenB) return ordenA - ordenB;
+                    }
+                }
+                return compararOrdenAutomaticoSeguimiento(a, b);
             });
+        }
+
+        let ordenRoadmapDragId = null;
+
+        function proyectosOrdenablesRoadmapSprint() {
+            const sprintId = sprintSeleccionadoSeguimientoId();
+            if (!sprintId) return [];
+            const sistema = document.getElementById('seguimiento-filtro-sistema')?.value || '';
+            return ordenarProyectosSeguimiento((todosLosProyectos || []).filter(p => {
+                const okSprint = String(obtenerSprintActualId(p) || '') === String(sprintId);
+                const okSistema = !sistema || String(p.sistema_id || '') === String(sistema);
+                return okSprint && okSistema;
+            }));
+        }
+
+        function etiquetaSprintOrdenRoadmap() {
+            const sel = document.getElementById('seguimiento-filtro-sprint');
+            return sel?.value ? String(sel.options[sel.selectedIndex]?.textContent || 'Sprint').trim() : 'Sprint';
+        }
+
+        function renderListaOrdenRoadmap() {
+            const cont = document.getElementById('orden-roadmap-lista');
+            if (!cont) return;
+            const proyectos = proyectosOrdenablesRoadmapSprint();
+            if (!proyectos.length) {
+                cont.innerHTML = '<div class="rounded-2xl bg-slate-50 border border-slate-200 p-6 text-center text-sm font-bold text-slate-500">No hay requerimientos para el Sprint y sistema seleccionados.</div>';
+                return;
+            }
+            cont.innerHTML = proyectos.map((p, i) => `
+                <div draggable="true" data-roadmap-project-id="${escaparHtmlPMO(p.id)}"
+                    ondragstart="iniciarArrastreOrdenRoadmap(event, '${p.id}')"
+                    ondragover="permitirArrastreOrdenRoadmap(event)"
+                    ondrop="soltarOrdenRoadmap(event, '${p.id}')"
+                    class="orden-roadmap-item flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 cursor-grab active:cursor-grabbing hover:border-violet-200 hover:bg-violet-50/30 transition">
+                    <div data-roadmap-position class="w-8 h-8 rounded-xl bg-violet-50 text-violet-700 flex items-center justify-center font-black text-xs shrink-0">${i + 1}</div>
+                    <i data-lucide="grip-vertical" class="w-4 h-4 text-slate-300 shrink-0"></i>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-[11px] font-black text-slate-900">${escaparHtmlPMO(p.id_req || 'SIN ID')}</span>
+                            <span class="text-[10px] font-black uppercase tracking-wide text-slate-400">${escaparHtmlPMO(p.estatus || 'BACKLOG')}</span>
+                        </div>
+                        <p class="text-xs font-bold text-slate-600 truncate mt-0.5">${escaparHtmlPMO(p.nombre_rqm || 'Sin nombre')}</p>
+                    </div>
+                </div>`).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        async function abrirOrdenRoadmapSprint() {
+            if (!sprintSeleccionadoSeguimientoId()) {
+                if (window.PMOAlert) {
+                    await PMOAlert('Selecciona un Sprint específico para definir la prioridad PMO del Roadmap.', {
+                        title: 'Selecciona un Sprint',
+                        type: 'info'
+                    });
+                } else {
+                    alert('Selecciona un Sprint específico para definir la prioridad PMO del Roadmap.');
+                }
+                return;
+            }
+            const modal = document.getElementById('modal-orden-roadmap');
+            const titulo = document.getElementById('orden-roadmap-titulo');
+            if (titulo) titulo.textContent = `Ordenar Roadmap · ${etiquetaSprintOrdenRoadmap()}`;
+            renderListaOrdenRoadmap();
+            modal?.classList.remove('hidden');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function cerrarOrdenRoadmapSprint() {
+            document.getElementById('modal-orden-roadmap')?.classList.add('hidden');
+            ordenRoadmapDragId = null;
+        }
+
+        function iniciarArrastreOrdenRoadmap(event, id) {
+            ordenRoadmapDragId = String(id);
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', String(id));
+        }
+
+        function permitirArrastreOrdenRoadmap(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+        }
+
+        function soltarOrdenRoadmap(event, targetId) {
+            event.preventDefault();
+            const sourceId = ordenRoadmapDragId || event.dataTransfer.getData('text/plain');
+            if (!sourceId || String(sourceId) === String(targetId)) return;
+            const cont = document.getElementById('orden-roadmap-lista');
+            const source = cont?.querySelector(`[data-roadmap-project-id="${CSS.escape(String(sourceId))}"]`);
+            const target = cont?.querySelector(`[data-roadmap-project-id="${CSS.escape(String(targetId))}"]`);
+            if (!source || !target) return;
+            const rect = target.getBoundingClientRect();
+            const despues = event.clientY > rect.top + rect.height / 2;
+            target.parentNode.insertBefore(source, despues ? target.nextSibling : target);
+            [...cont.querySelectorAll('[data-roadmap-project-id]')].forEach((el, i) => {
+                const badge = el.querySelector('[data-roadmap-position]');
+                if (badge) badge.textContent = i + 1;
+            });
+        }
+
+        async function guardarOrdenRoadmapSprint() {
+            const sprintId = sprintSeleccionadoSeguimientoId();
+            const cont = document.getElementById('orden-roadmap-lista');
+            const filas = [...(cont?.querySelectorAll('[data-roadmap-project-id]') || [])];
+            if (!sprintId || !filas.length) return;
+
+            const btn = document.getElementById('btn-guardar-orden-roadmap');
+            if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+            try {
+                const resultados = await Promise.all(filas.map((el, i) =>
+                    _supabase.from('pmo_projects')
+                        .update({ orden_roadmap: i + 1, orden_roadmap_sprint_id: sprintId })
+                        .eq('id', el.dataset.roadmapProjectId)
+                ));
+                const error = resultados.find(r => r?.error)?.error;
+                if (error) throw error;
+
+                const mapa = new Map(filas.map((el, i) => [String(el.dataset.roadmapProjectId), i + 1]));
+                (todosLosProyectos || []).forEach(p => {
+                    const orden = mapa.get(String(p.id));
+                    if (orden) {
+                        p.orden_roadmap = orden;
+                        p.orden_roadmap_sprint_id = sprintId;
+                    }
+                });
+
+                cerrarOrdenRoadmapSprint();
+                renderizarSeguimientoEjecutivo();
+            } catch (error) {
+                console.error('No fue posible guardar el orden del Roadmap:', error);
+                if (window.PMOAlert) {
+                    await PMOAlert('No fue posible guardar el orden del Roadmap. Verifica que hayas ejecutado el SQL de esta versión.', {
+                        title: 'No se pudo guardar el orden',
+                        type: 'error'
+                    });
+                } else {
+                    alert('No fue posible guardar el orden del Roadmap. Verifica que hayas ejecutado el SQL de esta versión.');
+                }
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Guardar orden'; }
+            }
+        }
+
+        async function restablecerOrdenRoadmapSprint() {
+            const proyectos = proyectosOrdenablesRoadmapSprint();
+            if (!proyectos.length) return;
+            const confirmado = window.PMOConfirm
+                ? await PMOConfirm('El Roadmap volverá al orden automático por avance y estatus para este Sprint.', {
+                    title: 'Restablecer orden del Roadmap',
+                    confirmText: 'Sí, restablecer',
+                    cancelText: 'Cancelar',
+                    variant: 'violet'
+                  })
+                : confirm('¿Restablecer el orden automático del Roadmap para este Sprint?');
+            if (!confirmado) return;
+
+            try {
+                const resultados = await Promise.all(proyectos.map(p =>
+                    _supabase.from('pmo_projects')
+                        .update({ orden_roadmap: null, orden_roadmap_sprint_id: null })
+                        .eq('id', p.id)
+                ));
+                const error = resultados.find(r => r?.error)?.error;
+                if (error) throw error;
+
+                const ids = new Set(proyectos.map(p => String(p.id)));
+                (todosLosProyectos || []).forEach(p => {
+                    if (ids.has(String(p.id))) {
+                        p.orden_roadmap = null;
+                        p.orden_roadmap_sprint_id = null;
+                    }
+                });
+
+                renderListaOrdenRoadmap();
+                renderizarSeguimientoEjecutivo();
+            } catch (error) {
+                console.error('No fue posible restablecer el orden del Roadmap:', error);
+                if (window.PMOAlert) {
+                    await PMOAlert('No fue posible restablecer el orden del Roadmap.', {
+                        title: 'No se pudo restablecer',
+                        type: 'error'
+                    });
+                } else {
+                    alert('No fue posible restablecer el orden del Roadmap.');
+                }
+            }
         }
 
         function obtenerProyectosSeguimientoFiltrados() {

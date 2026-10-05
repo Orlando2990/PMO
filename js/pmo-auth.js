@@ -9,7 +9,7 @@
   const PAGE_MODULE = {
     'self_service.html':'selfservice','index.html':'matriz','solicitudes_rqm.html':'rqm',
     'importar_matriz.html':'importar','index_dashboard_ejecutivo.html':'dashboard',
-    'seguimiento_ejecutivo.html':'seguimiento','admin_catalogos.html':'catalogos','usuarios.html':'usuarios'
+    'seguimiento_ejecutivo.html':'seguimiento','portafolio_productos.html':'dashboard','admin_catalogos.html':'catalogos','usuarios.html':'usuarios'
   };
   const MODULE_ROUTE = {
     selfservice:'self_service.html', matriz:'index.html', rqm:'solicitudes_rqm.html',

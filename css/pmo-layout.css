@@ -86,3 +86,33 @@ body.pmo-shell-enabled{padding-left:var(--pmo-sidebar);padding-top:var(--pmo-top
   background:linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%)!important;
   border-color:#93c5fd!important;
 }
+
+/* ORBITA V3.3.08 · Avisos pendientes, sin alterar el layout ni el flujo de navegación */
+.pmo-side-notice-count,.pmo-notice-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#f04438;color:#fff;font-size:10px;font-weight:900;line-height:1;box-shadow:0 3px 8px rgba(244,68,56,.24)}
+.pmo-side-notice-count[hidden],.pmo-notice-count[hidden]{display:none!important}
+.pmo-side-notice-count{margin-left:auto;flex:none}
+.pmo-notice-bell{position:relative;display:grid;place-items:center;flex:none;width:40px;height:40px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;color:#1e40af;cursor:pointer;transition:background .15s,border-color .15s}
+.pmo-notice-bell:hover,.pmo-notice-bell[aria-expanded="true"]{background:#eff6ff;border-color:#bfdbfe}
+.pmo-notice-bell svg{width:20px;height:20px}
+.pmo-notice-count{position:absolute;right:-7px;top:-6px;min-width:19px;height:19px;font-size:9px;border:2px solid #fff}
+.pmo-notice-popover{position:fixed;top:calc(var(--pmo-topbar) - 4px);right:28px;width:min(370px,calc(100vw - 34px));background:#fff;border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 24px 65px rgba(15,23,42,.22);overflow:hidden;color:#0f172a;z-index:85}
+.pmo-notice-popover-head{display:flex;align-items:center;justify-content:space-between;padding:16px 17px;border-bottom:1px solid #e2e8f0;font-weight:900;font-size:14px}
+.pmo-notice-popover-head span{display:flex;align-items:center;gap:9px}
+.pmo-notice-popover-head span svg{width:19px;height:19px;color:#2563eb}
+.pmo-notice-popover-head button{display:grid;place-items:center;width:28px;height:28px;background:#f1f5f9;border:0;border-radius:9px;cursor:pointer}
+.pmo-notice-popover-head button svg{width:15px;height:15px}
+.pmo-notice-items{max-height:330px;overflow:auto}
+.pmo-notice-item{display:flex;align-items:center;gap:12px;padding:13px 17px;text-decoration:none;color:#0f172a;border-bottom:1px solid #f1f5f9;transition:background .15s}
+.pmo-notice-item:hover{background:#eff6ff}
+.pmo-notice-item-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#eff6ff;color:#2563eb;font-size:14px;font-weight:900;flex:none}
+.pmo-notice-item span:nth-child(2){flex:1;min-width:0}
+.pmo-notice-item strong{font-size:12px;line-height:1.35;font-weight:850;display:block}
+.pmo-notice-item small{display:block;font-size:10px;color:#64748b;margin-top:4px}
+.pmo-notice-item>svg{width:16px;height:16px;color:#94a3b8;flex:none}
+.pmo-notice-empty{padding:24px 18px;text-align:center;font-size:12px;color:#64748b;line-height:1.5}
+.pmo-notice-empty span{color:#059669;font-weight:900}
+.pmo-notice-more{font-size:11px;text-align:center;padding:10px;color:#64748b}
+.pmo-notice-all{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:#f8fafc;text-decoration:none;font-size:12px;font-weight:900;color:#1d4ed8}
+.pmo-notice-all:hover{background:#eff6ff}
+.pmo-notice-all svg{width:15px;height:15px}
+@media(max-width:620px){.pmo-notice-popover{right:12px;max-width:calc(100vw - 24px)}}

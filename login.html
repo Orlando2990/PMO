@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PMO Control - Acceso</title>
+    <title>ORBITA - Acceso</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -20,19 +20,17 @@
 
             <div class="relative z-10 flex flex-col justify-between w-full">
                 <div class="flex items-center gap-3">
-                    <div class="bg-white/15 backdrop-blur-md text-white p-3 rounded-2xl shadow-lg border border-white/10">
-                        <i data-lucide="layers" class="w-7 h-7"></i>
-                    </div>
+                    <img src="assets/orbita-icon.png" alt="Ícono ORBITA" class="w-14 h-14 object-contain rounded-xl bg-white p-1 shadow-lg">
                     <div>
-                        <h1 class="text-2xl font-black tracking-tight">PMO Control</h1>
-                        <p class="text-xs text-white/60 font-bold mt-0.5">Gestión de Requerimientos</p>
+                        <h1 class="text-2xl font-black tracking-tight">ORBITA</h1>
+                        <p class="text-xs text-white/60 font-bold mt-0.5">Plataforma de GAP</p>
                     </div>
                 </div>
 
                 <div class="max-w-xl">
 
                     <h2 class="text-5xl font-black leading-tight tracking-tight">
-                        Control de<br>requerimientos.
+                        Donde las iniciativas<br>toman rumbo.
                     </h2>
                     <p class="text-white/65 mt-5 text-base leading-7">
                         Seguimiento de fases, dashboard, auditoría de cambios y reportes.
@@ -54,7 +52,7 @@
                     </div>
                 </div>
 
-                <p class="text-xs text-white/40 font-bold">PMO Control</p>
+                <p class="text-xs text-white/40 font-bold">ORBITA · Plataforma de GAP</p>
             </div>
         </section>
 
@@ -65,8 +63,8 @@
                         <i data-lucide="layers" class="w-7 h-7"></i>
                     </div>
                     <div>
-                        <h1 class="text-2xl font-black tracking-tight text-slate-900">PMO Control</h1>
-                        <p class="text-xs text-slate-500 font-bold">Gestión de Requerimientos</p>
+                        <h1 class="text-2xl font-black tracking-tight text-slate-900">ORBITA</h1>
+                        <p class="text-xs text-slate-500 font-bold">Plataforma de GAP</p>
                     </div>
                 </div>
 
@@ -86,7 +84,7 @@
                             <label class="block text-xs font-black uppercase tracking-wide text-slate-400 mb-2">Correo</label>
                             <div class="relative">
                                 <i data-lucide="mail" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
-                                <input id="email" type="email" required autocomplete="email"
+                                <input id="email" name="username" type="email" required autocomplete="username"
                                     placeholder="usuario@empresa.com"
                                     class="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm font-semibold focus:outline-hidden focus:ring-4 focus:ring-blue-100 focus:border-blue-400">
                             </div>
@@ -96,7 +94,7 @@
                             <label class="block text-xs font-black uppercase tracking-wide text-slate-400 mb-2">Contraseña</label>
                             <div class="relative">
                                 <i data-lucide="key-round" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
-                                <input id="password" type="password" required autocomplete="current-password"
+                                <input id="password" name="password" type="password" required autocomplete="current-password"
                                     placeholder="••••••••"
                                     class="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-12 py-3 text-sm font-semibold focus:outline-hidden focus:ring-4 focus:ring-blue-100 focus:border-blue-400">
                                 <button type="button" onclick="togglePassword()"
@@ -111,13 +109,13 @@
                         <button id="btn-login" type="submit"
                             class="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-2xl py-3.5 font-black shadow-lg shadow-slate-300 transition flex items-center justify-center gap-2">
                             <i data-lucide="log-in" class="w-5 h-5"></i>
-                            Ingresar a PMO Control
+                            Ingresar a ORBITA
                         </button>
                     </form>
                 </section>
 
                 <p class="text-center text-xs text-slate-400 font-bold mt-6">
-                    PMO Control
+                    ORBITA · Plataforma de GAP
                 </p>
             </div>
         </main>
@@ -160,7 +158,7 @@
                 errorBox.textContent = 'No se pudo iniciar sesión. Verifica tu correo y contraseña.';
                 errorBox.classList.remove('hidden');
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="log-in" class="w-5 h-5"></i> Ingresar a PMO Control';
+                btn.innerHTML = '<i data-lucide="log-in" class="w-5 h-5"></i> Ingresar a ORBITA';
                 lucide.createIcons();
                 return;
             }
@@ -176,7 +174,7 @@
                 errorBox.textContent = profileError.message || 'No se pudo cargar tu perfil.';
                 errorBox.classList.remove('hidden');
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="log-in" class="w-5 h-5"></i> Ingresar a PMO Control';
+                btn.innerHTML = '<i data-lucide="log-in" class="w-5 h-5"></i> Ingresar a ORBITA';
                 lucide.createIcons();
             }
         }
@@ -188,6 +186,21 @@
             icon.setAttribute('data-lucide', input.type === 'password' ? 'eye' : 'eye-off');
             lucide.createIcons();
         }
+
+        // Al cambiar manualmente de cuenta, no reutilizar la contraseña previa.
+        // El gestor de contraseñas del navegador puede rellenar el par correcto después.
+        const emailLogin = document.getElementById('email');
+        const passwordLogin = document.getElementById('password');
+        let ultimoCorreo = emailLogin.value;
+        function limpiarPasswordSiCambioCorreo() {
+            const correoActual = emailLogin.value;
+            if (correoActual !== ultimoCorreo) {
+                passwordLogin.value = '';
+                ultimoCorreo = correoActual;
+            }
+        }
+        emailLogin.addEventListener('input', limpiarPasswordSiCambioCorreo);
+        emailLogin.addEventListener('change', limpiarPasswordSiCambioCorreo);
 
         window.onload = () => {
             revisarSesionActiva();

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PMO Control - Buzón de RQM</title>
+  <title>ORBITA - Buzón de RQM</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -85,6 +85,7 @@
     </section>
 
     <section id="rqm-kpis" class="pmo-ytd-panel" aria-label="Resumen del Buzón de RQM"></section>
+    <section id="rqm-conciliacion" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 mt-4" aria-label="Composición y conciliación del Buzón"></section>
 
     <section class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
       <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -500,7 +501,50 @@ async function cargarRegistrosRQM(){
   const {data,error}=await _supabase.from('rqm_control_requerimientos').select('*').order('fecha_asignacion',{ascending:false}).order('created_at',{ascending:false});
   if(error){ console.error(error); alert('No se pudo cargar Buzón de RQM: '+error.message); return; }
   registrosRQM=data||[];
+  await cargarConciliacionPMO();
   renderRegistrosRQM();
+}
+let foliosMatrizConciliacion=[];
+let errorConciliacionPMO='';
+async function cargarConciliacionPMO(){
+  const {data,error}=await _supabase.from('pmo_projects').select('id_req,nombre_rqm,tipo_registro');
+  if(error){errorConciliacionPMO=error.message;foliosMatrizConciliacion=[];}
+  else {errorConciliacionPMO='';foliosMatrizConciliacion=data||[];}
+}
+function datosComposicionRQM(){
+  const arr=registrosRQM;
+  const folioBase=r=>String(r.numero_rqm||'').trim().toUpperCase().match(/^RQM\s*00\s*(\d+)(?:\s*\(E\d+\))?$/);
+  const principales=arr.filter(r=>folioBase(r)&&!(/\(E[2-9]\d*\)/i.test(r.numero_rqm||'')));
+  const etapas=arr.filter(r=>/\(E[2-9]\d*\)/i.test(r.numero_rqm||''));
+  const adendums=arr.filter(r=>/^A\d+\s*RQM/i.test(r.numero_rqm||'')||r.tipo_registro==='ADENDUM');
+  const pendientes=arr.filter(r=>normalizar(r.estatus)==='REGISTRADO');
+  const key=v=>String(v||'').toUpperCase().replace(/\s+/g,'').replace(/\(E\d+\)/g,'');
+  const matrizKeys=new Set(foliosMatrizConciliacion.map(p=>key(p.id_req)));
+  const sinMatriz=arr.filter(r=>normalizar(r.estatus)==='CONVERTIDO A PMO'&&!matrizKeys.has(key(r.numero_rqm)));
+  const buzonKeys=new Set(arr.map(r=>key(r.numero_rqm)));
+  const soloMatriz=foliosMatrizConciliacion.filter(p=>!buzonKeys.has(key(p.id_req)));
+  const nums=new Set(principales.map(r=>Number(folioBase(r)?.[1])).filter(Number.isFinite));
+  const max=Math.max(0,...nums),faltantes=Array.from({length:max},(_,i)=>i+1).filter(n=>!nums.has(n));
+  return {principales,etapas,adendums,pendientes,sinMatriz,soloMatriz,faltantes,total:arr.length};
+}
+let detalleConciliacionActual='';
+function verDetalleConciliacion(tipo){detalleConciliacionActual=detalleConciliacionActual===tipo?'':tipo;renderComposicionRQM();}
+function renderComposicionRQM(){
+  const nodo=document.getElementById('rqm-conciliacion');if(!nodo)return;
+  const d=datosComposicionRQM();
+  const metrics=[['total','Registros totales',d.total],['principales','Folios principales',d.principales.length],['adendums','Adéndums',d.adendums.length],['etapas','Etapas adicionales',d.etapas.length],['pendientes','Pendientes de entrega',d.pendientes.length],['sinMatriz','Convertidos sin Matriz',d.sinMatriz.length],['soloMatriz','Solo en Matriz',d.soloMatriz.length],['faltantes','Folios faltantes',d.faltantes.length]];
+  const tramos=[['Principales',d.principales.length,'#2563eb'],['Adéndums',d.adendums.length,'#8b5cf6'],['Etapas adicionales',d.etapas.length,'#f59e0b']];
+  let detalle=[];
+  if(detalleConciliacionActual==='total')detalle=registrosRQM;
+  else if(detalleConciliacionActual==='soloMatriz')detalle=d.soloMatriz.map(r=>({numero_rqm:r.id_req,proyecto:r.nombre_rqm,estatus:'SOLO EN MATRIZ'}));
+  else if(detalleConciliacionActual==='faltantes')detalle=d.faltantes.map(n=>({numero_rqm:'RQM 00 '+String(n).padStart(2,'0'),proyecto:'Folio sin registro'}));
+  else detalle=d[detalleConciliacionActual]||[];
+  nodo.innerHTML=`<div class="flex flex-wrap justify-between gap-2 items-start"><div><h3 class="text-xl font-black text-slate-900">Composición y conciliación del Buzón</h3><p class="text-xs text-slate-500 mt-1">Conteos de folios y diferencias frente a Matriz PMO. Selecciona una tarjeta para ver los detalles.</p></div><button type="button" onclick="cargarConciliacionPMO().then(renderComposicionRQM)" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-blue-700">Actualizar conciliación</button></div>
+  ${errorConciliacionPMO?`<p class="mt-3 text-sm text-red-700">No fue posible consultar la Matriz: ${esc(errorConciliacionPMO)}. No se pueden validar las diferencias.</p>`:''}
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">${metrics.map(([k,l,n])=>`<button type="button" onclick="verDetalleConciliacion('${k}')" class="rounded-2xl border ${detalleConciliacionActual===k?'border-blue-500 bg-blue-50':'border-slate-200 bg-slate-50/60'} p-3 text-left hover:border-blue-300"><div class="text-2xl font-black text-slate-900">${n}</div><div class="text-xs font-bold text-slate-600 mt-1">${l}</div></button>`).join('')}</div>
+  <div class="mt-5"><h4 class="font-black text-sm text-slate-800 mb-2">Distribución de registros</h4><div class="flex w-full rounded-full overflow-hidden h-5 bg-slate-100" role="img" aria-label="Principales ${d.principales.length}, adéndums ${d.adendums.length}, etapas ${d.etapas.length}">${tramos.filter(x=>x[1]>0).map(x=>`<div title="${x[0]}: ${x[1]}" style="width:${x[1]/Math.max(d.total,1)*100}%;background:${x[2]}"></div>`).join('')}</div><div class="flex flex-wrap gap-4 mt-2 text-xs text-slate-600">${tramos.map(x=>`<span><b style="color:${x[2]}">●</b> ${x[0]}: ${x[1]}</span>`).join('')}</div></div>
+  ${detalleConciliacionActual?`<div class="mt-5 border-t pt-4"><h4 class="font-black text-sm text-slate-800 mb-2">Detalle · ${metrics.find(x=>x[0]===detalleConciliacionActual)?.[1]||''} (${detalle.length})</h4><div class="max-h-64 overflow-y-auto divide-y text-sm">${detalle.length?detalle.map(r=>`<div class="py-2 flex justify-between gap-3"><span><b>${esc(r.numero_rqm||'—')}</b> · ${esc(r.proyecto||'—')}</span><span class="text-slate-500 text-xs">${esc(r.estatus||'')}</span></div>`).join(''):'<p class="py-3 text-slate-500">No hay registros en este grupo.</p>'}</div></div>`:''}
+  <p class="text-xs text-slate-500 mt-4">La conciliación compara folios; no sustituye la validación documental de aprobación. Los folios E1/E2 comparten número base.</p>`;
 }
 function renderKPIs(lista){
   const total=lista.length;
@@ -532,6 +576,7 @@ function renderRegistrosRQM(){
     return (!q || text.includes(q)) && (!sis || normalizar(r.sistema_nombre)===sis);
   });
   renderKPIs(lista);
+  renderComposicionRQM();
   actualizarSiguienteNumeroRQM();
   const tbody=document.getElementById('tabla-rqm-control');
   if(!lista.length){ tbody.innerHTML='<tr><td colspan="8" class="p-8 text-center text-slate-400">Sin registros.</td></tr>'; lucide.createIcons(); return; }
@@ -696,7 +741,7 @@ async function ejecutarConversionRQM(id){
       sistema_id:r.sistema_id||null,
       sistema:r.sistema_nombre||null,
       solicitante:r.solicitado_por||null,
-      estatus:'REGISTRADO',
+      estatus:'BACKLOG',
       prioridad:prioridadCapturada,
       complejidad:complejidadCapturada,
       clasificacion_id:clasificacionId,

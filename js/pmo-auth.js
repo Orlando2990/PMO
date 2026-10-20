@@ -9,19 +9,19 @@
   const PAGE_MODULE = {
     'self_service.html':'selfservice','index.html':'matriz','solicitudes_rqm.html':'rqm',
     'importar_matriz.html':'importar','index_dashboard_ejecutivo.html':'dashboard',
-    'seguimiento_ejecutivo.html':'seguimiento','portafolio_productos.html':'dashboard','admin_catalogos.html':'catalogos','usuarios.html':'usuarios'
+    'seguimiento_ejecutivo.html':'seguimiento','portafolio_productos.html':'portafolio','dashboard_portafolio_productos.html':'dashboard_productos','plataforma_proyectos_mockup.html':'proyectos','centro_avisos_mockup.html':'avisos','admin_catalogos.html':'catalogos','usuarios.html':'usuarios'
   };
   const MODULE_ROUTE = {
     selfservice:'self_service.html', matriz:'index.html', rqm:'solicitudes_rqm.html',
     dashboard:'index_dashboard_ejecutivo.html', seguimiento:'seguimiento_ejecutivo.html',
-    importar:'importar_matriz.html', catalogos:'admin_catalogos.html', usuarios:'usuarios.html'
+    importar:'importar_matriz.html', catalogos:'admin_catalogos.html', usuarios:'usuarios.html', proyectos:'plataforma_proyectos_mockup.html', portafolio:'portafolio_productos.html',dashboard_productos:'dashboard_portafolio_productos.html',avisos:'centro_avisos_mockup.html'
   };
-  const MODULE_ORDER=['rqm','matriz','selfservice','dashboard','seguimiento','importar','catalogos','usuarios'];
+  const MODULE_ORDER=['rqm','matriz','selfservice','dashboard','seguimiento','importar','catalogos','usuarios','proyectos','portafolio','dashboard_productos','avisos'];
   const ROLE_DEFAULTS = {
-    usuario:{selfservice:'manage'},
-    pmo:{selfservice:'manage',matriz:'manage',rqm:'manage',dashboard:'read',seguimiento:'manage',catalogos:'read'},
-    direccion:{selfservice:'manage',matriz:'read',rqm:'read',dashboard:'read',seguimiento:'read'},
-    administrador:{selfservice:'manage',matriz:'manage',rqm:'manage',dashboard:'manage',seguimiento:'manage',importar:'manage',catalogos:'manage',usuarios:'manage'}
+    usuario:{selfservice:'manage',avisos:'read'},
+    pmo:{selfservice:'manage',matriz:'manage',rqm:'manage',dashboard:'read',seguimiento:'manage',catalogos:'read',proyectos:'manage',portafolio:'manage',dashboard_productos:'read',avisos:'manage'},
+    direccion:{selfservice:'manage',matriz:'read',rqm:'read',dashboard:'read',seguimiento:'read',proyectos:'read',portafolio:'read',dashboard_productos:'read',avisos:'read'},
+    administrador:{selfservice:'manage',matriz:'manage',rqm:'manage',dashboard:'manage',seguimiento:'manage',importar:'manage',catalogos:'manage',usuarios:'manage',proyectos:'manage',portafolio:'manage',dashboard_productos:'manage',avisos:'manage'}
   };
 
   let currentUser=null, currentProfile=null, currentPermissions={}, guardPromise=null;
@@ -44,8 +44,8 @@
 
   async function loadProfile(user){
     if(!client||!user)return null;
-    const {data,error}=await client.from('pmo_user_profiles').select('user_id,nombre,correo,rol,area_id,activo').eq('user_id',user.id).maybeSingle();
-    if(error)throw error;return data||null;
+    const {data,error}=await client.from('pmo_user_profiles').select('user_id,nombre,correo,rol,rol_base_codigo,area_id,activo').eq('user_id',user.id).maybeSingle();
+    if(error)throw error;if(data?.rol_base_codigo){const {data:info}=await client.from('orbita_roles_base').select('nombre').eq('codigo',data.rol_base_codigo).maybeSingle();if(info?.nombre)data.rol_nombre=info.nombre;}return data||null;
   }
   async function loadPermissions(user,profile){
     const fallback=defaultsForRole(profile?.rol);
@@ -74,7 +74,7 @@
 
     document.body.innerHTML=`<main aria-label="Acceso no disponible" style="position:fixed;inset:0;width:100vw;height:100dvh;display:flex;align-items:center;justify-content:center;background:#f8fafc;font-family:Arial,sans-serif;padding:24px;box-sizing:border-box;z-index:2147483647"><section style="width:min(100%,540px);margin:0;background:white;border:1px solid #e2e8f0;border-radius:24px;padding:32px;box-shadow:0 20px 45px rgba(15,23,42,.12);text-align:center"><div style="font-size:42px">🔐</div><h1 style="color:#0f172a;margin:16px 0 8px;font-size:22px;line-height:1.2">Acceso no disponible</h1><p style="color:#64748b;line-height:1.6;margin:0">${message}</p><div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:20px">${showHome&&home!=='login.html'?`<button onclick="location.href='${home}'" style="margin:0;background:#2563eb;color:white;border:0;border-radius:12px;padding:12px 18px;font-weight:800;cursor:pointer">Ir a mi inicio</button>`:''}<button onclick="PMOAuth.signOut()" style="margin:0;background:#0f172a;color:white;border:0;border-radius:12px;padding:12px 18px;font-weight:800;cursor:pointer">Cerrar sesión</button></div></section></main>`;
   }
-  function paintIdentity(){const p=currentProfile||cachedProfile();document.getElementById('usuario-sesion')&&(document.getElementById('usuario-sesion').textContent=p?.nombre||p?.correo||currentUser?.email||'Usuario');document.getElementById('rol-sesion')&&(document.getElementById('rol-sesion').textContent=roleLabel(p?.rol))}
+  function paintIdentity(){const p=currentProfile||cachedProfile();document.getElementById('usuario-sesion')&&(document.getElementById('usuario-sesion').textContent=p?.nombre||p?.correo||currentUser?.email||'Usuario');document.getElementById('rol-sesion')&&(document.getElementById('rol-sesion').textContent=(p?.rol_nombre||roleLabel(p?.rol)))}
 
   const WRITE_WORDS=/guardar|crear|nuevo|editar|eliminar|borrar|convertir|aprobar|rechazar|ajuste|actualizarEstatus|importarMatriz|reprogramar|limpiarHistorial/i;
   const SAFE_WORDS=/export|descargar|pdf|copiar|ver|detalle|comentario|filtrar|buscar|actualizar\(\)|cargar|toggle|cerrar|scroll/i;
@@ -84,7 +84,9 @@
     const onclick=el.getAttribute?.('onclick')||'';
     if(onclick&&SAFE_WORDS.test(onclick))return false;
     if(onclick&&WRITE_WORDS.test(onclick))return true;
-    if(el.type==='submit')return true;
+    // Un botón fuera de un formulario no envía datos, aunque su tipo HTML implícito sea 'submit'.
+    // No ocultar controles de lectura (tarjetas de avisos, filtros, paginación).
+    if(el.type==='submit' && el.form)return true;
     return false;
   }
   function enforceReadOnly(moduleCode=moduleForPage()){

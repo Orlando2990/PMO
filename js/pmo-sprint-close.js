@@ -356,16 +356,17 @@
     const system=selectedSystem();
     const sprint=(cats?.sprints||[]).find(s=>String(s.id)===String(closure.sprint_id));
     if(!system||!sprint) return;
-    const snapshot=liveSnapshot(sprint,system);
+    // La fotografía histórica es inmutable en un recierre administrativo.
+    // Los requerimientos arrastrados a otro Sprint no deben desaparecer del cierre original.
     const ok=await askSprintAction({
       title:`Cerrar nuevamente ${closure.sprint_nombre} ${closure.anio}`,
-      message:'Se actualizará la fotografía con el estado actual del Sprint reabierto.',
+      message:'Se cerrará nuevamente el Sprint conservando exactamente su fotografía histórica. No se recalculará con los requerimientos actuales.',
       confirmText:'Cerrar nuevamente',
       tone:'blue'
     });
     if(!ok) return;
     const {error}=await _supabase.from('pmo_sprint_cierres').update({
-      snapshot, reabierto:false, cerrado_en:new Date().toISOString(), cerrado_por_email:currentEmail()||null,
+      reabierto:false, cerrado_por_email:currentEmail()||null,
       reabierto_en:null, reabierto_por_email:null
     }).eq('id',id);
     if(error){ alert('No fue posible cerrar nuevamente el Sprint: '+error.message); return; }

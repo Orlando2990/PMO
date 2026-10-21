@@ -84,7 +84,7 @@
   window.PMOAlert=function(message,options={}){
     ensureAlert();
     const dialog=document.getElementById('pmo-alert-dialog');
-    document.getElementById('pmo-alert-title').textContent=options.title||'Operación completada';
+    document.getElementById('pmo-alert-title').textContent=options.title||(options.type==='error'?'No se pudo completar la operación':options.type==='info'?'Información':'Operación completada');
     document.getElementById('pmo-alert-message').textContent=message||'';
     const icon=document.getElementById('pmo-alert-icon');
     const type=options.type||'success';

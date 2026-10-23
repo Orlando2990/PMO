@@ -3275,7 +3275,8 @@ let todosLosProyectos = [];
             // En "Portafolio general" la dona conserva la vista global respecto al Sprint,
             // pero debe respetar los filtros maestros de Estatus y Sistema del encabezado.
             const estatus = document.getElementById('seguimiento-filtro-estatus')?.value || '';
-            const sistema = document.getElementById('seguimiento-filtro-sistema')?.value || '';
+            // Filtro independiente: la dona histórica no depende del sistema del sprint.
+            const sistema = document.getElementById('seguimiento-sistema-portafolio')?.value || '';
 
             return (todosLosProyectos || []).filter(p => {
                 const okEstatus = !estatus || normalizarTexto(p.estatus || 'BACKLOG') === estatus;
@@ -3291,7 +3292,7 @@ let todosLosProyectos = [];
                 const sprint = obtenerNombreSprintSeleccionado();
                 if (titulo) titulo.textContent = `Distribución del Sprint - ${sprint}`;
             } else if (titulo) {
-                titulo.textContent = 'Distribución general del portafolio';
+                titulo.textContent = 'Distribución general del portafolio · ' + (document.getElementById('seguimiento-sistema-portafolio')?.selectedOptions?.[0]?.textContent || 'Todos los sistemas');
             }
         }
 
@@ -3837,6 +3838,15 @@ let todosLosProyectos = [];
             if (sistema) {
                 sistema.innerHTML = '<option class="text-slate-800" value="">Todos los sistemas</option>' +
                     (cats.sistemas || []).map(s => `<option class="text-slate-800" value="${s.id}">${escaparHtmlPMO(s.nombre)}</option>`).join('');
+            }
+            const sistemaPortafolio = document.getElementById('seguimiento-sistema-portafolio');
+            if (sistemaPortafolio) {
+                const anterior = sistemaPortafolio.value;
+                sistemaPortafolio.innerHTML = '<option value="">Todos los sistemas</option>' +
+                    (cats.sistemas || []).map(s => `<option value="${s.id}">${escaparHtmlPMO(s.nombre)}</option>`).join('');
+                // Génesis es el alcance preferido del portafolio semanal; no limita el sprint.
+                const genesis = (cats.sistemas || []).find(s => normalizarTexto(s.nombre) === 'GENESIS');
+                sistemaPortafolio.value = anterior || genesis?.id || '';
             }
         }
 

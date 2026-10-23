@@ -85,7 +85,16 @@
     </section>
 
     <section id="rqm-kpis" class="pmo-ytd-panel" aria-label="Resumen del Buzón de RQM"></section>
-    <section id="rqm-conciliacion" hidden class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 mt-4" aria-label="Composición y conciliación del Buzón"></section>
+    <div id="rqm-conciliacion-modal" hidden style="display:none" class="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6" role="presentation" onclick="if(event.target===this)cerrarComposicionBuzon()">
+      <div class="absolute inset-0 bg-slate-950/65 backdrop-blur-sm" aria-hidden="true"></div>
+      <section role="dialog" aria-modal="true" aria-labelledby="titulo-conciliacion-buzon" tabindex="-1" class="relative w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-[28px] bg-white shadow-2xl border border-slate-200 flex flex-col">
+        <div class="flex items-center justify-between gap-4 px-5 sm:px-7 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-blue-50/70">
+          <div class="flex items-center gap-3 min-w-0"><span class="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200"><i data-lucide="layers-3" class="w-5 h-5"></i></span><div class="min-w-0"><h3 id="titulo-conciliacion-buzon" class="text-lg sm:text-xl font-black text-slate-900">Composición y conciliación del Buzón</h3></div></div>
+          <button type="button" onclick="cerrarComposicionBuzon()" aria-label="Cerrar composición del Buzón" class="shrink-0 w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 flex items-center justify-center"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div id="rqm-conciliacion" class="overflow-y-auto overscroll-contain px-5 sm:px-7 py-5" aria-label="Composición y conciliación del Buzón"></div>
+      </section>
+    </div>
 
     <section class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
       <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -99,7 +108,7 @@
         <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto">
           <input id="filtro-buscar-rqm" oninput="renderRegistrosRQM()" class="border border-slate-200 rounded-xl px-4 py-2 text-sm" placeholder="Buscar proyecto, RQM o solicitante...">
           <select id="filtro-sistema-rqm" onchange="renderRegistrosRQM();" class="border border-slate-200 rounded-xl px-4 py-2 text-sm"><option value="">Todos los sistemas</option></select>
-          <button type="button" id="btn-composicion-buzon" aria-expanded="false" aria-controls="rqm-conciliacion" onclick="alternarComposicionBuzon()" class="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl px-4 py-2 text-sm font-bold whitespace-nowrap">Composición del Buzón</button>
+          <button type="button" id="btn-composicion-buzon" aria-haspopup="dialog" aria-expanded="false" aria-controls="rqm-conciliacion-modal" onclick="alternarComposicionBuzon()" class="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl px-4 py-2 text-sm font-bold whitespace-nowrap">Composición del Buzón</button>
         </div>
       </div>
 
@@ -544,15 +553,42 @@ function datosComposicionRQM(){
 }
 let detalleConciliacionActual='';
 function verDetalleConciliacion(tipo){detalleConciliacionActual=detalleConciliacionActual===tipo?'':tipo;renderComposicionRQM();}
+let focoAnteriorComposicion=null;
 function alternarComposicionBuzon(){
-  const panel=document.getElementById('rqm-conciliacion');
+  const modal=document.getElementById('rqm-conciliacion-modal');
   const boton=document.getElementById('btn-composicion-buzon');
-  if(!panel||!boton)return;
-  const mostrar=panel.hidden;
-  panel.hidden=!mostrar;
-  boton.setAttribute('aria-expanded',String(mostrar));
-  if(mostrar){renderComposicionRQM();panel.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  if(!modal||!boton)return;
+  if(!modal.hidden){cerrarComposicionBuzon();return;}
+  focoAnteriorComposicion=document.activeElement;
+  modal.hidden=false;
+  modal.style.display='flex';
+  document.body.style.overflow='hidden';
+  boton.setAttribute('aria-expanded','true');
+  detalleConciliacionActual='';
+  renderComposicionRQM();
+  modal.querySelector('[aria-label="Cerrar composición del Buzón"]')?.focus();
 }
+function cerrarComposicionBuzon(){
+  const modal=document.getElementById('rqm-conciliacion-modal');
+  if(!modal||modal.hidden)return;
+  modal.hidden=true;
+  modal.style.display='none';
+  document.body.style.overflow='';
+  document.getElementById('btn-composicion-buzon')?.setAttribute('aria-expanded','false');
+  (focoAnteriorComposicion||document.getElementById('btn-composicion-buzon'))?.focus();
+}
+document.addEventListener('keydown',event=>{
+  const modal=document.getElementById('rqm-conciliacion-modal');
+  if(!modal||modal.hidden)return;
+  if(event.key==='Escape'){event.preventDefault();cerrarComposicionBuzon();}
+  if(event.key==='Tab'){
+    const focos=Array.from(modal.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex="0"]')).filter(el=>el.getClientRects().length);
+    if(!focos.length)return;
+    const primero=focos[0],ultimo=focos[focos.length-1];
+    if(event.shiftKey&&document.activeElement===primero){event.preventDefault();ultimo.focus();}
+    else if(!event.shiftKey&&document.activeElement===ultimo){event.preventDefault();primero.focus();}
+  }
+});
 function renderComposicionRQM(){
   const nodo=document.getElementById('rqm-conciliacion');if(!nodo)return;
   const d=datosComposicionRQM();
@@ -563,12 +599,12 @@ function renderComposicionRQM(){
   else if(detalleConciliacionActual==='soloMatriz')detalle=d.soloMatriz.map(r=>({numero_rqm:r.id_req,proyecto:r.nombre_rqm,estatus:'SOLO EN MATRIZ'}));
   else if(detalleConciliacionActual==='faltantes')detalle=d.faltantes.map(n=>({numero_rqm:'RQM 00 '+String(n).padStart(2,'0'),proyecto:'Folio sin registro'}));
   else detalle=d[detalleConciliacionActual]||[];
-  nodo.innerHTML=`<div class="flex flex-wrap justify-between gap-2 items-start"><div><h3 class="text-xl font-black text-slate-900">Composición y conciliación del Buzón</h3><p class="text-xs text-slate-500 mt-1">Conteos de folios y diferencias frente a Matriz PMO. Selecciona una tarjeta para ver los detalles.</p></div><button type="button" onclick="cargarConciliacionPMO().then(renderComposicionRQM)" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-blue-700">Actualizar conciliación</button></div>
+  nodo.innerHTML=`<div class="flex flex-wrap justify-between gap-3 items-center"><p class="text-sm text-slate-500"></p><button type="button" onclick="cargarConciliacionPMO().then(renderComposicionRQM)" class="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100"><span>↻</span> Actualizar conciliación</button></div>
   ${errorConciliacionPMO?`<p class="mt-3 text-sm text-red-700">No fue posible consultar la Matriz: ${esc(errorConciliacionPMO)}. No se pueden validar las diferencias.</p>`:''}
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">${metrics.map(([k,l,n])=>`<button type="button" onclick="verDetalleConciliacion('${k}')" class="rounded-2xl border ${detalleConciliacionActual===k?'border-blue-500 bg-blue-50':'border-slate-200 bg-slate-50/60'} p-3 text-left hover:border-blue-300"><div class="text-2xl font-black text-slate-900">${n}</div><div class="text-xs font-bold text-slate-600 mt-1">${l}</div></button>`).join('')}</div>
   <div class="mt-5"><h4 class="font-black text-sm text-slate-800 mb-2">Distribución de registros</h4><div class="flex w-full rounded-full overflow-hidden h-5 bg-slate-100" role="img" aria-label="Principales ${d.principales.length}, adéndums ${d.adendums.length}, etapas ${d.etapas.length}">${tramos.filter(x=>x[1]>0).map(x=>`<div title="${x[0]}: ${x[1]}" style="width:${x[1]/Math.max(d.total,1)*100}%;background:${x[2]}"></div>`).join('')}</div><div class="flex flex-wrap gap-4 mt-2 text-xs text-slate-600">${tramos.map(x=>`<span><b style="color:${x[2]}">●</b> ${x[0]}: ${x[1]}</span>`).join('')}</div></div>
   ${detalleConciliacionActual?`<div class="mt-5 border-t pt-4"><h4 class="font-black text-sm text-slate-800 mb-2">Detalle · ${metrics.find(x=>x[0]===detalleConciliacionActual)?.[1]||''} (${detalle.length})</h4><div class="max-h-64 overflow-y-auto divide-y text-sm">${detalle.length?detalle.map(r=>`<div class="py-2 flex justify-between gap-3"><span><b>${esc(r.numero_rqm||'—')}</b> · ${esc(r.proyecto||'—')}</span><span class="text-slate-500 text-xs">${esc(r.estatus||'')}</span></div>`).join(''):'<p class="py-3 text-slate-500">No hay registros en este grupo.</p>'}</div></div>`:''}
-  <p class="text-xs text-slate-500 mt-4">La conciliación compara folios; no sustituye la validación documental de aprobación. Los folios E1/E2 comparten número base.</p>`;
+  `;
 }
 function renderKPIs(lista){
   const total=lista.length;

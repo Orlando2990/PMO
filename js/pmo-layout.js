@@ -3,7 +3,7 @@
     const MODULES = {
         matriz: { title:'Matriz de requerimientos', subtitle:'Gestión operativa del portafolio', icon:'layers-3', active:'matriz', hideTopAccount:true },
         avisos: { title:'Centro de Avisos', subtitle:'Comunicados y novedades de GAP', icon:'bell', active:'avisos', hideTopAccount:true },
-        proyectos: { title:'Plataforma de Proyectos', subtitle:'Iniciativas, JIRA y seguimiento transversal', icon:'briefcase-business', active:'proyectos', hideTopAccount:true },
+        proyectos: { title:'Plataforma de Proyectos', subtitle:'Iniciativas y JIRA', icon:'briefcase-business', active:'proyectos', hideTopAccount:true },
         dashboard: { title:'Dashboard ejecutivo', subtitle:'Indicadores y salud del portafolio', icon:'layout-dashboard', active:'dashboard', hideTopAccount:true },
         seguimiento: { title:'Seguimiento ejecutivo', subtitle:'Roadmap, avances y reportes', icon:'route', active:'seguimiento', hideTopAccount:true },
         portafolio: { title:'Portafolio de productos', subtitle:'Seguimiento ejecutivo por sistema y producto', icon:'boxes', active:'portafolio', hideTopAccount:true },

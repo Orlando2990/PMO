@@ -85,7 +85,7 @@
     </section>
 
     <section id="rqm-kpis" class="pmo-ytd-panel" aria-label="Resumen del Buzón de RQM"></section>
-    <section id="rqm-conciliacion" class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 mt-4" aria-label="Composición y conciliación del Buzón"></section>
+    <section id="rqm-conciliacion" hidden class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 mt-4" aria-label="Composición y conciliación del Buzón"></section>
 
     <section class="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-4">
       <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -96,9 +96,10 @@
             <span>Siguiente número de requerimiento disponible: calculando...</span>
           </div>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full xl:w-auto">
+        <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto">
           <input id="filtro-buscar-rqm" oninput="renderRegistrosRQM()" class="border border-slate-200 rounded-xl px-4 py-2 text-sm" placeholder="Buscar proyecto, RQM o solicitante...">
           <select id="filtro-sistema-rqm" onchange="renderRegistrosRQM();" class="border border-slate-200 rounded-xl px-4 py-2 text-sm"><option value="">Todos los sistemas</option></select>
+          <button type="button" id="btn-composicion-buzon" aria-expanded="false" aria-controls="rqm-conciliacion" onclick="alternarComposicionBuzon()" class="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl px-4 py-2 text-sm font-bold whitespace-nowrap">Composición del Buzón</button>
         </div>
       </div>
 
@@ -529,6 +530,15 @@ function datosComposicionRQM(){
 }
 let detalleConciliacionActual='';
 function verDetalleConciliacion(tipo){detalleConciliacionActual=detalleConciliacionActual===tipo?'':tipo;renderComposicionRQM();}
+function alternarComposicionBuzon(){
+  const panel=document.getElementById('rqm-conciliacion');
+  const boton=document.getElementById('btn-composicion-buzon');
+  if(!panel||!boton)return;
+  const mostrar=panel.hidden;
+  panel.hidden=!mostrar;
+  boton.setAttribute('aria-expanded',String(mostrar));
+  if(mostrar){renderComposicionRQM();panel.scrollIntoView({behavior:'smooth',block:'nearest'});}
+}
 function renderComposicionRQM(){
   const nodo=document.getElementById('rqm-conciliacion');if(!nodo)return;
   const d=datosComposicionRQM();

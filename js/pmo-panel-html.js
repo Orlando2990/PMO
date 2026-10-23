@@ -16,8 +16,14 @@ function renderizarPanelRequerimientos() {
         <!-- Indicadores ejecutivos -->
         <section id="contenedor-contadores" class="pmo-ytd-panel" aria-label="Resumen de la matriz"></section>
 
+        <!-- Selector de vistas Matriz / Kanban -->
+        <div class="orbita-view-switch" role="group" aria-label="Vista de requerimientos">
+            <button type="button" id="orbita-view-matriz" class="orbita-view-btn active" onclick="cambiarVistaOrbita('matriz')" aria-pressed="true"><i data-lucide="list"></i> Matriz</button>
+            <button type="button" id="orbita-view-kanban" class="orbita-view-btn" onclick="cambiarVistaOrbita('kanban')" aria-pressed="false"><i data-lucide="columns-3"></i> Tablero Kanban</button>
+        </div>
+        <section id="orbita-kanban-panel" class="orbita-kanban-panel" hidden aria-label="Tablero Kanban"></section>
         <!-- Tabla Principal -->
-        <section class="pmo-panel-table bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
+        <section id="orbita-matriz-table" class="pmo-panel-table bg-white rounded-2xl border border-slate-100 shadow-xs overflow-hidden">
             <div
                 class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-slate-50/50">
                 <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center w-full">

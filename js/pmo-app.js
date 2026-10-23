@@ -707,6 +707,7 @@ let todosLosProyectos = [];
                 ajustesAdministrativosGlobal = ajustesAdministrativos;
 
                 renderizarTabla(todosLosProyectos, conteoCambiosGlobal);
+                if (typeof window.orbitaRenderKanban === "function") window.orbitaRenderKanban(todosLosProyectos);
                 renderizarContadoresDinamicos(todosLosProyectos);
                 if (document.getElementById('filtro-sistema-dashboard')) {
                     filtrarDashboardPorSistema();
@@ -2711,6 +2712,7 @@ let todosLosProyectos = [];
             });
 
             renderizarTabla(filtrados, conteoCambiosGlobal);
+            if (typeof window.orbitaRenderKanban === "function") window.orbitaRenderKanban(filtrados);
             renderizarContadoresDinamicos(filtrados);
             renderizarDashboardEjecutivo(filtrados);
         }

@@ -102,7 +102,48 @@
       .self-form-actions{justify-content:stretch}
       .self-form-actions button{width:100%}
     }
-</style>
+
+    /* Órbita 3.3.38: seguimiento de requerimientos, diseño más legible y adaptable */
+    .roadmap-hero{gap:28px;min-height:166px;padding:26px 28px;border-radius:22px;background:linear-gradient(115deg,#07172e 0%,#102a54 72%,#173969 100%)}
+    .roadmap-hero-content{min-width:0;flex:1}
+    .roadmap-kicker{display:block;margin-bottom:8px;font-size:10px;letter-spacing:.13em;color:#9bd9f7;font-weight:850}
+    .roadmap-hero h4{font-size:20px;line-height:1.35;margin:0;overflow-wrap:anywhere}
+    .roadmap-hero p{font-size:13px;line-height:1.5;margin-top:9px}
+    .roadmap-percent{flex:0 0 116px;width:116px;height:116px;min-width:116px;border:1px solid rgba(255,255,255,.25);border-radius:50%;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 7px rgba(255,255,255,.035)}
+    .roadmap-percent-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:0;text-align:center}
+    .roadmap-percent strong{display:block;font-size:31px;line-height:1.05;letter-spacing:-.03em;font-weight:900;color:#fff}
+    .roadmap-percent span{display:block;font-size:11px;line-height:1.3;color:#dbeafe}
+    .roadmap-progress{height:9px;margin:19px 0 20px}
+    .roadmap-current{gap:11px}
+    .roadmap-current>div{padding:15px 16px;border-radius:15px;background:#f8fafc}
+    .roadmap-timeline{gap:10px;margin:29px 0 5px}
+    .roadmap-step{min-width:0;padding:0 2px}
+    .roadmap-step:not(:last-child):after{top:22px;left:calc(50% + 27px);width:calc(100% - 44px);height:3px}
+    .roadmap-dot{width:46px;height:46px;border:4px solid #fff;font-size:15px;box-shadow:0 0 0 1px #e2e8f0}
+    .roadmap-step.current .roadmap-dot{box-shadow:0 0 0 5px #dbeafe}
+    .roadmap-step-copy strong{font-size:10px;letter-spacing:.01em;margin-top:13px;overflow-wrap:anywhere}
+    .roadmap-step-copy span{font-size:10px;margin-top:5px;color:#94a3b8}
+    .roadmap-step.current .roadmap-step-copy span{color:#2563eb;font-weight:800}
+    .roadmap-step-copy small{font-size:10px;line-height:1.4;color:#64748b;margin-top:5px;overflow-wrap:anywhere}
+    @media(max-width:800px){
+      .roadmap-hero{gap:16px;padding:20px;min-height:0}
+      .roadmap-hero h4{font-size:17px}
+      .roadmap-percent{width:94px;height:94px;min-width:94px;flex-basis:94px;padding:8px}
+      .roadmap-percent strong{font-size:26px}
+      .roadmap-current{grid-template-columns:1fr}
+      .roadmap-timeline{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}
+      .roadmap-step{display:flex;align-items:center;text-align:left;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:13px;background:#fff}
+      .roadmap-step:not(:last-child):after{display:none}
+      .roadmap-dot{width:40px;height:40px;min-width:40px;margin:0;font-size:13px}
+      .roadmap-step-copy strong{margin-top:0}
+    }
+    @media(max-width:480px){
+      .roadmap-hero{flex-direction:column-reverse;align-items:stretch}
+      .roadmap-percent{align-self:flex-start;width:88px;height:88px;min-width:88px;flex-basis:auto}
+      .roadmap-timeline{grid-template-columns:1fr}
+    }
+
+  </style>
 </head>
 <body class="bg-slate-50/70 text-slate-800 antialiased">
   <div id="pmo-app-header" data-pmo-module="selfservice"></div>

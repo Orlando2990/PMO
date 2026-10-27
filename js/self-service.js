@@ -937,19 +937,26 @@ async function verAvanceSolicitud(idx){
     if(!p){ document.getElementById('modal-ss-body').innerHTML='<div class="roadmap-empty">El Administrador ya aprobó la solicitud. El seguimiento estará disponible cuando el proyecto termine de registrarse en la Matriz.</div>'; return; }
     const fases=['BACKLOG','ANÁLISIS','DESARROLLO','QA','UAT','LIBERADO'];
     const actual=faseActualProyecto(p), pos=fases.indexOf(actual), porcentaje=Math.max(0,Math.round((pos/(fases.length-1))*100));
+    // Fechas de avance: solo hitos reales de etapas ya alcanzadas.
+    // No usar fecha_ingreso_pmo como fecha de ANÁLISIS ni compromisos como fechas reales.
     const fechas={
       'BACKLOG':p.fecha_ingreso_pmo,
-      'ANÁLISIS':p.fecha_ingreso_pmo,
-      'DESARROLLO':p.fecha_fin_desarrollo||p.fecha_desarrollo,
-      'QA':p.fecha_fin_qa||p.fecha_qa,
-      'UAT':p.fecha_fin_uat||p.fecha_uat,
+      'ANÁLISIS':null, // No existe una fecha específica de análisis en la Matriz.
+      'DESARROLLO':p.fecha_fin_desarrollo,
+      'QA':p.fecha_fin_qa,
+      'UAT':p.fecha_fin_uat,
       'LIBERADO':p.fecha_liberacion_prod||p.fecha_liberacion
     };
-    const steps=fases.map((f,i)=>`<div class="roadmap-step ${i<pos?'done':i===pos?'current':'pending'}">
-      <div class="roadmap-dot">${i<pos?'<i data-lucide="check" class="w-4 h-4"></i>':i+1}</div>
-      <div class="roadmap-step-copy"><strong>${f}</strong><span>${i<pos?'Etapa concluida':i===pos?'Etapa actual':'Pendiente'}</span>${fechas[f]?`<small>Fecha: ${fmtFecha(fechas[f])}</small>`:''}</div>
-    </div>`).join('');
-    document.getElementById('modal-ss-body').innerHTML=`<div class="roadmap-hero"><div><h4>${esc(p.nombre_rqm||r.proyecto||'Requerimiento')}</h4><p>Tu solicitud ya forma parte de la Matriz de Requerimientos.</p></div><div class="roadmap-percent"><strong>${porcentaje}%</strong><span>avance</span></div></div>
+    const steps=fases.map((f,i)=>{
+      const estado=i<pos?'done':i===pos?'current':'pending';
+      const fechaReal=i<=pos && fechas[f] ? fechas[f] : null;
+      const etiquetaFecha=f==='BACKLOG'?'Ingreso':f==='LIBERADO'?'Liberación':'Fin de etapa';
+      return `<div class="roadmap-step ${estado}">
+        <div class="roadmap-dot">${i<pos?'<i data-lucide="check" class="w-4 h-4"></i>':i+1}</div>
+        <div class="roadmap-step-copy"><strong>${f}</strong><span>${i<pos?'Completada':i===pos?'Etapa actual':'Pendiente'}</span>${fechaReal?`<small>${etiquetaFecha}: ${fmtFecha(fechaReal)}</small>`:''}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('modal-ss-body').innerHTML=`<div class="roadmap-hero"><div class="roadmap-hero-content"><span class="roadmap-kicker">Seguimiento de solicitud</span><h4>${esc(p.nombre_rqm||r.proyecto||'Requerimiento')}</h4><p>Tu solicitud ya forma parte de la Matriz de Requerimientos.</p></div><div class="roadmap-percent" aria-label="${porcentaje}% de avance"><div class="roadmap-percent-inner"><strong>${porcentaje}%</strong><span>avance</span></div></div></div>
       <div class="roadmap-progress"><span style="width:${porcentaje}%"></span></div>
       <div class="roadmap-current"><div><span>Etapa actual</span><strong>${actual}</strong></div><div><span>Estatus</span><strong>${esc(p.estatus||'Registrado')}</strong></div><div><span>Última actualización</span><strong>${fmtFecha((p.updated_at||p.created_at||'').slice(0,10))}</strong></div></div>
       <div class="roadmap-timeline">${steps}</div>
